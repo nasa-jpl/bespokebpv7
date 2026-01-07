@@ -1,0 +1,18 @@
+[project]
+name = "bespokebpv7"
+version = "0.1.0"
+description = "Generate whatever format of BPv7 bundles"
+readme = "README.md"
+requires-python = ">=3.12.11"
+dependencies = [
+    "cbor2>=5.8.0",
+    "dpkt>=1.9.8",
+    "fastcrc>=0.3.5",
+]
+
+[dependency-groups]
+dev = [
+    "bandit>=1.9.2",
+    "mypy>=1.19.1",
+    "ruff>=0.14.10",
+]
