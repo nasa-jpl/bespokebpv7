@@ -243,9 +243,9 @@ class PrimaryBlock(BaseBlock):
             "version",
             "_flags",
             "_crc_type",
-            "_dest_eid",
-            "_source_eid",
-            "_report_to_eid",
+            "dest_eid",
+            "source_eid",
+            "report_to_eid",
             "creation",
             "lifetime",
             "fragment_offset",
@@ -276,9 +276,9 @@ class PrimaryBlock(BaseBlock):
         """
         serial_data = []
         mapping = {
-            "dest": lambda: parse_eid_string(self.route.dest_eid),
-            "source": lambda: parse_eid_string(self.route.source_eid),
-            "report_to": lambda: parse_eid_string(self.route.report_to),
+            "dest_eid": lambda: parse_eid_string(self.route.dest_eid),
+            "source_eid": lambda: parse_eid_string(self.route.source_eid),
+            "report_to_eid": lambda: parse_eid_string(self.route.report_to),
             "creation": lambda: [self.life.timestamp_ms, self.life.sequence],
             "lifetime": lambda: self.life.lifetime,
             "fragment_offset": lambda: self.fragmentation.fragment_offset,
