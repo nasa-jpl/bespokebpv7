@@ -88,7 +88,7 @@ class BundleLife:
 
     timestamp_ms: int = 0
     sequence: int = 0
-    lifetime: int = 86400  # 1 day
+    lifetime: int = 86400000  # 1 day
 
     @property
     def creation_dt(self) -> datetime.datetime:
