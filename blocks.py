@@ -234,9 +234,11 @@ class PrimaryBlock(BaseBlock):
     is_fragment = flag_property(BundleFlags.IS_FRAGMENT)
     adu_is_admin = flag_property(BundleFlags.ADU_IS_ADMIN_RECORD)
     no_fragment = flag_property(BundleFlags.DO_NOT_FRAGMENT)
-    recv_report = flag_property(BundleFlags.STATUS_REPORT_RECV)
-    fwd_report = flag_property(BundleFlags.STATUS_REPORT_FWD)
+    ack_requested = flag_property(BundleFlags.ACK_REQUESTED)
+    status_time = flag_property(BundleFlags.STATUS_TIME)
     deliv_report = flag_property(BundleFlags.STATUS_REPORT_DELIV)
+    fwd_report = flag_property(BundleFlags.STATUS_REPORT_FWD)
+    recv_report = flag_property(BundleFlags.STATUS_REPORT_RECV)
     del_report = flag_property(BundleFlags.STATUS_REPORT_DEL)
     serial_fields: list[str] = field(
         default_factory=lambda: [
