@@ -50,6 +50,7 @@ from blocks import (
     CanonicalBlock,
     ExtensionBlocks,
     PayloadBlock,
+    PrimaryBlock,
     list_to_canonical,
     list_to_payload,
     list_to_prime,
@@ -65,7 +66,7 @@ class BPv7(dpkt.Packet):
 
     def __init__(self, *args, debug=False, **kwargs):
         self.debug = debug
-        self.primary_block = None
+        self.primary_block = PrimaryBlock()
         self.blocks = ExtensionBlocks()
         super().__init__(*args, **kwargs)
 
