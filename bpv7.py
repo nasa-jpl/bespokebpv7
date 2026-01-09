@@ -115,14 +115,21 @@ class BPv7(dpkt.Packet):
         return b"\x9f" + body + b"\xff"
 
     def add_canonical_block(
-        self, type_code: BlockType, data: bytes, crc_type: CRCType = CRCType.NONE
+        self,
+        type_code: BlockType,
+        data: bytes,
+        block_num: Union[int, None] = None,
+        crc_type: CRCType = CRCType.NONE,
     ) -> None:
         """Helper to format a canonical block"""
         block = CanonicalBlock()
+        if not block_num:
+            block.block_number = next(self.next_block_num)
+        else:
+            block.block_number = block_num
         block.data = data
         block.block_type = type_code
         block.crc_type = crc_type
-        block.block_number = next(self.next_block_num)
         self.blocks[type_code] = block
 
     def add_payload_block(self, data: bytes, crc_type=CRCType.NONE) -> None:
