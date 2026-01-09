@@ -1,8 +1,10 @@
 import binascii
 
-from block_enum import BlockType
+import cbor2
+
+from block_enum import BlockType, CRCType
 from bpv7 import BPv7
-from ext_functions import process_bae, process_pnb
+from ext_functions import process_bae, process_pnb, create_pnb
 
 
 def test():
@@ -24,4 +26,15 @@ def test():
 
 
 if __name__ == "__main__":
-    test()
+    payload = cbor2.dumps("Hello world!")
+    x = BPv7()
+    x.add_payload_block(payload)
+    x.primary_block.set_creation()
+    x.primary_block.no_fragment = True
+    x.primary_block.status_time = True
+    x.primary_block.crc_type = CRCType.CRC16
+    x.primary_block.route.source_eid = "ipn:2.1"
+    x.primary_block.route.dest_eid = "ipn:3.1"
+    x.primary_block.update_crc()
+    x.add_canonical_block(BlockType.PREVIOUS_NODE, create_pnb("ipn:2.0"), block_num=1024)
+    print(bytes(x).hex())
