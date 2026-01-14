@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: BPv7 Primary Block Parameters
  Author: Nate Richard
- Modified: 01/07/2026
+ Modified: 01/14/2026
  Company: JPL
  Date:   01/07/2026
 
@@ -42,6 +42,7 @@ software to foreign countries or providing access to foreign persons.
 
 import datetime
 from dataclasses import dataclass, field
+from typing import Union
 
 from utils import DTN_EPOCH, format_eid, parse_eid_string
 
@@ -60,8 +61,11 @@ class BundleRoute:
         return format_eid(self._source_eid)
 
     @source_eid.setter
-    def source_eid(self, value: str):
-        self._source_eid = parse_eid_string(value)
+    def source_eid(self, value: Union[str, list]) -> None:
+        if isinstance(value, list):
+            self._source_eid = value
+        else:
+            self._source_eid = parse_eid_string(value)
 
     @property
     def dest_eid(self) -> str:
@@ -69,8 +73,11 @@ class BundleRoute:
         return format_eid(self._dest_eid)
 
     @dest_eid.setter
-    def dest_eid(self, value: str):
-        self._dest_eid = parse_eid_string(value)
+    def dest_eid(self, value: Union[str, list]) -> None:
+        if isinstance(value, list):
+            self._dest_eid = value
+        else:
+            self._dest_eid = parse_eid_string(value)
 
     @property
     def report_to(self) -> str:
@@ -78,8 +85,11 @@ class BundleRoute:
         return format_eid(self._report_to_eid)
 
     @report_to.setter
-    def report_to(self, value: str):
-        self._report_to_eid = parse_eid_string(value)
+    def report_to(self, value: Union[str, list]) -> None:
+        if isinstance(value, list):
+            self._report_to_eid = value
+        else:
+            self._report_to_eid = parse_eid_string(value)
 
 
 @dataclass
@@ -92,7 +102,7 @@ class BundleLife:
 
     @property
     def creation_dt(self) -> datetime.datetime:
-        """Return creation time as datetime object, does notuse sequence number."""
+        """Return creation time as datetime object, does not use sequence number."""
         return DTN_EPOCH + datetime.timedelta(milliseconds=self.timestamp_ms)
 
 
