@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: BPv7 Block Classes & helper functions
  Author: Nate Richard
- Modified: 01/07/2026
+ Modified: 01/14/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -43,7 +43,7 @@ software to foreign countries or providing access to foreign persons.
 import datetime
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Optional, Union
+from typing import Any, Callable, ClassVar, Optional, TypedDict, Union
 
 import cbor2
 
@@ -73,6 +73,16 @@ class ExtensionBlocks(OrderedDict):
         super().__setitem__(key, value)
         if BlockType.PAYLOAD_BLOCK in self.keys():
             self.move_to_end(BlockType.PAYLOAD_BLOCK)
+
+
+class FieldFunctions(TypedDict):
+    """Typing Dict for handling primary block parameters"""
+
+    get: Callable[["PrimaryBlock"], Any]
+    set: Callable[["PrimaryBlock", Any], None]
+
+
+FieldMapType = dict[str, FieldFunctions]
 
 
 @dataclass
@@ -257,6 +267,37 @@ class PrimaryBlock(BaseBlock):
         repr=False,
     )
 
+    FIELD_MAP: ClassVar[FieldMapType] = {
+        "dest_eid": {
+            "get": lambda self: parse_eid_string(self.route.dest_eid),
+            "set": lambda self, v: setattr(self.route, "dest_eid", v),
+        },
+        "source_eid": {
+            "get": lambda self: parse_eid_string(self.route.source_eid),
+            "set": lambda self, v: setattr(self.route, "source_eid", v),
+        },
+        "report_to_eid": {
+            "get": lambda self: parse_eid_string(self.route.report_to),
+            "set": lambda self, v: setattr(self.route, "report_to", v),
+        },
+        "creation": {
+            "get": lambda self: [self.life.timestamp_ms, self.life.sequence],
+            "set": lambda self, v: self.set_creation(ms=v[0], seq=v[1]),
+        },
+        "lifetime": {
+            "get": lambda self: self.life.lifetime,
+            "set": lambda self, v: setattr(self.life, "lifetime", v),
+        },
+        "fragment_offset": {
+            "get": lambda self: self.fragmentation.fragment_offset,
+            "set": lambda self, v: setattr(self.fragmentation, "fragment_offset", v),
+        },
+        "total_adu_len": {
+            "get": lambda self: self.fragmentation.total_adu_len,
+            "set": lambda self, v: setattr(self.fragmentation, "total_adu_len", v),
+        },
+    }
+
     def set_creation(self, ms: Union[int, None] = None, seq: int = 0) -> None:
         """
         Set primary block creation time, if nothing is passed sets to time
@@ -277,15 +318,6 @@ class PrimaryBlock(BaseBlock):
         Constructs the CBOR-ready list based on class-specific field order.
         """
         serial_data = []
-        mapping = {
-            "dest_eid": lambda: parse_eid_string(self.route.dest_eid),
-            "source_eid": lambda: parse_eid_string(self.route.source_eid),
-            "report_to_eid": lambda: parse_eid_string(self.route.report_to),
-            "creation": lambda: [self.life.timestamp_ms, self.life.sequence],
-            "lifetime": lambda: self.life.lifetime,
-            "fragment_offset": lambda: self.fragmentation.fragment_offset,
-            "total_adu_len": lambda: self.fragmentation.total_adu_len,
-        }
 
         for name in self.serial_fields:
             # RFC 9171: If CRC type is NONE, the CRC field is omitted
@@ -296,8 +328,8 @@ class PrimaryBlock(BaseBlock):
             if not self.is_fragment and name in ["fragment_offset", "total_adu_len"]:
                 continue
 
-            if name in mapping:
-                val = mapping[name]()
+            if name in self.FIELD_MAP:
+                val = self.FIELD_MAP[name]["get"](self)
             else:
                 val = getattr(self, name)
 
@@ -338,10 +370,12 @@ def list_to_prime(prime_list: list) -> PrimaryBlock:
     """
     block = PrimaryBlock()
     for attr_name, val in zip(block.serial_fields, prime_list):
-        if "_" in attr_name and "eid" not in attr_name:
-            attr_name = attr_name[1:]
+        if attr_name in block.FIELD_MAP:
+            block.FIELD_MAP[attr_name]["set"](block, val)
+        else:
+            attr_name = attr_name[1:] if attr_name.startswith("_") else attr_name
+            setattr(block, attr_name, val)
 
-        setattr(block, attr_name, val)
     return block
 
 
