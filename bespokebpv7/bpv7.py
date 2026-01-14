@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bundle Protocol v7 Class
  Author: Nate Richard
- Modified: 12/19/2025
+ Modified: 01/14/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -39,6 +39,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+import warnings
 from itertools import count
 from typing import Any, Union
 
@@ -77,31 +78,27 @@ class BPv7(dpkt.Packet):
         Provides the human-readable string representation used by print().
         This is called automatically when you run print(bundle_object).
         """
-        if self.primary_block:
-            lines = [
-                f"{'=' * 40}",
-                " BPv7 BUNDLE SUMMARY ",
-                f"{'=' * 40}",
-                f"Source:      {self.primary_block.route.source_eid}",
-                f"Destination: {self.primary_block.route.dest_eid}",
-                f"Created:     {self.primary_block.life.creation_dt.strftime('%Y-%m-%d %H:%M:%S')}",
-                f"Blocks:      {1 + len(self.blocks)} (Primary + {len(self.blocks)} Canonical)",
-                f"FLAGS:       {self.primary_block.flags}",
-                f"{'=' * 40}",
-            ]
-            return "\n".join(lines)
-        return "No bundle"
+        lines = [
+            f"{'=' * 40}",
+            " BPv7 BUNDLE SUMMARY ",
+            f"{'=' * 40}",
+            f"Source:      {self.primary_block.route.source_eid}",
+            f"Destination: {self.primary_block.route.dest_eid}",
+            f"Created:     {self.primary_block.life.creation_dt.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"Blocks:      {1 + len(self.blocks)} (Primary + {len(self.blocks)} Canonical)",
+            f"FLAGS:       {self.primary_block.flags}",
+            f"{'=' * 40}",
+        ]
+        return "\n".join(lines)
 
     def __repr__(self) -> str:
         """Standard developer representation"""
-        if self.primary_block:
-            lines = [
-                f"BPv7(src='{self.primary_block.route.source_eid}'"
-                f", dst='{self.primary_block.route.dest_eid}',",
-                f"flags={self.primary_block.flags})",
-            ]
-            return "\n".join(lines)
-        return "No Bundle"
+        lines = [
+            f"BPv7(src='{self.primary_block.route.source_eid}'"
+            f", dst='{self.primary_block.route.dest_eid}',",
+            f"flags={self.primary_block.flags})",
+        ]
+        return "\n".join(lines)
 
     def __bytes__(self) -> bytes:
         """Serializes as an indefinite CBOR array (0x9f ... 0xff)"""
@@ -151,42 +148,48 @@ class BPv7(dpkt.Packet):
         proc_exts = ""
         try:
             bundle_data = cbor2.loads(buf)
-            self.primary_block = list_to_prime(bundle_data[0])
+        except cbor2.CBORDecodeError:
+            print("Error decoding bundle")
+            return
 
-            for exts in bundle_data[1:]:
-                block_type = exts[0]
-                if block_type == BlockType.PAYLOAD_BLOCK:
-                    ext = list_to_payload(exts)
-                else:
-                    ext = list_to_canonical(exts)
-                if self.debug:
-                    recv_ext = cbor2.dumps(exts).hex()
-                    recv_exts += recv_ext
-                    proc_ext = bytes(ext).hex()
-                    proc_exts += proc_ext
-                    print(
-                        f"block {block_type:>3} in:  {recv_ext}\n",
-                        f"block {int(ext.block_type):>3} out: {proc_ext}",
-                        sep="",
-                    )
-                self.blocks[block_type] = ext
+        self.primary_block = list_to_prime(bundle_data[0])
 
+        for exts in bundle_data[1:]:
+            block_type = exts[0]
+            if block_type == BlockType.PAYLOAD_BLOCK:
+                ext = list_to_payload(exts)
+            else:
+                ext = list_to_canonical(exts)
             if self.debug:
-                recv_hed = cbor2.dumps(bundle_data[0]).hex()
+                recv_ext = cbor2.dumps(exts).hex()
+                recv_exts += recv_ext
+                proc_ext = bytes(ext).hex()
+                proc_exts += proc_ext
                 print(
-                    f"header in:  {recv_hed}\nheader out: {bytes(self.primary_block).hex()}"
+                    f"block {block_type:>3} in:  {recv_ext}\n",
+                    f"block {int(ext.block_type):>3} out: {proc_ext}",
+                    sep="",
                 )
-                print(f"received:  9f{recv_hed}{recv_exts}ff")
-                print(f"processed: 9f{bytes(self.primary_block).hex()}{proc_exts}ff")
-            # Basic validation: check if primary CRC matches (if present)
-            if self.primary_block.crc_type != CRCType.NONE:
-                actual_crc = self.primary_block.crc
-                primary_check = self.primary_block.get_serializable_data()[:-1] + [
-                    self.primary_block.crc_type.fill_value
-                ]
-                expected_crc = calculate_crc(primary_check, self.primary_block.crc_type)
-                if actual_crc != expected_crc:
-                    print("Warning: Primary Block CRC mismatch!")
+            self.blocks[block_type] = ext
 
-        except Exception as e:
-            raise dpkt.UnpackError(f"CBOR Decode failed: {e}")
+        if self.debug:
+            try:
+                recv_hed = cbor2.dumps(bundle_data[0]).hex()
+            except cbor2.CBOREncodeError:
+                print("Error encoding data")
+                return
+
+            print(
+                f"header in:  {recv_hed}\nheader out: {bytes(self.primary_block).hex()}"
+            )
+            print(f"received:  9f{recv_hed}{recv_exts}ff")
+            print(f"processed: 9f{bytes(self.primary_block).hex()}{proc_exts}ff")
+        # Basic validation: check if primary CRC matches (if present)
+        if self.primary_block.crc_type != CRCType.NONE:
+            actual_crc = self.primary_block.crc
+            primary_check = self.primary_block.get_serializable_data()[:-1] + [
+                self.primary_block.crc_type.fill_value
+            ]
+            expected_crc = calculate_crc(primary_check, self.primary_block.crc_type)
+            if actual_crc != expected_crc:
+                warnings.warn("Primary Block CRC mismatch!", UserWarning)
