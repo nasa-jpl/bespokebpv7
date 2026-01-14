@@ -26,7 +26,7 @@ def test():
 
 
 if __name__ == "__main__":
-    payload = cbor2.dumps("Hello world!")
+    payload = cbor2.dumps("Hello!")
     x = BPv7()
     x.add_payload_block(payload)
     x.primary_block.set_creation()
@@ -36,5 +36,19 @@ if __name__ == "__main__":
     x.primary_block.route.source_eid = "ipn:2.1"
     x.primary_block.route.dest_eid = "ipn:3.1"
     x.primary_block.update_crc()
-    x.add_canonical_block(BlockType.PREVIOUS_NODE, create_pnb("ipn:2.0"), block_num=1024)
+    x.add_canonical_block(BlockType.PREVIOUS_NODE, create_pnb("ipn:2.0"))
     print(bytes(x).hex())
+
+    y = "9f88070000820282030182028201018202820100821b000000bb0e20b4ea001a000927c08508020100410086010100014d48656c6c6f2c20576f726c64214254b3ff"
+    z = BPv7(binascii.unhexlify(y))
+    z.blocks[BlockType.PAYLOAD_BLOCK].data = payload
+    z.blocks[BlockType.PAYLOAD_BLOCK].update_crc()
+    z.primary_block.no_fragment = True
+    z.primary_block.status_time = True
+    z.primary_block.route.source_eid = "ipn:2.1"
+    z.primary_block.route.dest_eid = "ipn:3.1"
+    z.primary_block.crc_type = CRCType.CRC16
+    z.primary_block.set_creation()
+    z.primary_block.update_crc()
+    print(z)
+    print(bytes(z).hex())
