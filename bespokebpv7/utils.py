@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Utility functions for bundle processing
  Author: Nate Richard
- Modified: 01/07/2026
+ Modified: 01/14/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -92,6 +92,11 @@ def parse_eid_string(eid_str: str) -> Union[list[int], list[object]]:
         node = int(parts[0])
         service = int(parts[1]) if len(parts) > 1 else 0
         return [int(SchemeCode.IPN), [node, service]]
+
+    # assume some sort of type conversion error as a CBOR unsigned int of 0
+    # means dtn:none per RFC 9171 4.2.5.11
+    if ssp == "0":
+        ssp = "none"
     return [int(SchemeCode.DTN), ssp]
 
 
