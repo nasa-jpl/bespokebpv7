@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bundle Extension Block functions
  Author: Nate Richard
- Modified: 12/19/2025
+ Modified: 01/14/2025
  Company: JPL
  Date:   12/19/2025
 
@@ -38,7 +38,7 @@ licenses, or other export authority as may be required before exporting the
 software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
-
+from typing import Union
 import cbor2
 
 from bespokebpv7.block_enum import BlockType
@@ -46,14 +46,14 @@ from bespokebpv7.blocks import CanonicalBlock
 from bespokebpv7.utils import format_eid, parse_eid_string
 
 
-def process_bae(bae: CanonicalBlock) -> None:
+def process_bae(bae: CanonicalBlock) -> Union[int, None]:
     """Extract Bundle Age from Canonical block."""
     if bae.block_type != BlockType.BUNDLE_AGE:
         print("Wrong block")
-        return
+        return None
 
     bundle_age = cbor2.loads(bae.data)
-    print(f"{bundle_age}ms")
+    return bundle_age
 
 
 def create_bae(age: int) -> bytes:
@@ -61,14 +61,14 @@ def create_bae(age: int) -> bytes:
     return cbor2.dumps(age)
 
 
-def process_pnb(bae: CanonicalBlock) -> None:
+def process_pnb(bae: CanonicalBlock) -> Union[str, None]:
     """Extract Previous Node from Canonical block."""
     if bae.block_type != BlockType.PREVIOUS_NODE:
         print("Wrong block")
-        return
+        return None
 
     bundle_age = cbor2.loads(bae.data)
-    print(format_eid(bundle_age))
+    return format_eid(bundle_age)
 
 
 def create_pnb(previous_node: str) -> bytes:
@@ -76,14 +76,14 @@ def create_pnb(previous_node: str) -> bytes:
     return cbor2.dumps(parse_eid_string(previous_node))
 
 
-def process_hcb(hcb: CanonicalBlock) -> None:
+def process_hcb(hcb: CanonicalBlock) -> tuple:
     """Extract bundle hop count data."""
     if hcb.block_type != BlockType.HOP_COUNT:
         print("Wrong block")
-        return
+        return None, None
 
     hop_list = cbor2.loads(hcb.data)
-    print(f"hop count: {hop_list[0]}\nhop limit: {hop_list[1]}")
+    return hop_list[0], hop_list[1]
 
 
 def create_hcb(hop_limit: int, hop_count: int = 0) -> bytes:
