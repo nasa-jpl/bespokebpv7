@@ -47,7 +47,7 @@ from typing import Union
 import cbor2
 import fastcrc
 
-from block_enum import CRCType, SchemeCode
+from bespokebpv7.block_enum import CRCType, SchemeCode
 
 DTN_EPOCH = datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc)
 

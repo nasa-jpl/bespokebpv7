@@ -2,9 +2,9 @@ import binascii
 
 import cbor2
 
-from block_enum import BlockType, CRCType
-from bpv7 import BPv7
-from ext_functions import process_bae, process_pnb, create_pnb
+from bespokebpv7.block_enum import BlockType, CRCType
+from bespokebpv7.bpv7 import BPv7
+from bespokebpv7.ext_functions import process_bae, process_pnb, create_pnb
 
 
 def test():
@@ -51,4 +51,4 @@ if __name__ == "__main__":
     z.primary_block.set_creation()
     z.primary_block.update_crc()
     print(z)
-    print(bytes(z).hex())
+    print(bytes(z))

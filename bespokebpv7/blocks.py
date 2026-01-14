@@ -47,9 +47,9 @@ from typing import Any, Callable, ClassVar, Optional, TypedDict, Union
 
 import cbor2
 
-from block_enum import BlockFlags, BlockType, BundleFlags, CRCType
-from bundle_params import BundleFragmentation, BundleLife, BundleRoute
-from utils import DTN_EPOCH, calculate_crc, parse_eid_string
+from bespokebpv7.block_enum import BlockFlags, BlockType, BundleFlags, CRCType
+from bespokebpv7.bundle_params import BundleFragmentation, BundleLife, BundleRoute
+from bespokebpv7.utils import DTN_EPOCH, calculate_crc, parse_eid_string
 
 BPVERSION = 7
 

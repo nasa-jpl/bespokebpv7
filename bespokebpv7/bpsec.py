@@ -44,7 +44,7 @@ from typing import Any, Union
 
 import cbor2
 
-from block_enum import (
+from bespokebpv7.block_enum import (
     BIBParmEnum,
     BIBResultEnum,
     BIBSHAVariant,
@@ -52,7 +52,7 @@ from block_enum import (
     IntegrityScopeFlags,
     SecurityContextFlags,
 )
-from blocks import CanonicalBlock
+from bespokebpv7.blocks import CanonicalBlock
 
 
 @dataclass

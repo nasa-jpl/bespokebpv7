@@ -41,9 +41,9 @@ software to foreign countries or providing access to foreign persons.
 
 import cbor2
 
-from block_enum import BlockType
-from blocks import CanonicalBlock
-from utils import format_eid, parse_eid_string
+from bespokebpv7.block_enum import BlockType
+from bespokebpv7.blocks import CanonicalBlock
+from bespokebpv7.utils import format_eid, parse_eid_string
 
 
 def process_bae(bae: CanonicalBlock) -> None:

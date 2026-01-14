@@ -44,7 +44,7 @@ import datetime
 from dataclasses import dataclass, field
 from typing import Union
 
-from utils import DTN_EPOCH, format_eid, parse_eid_string
+from bespokebpv7.utils import DTN_EPOCH, format_eid, parse_eid_string
 
 
 @dataclass

@@ -45,8 +45,8 @@ from typing import Any, Union
 import cbor2
 import dpkt  # type: ignore
 
-from block_enum import BlockType, CRCType
-from blocks import (
+from bespokebpv7.block_enum import BlockType, CRCType
+from bespokebpv7.blocks import (
     CanonicalBlock,
     ExtensionBlocks,
     PayloadBlock,
@@ -55,7 +55,7 @@ from blocks import (
     list_to_payload,
     list_to_prime,
 )
-from utils import calculate_crc
+from bespokebpv7.utils import calculate_crc
 
 
 class BPv7(dpkt.Packet):
