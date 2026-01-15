@@ -136,10 +136,8 @@ class BaseBlock:
     def set_flag(self, flag: Union[BundleFlags, BlockFlags], state=True) -> None:
         """Sets or clears an individual flag."""
         if state:
-            # Bitwise OR to set the bit
             self.flags |= int(flag)
         else:
-            # Bitwise AND with inverted mask to clear the bit
             self.flags &= ~int(flag)
 
     @property
@@ -170,7 +168,8 @@ class CanonicalBlock(BaseBlock):
     _flags: BlockFlags = BlockFlags(0)
     _block_type: BlockType = BlockType.UNKNOWN_BLOCK
     _block_number: int = 2  # cannot be 0 (primary) or 1 (payload)
-    _data: bytes = b""
+    _data: bytes = field(default_factory=bytes)
+
     replica_fragment = flag_property(BlockFlags.REPLICATE_FRAGMENT)
     status_report = flag_property(BlockFlags.STATUS_BUNDLE)
     delete_bundle = flag_property(BlockFlags.DELETE_BUNDLE)
@@ -205,13 +204,13 @@ class CanonicalBlock(BaseBlock):
         self._block_number = value
 
     @property
-    def data(self) -> bytes:
-        """Return data as a CBOR array. Up to user to extract data."""
-        return cbor2.dumps(self._data)
+    def data(self) -> Any:
+        """Return underlying data."""
+        return self._data
 
     @data.setter
-    def data(self, value: bytes):
-        self._data = cbor2.loads(value)
+    def data(self, value: Any):
+        self._data = value
 
     @property
     def flags(self) -> BlockFlags:
