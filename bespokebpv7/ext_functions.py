@@ -38,6 +38,7 @@ licenses, or other export authority as may be required before exporting the
 software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
+
 from typing import Union
 import cbor2
 

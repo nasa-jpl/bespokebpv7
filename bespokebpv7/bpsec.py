@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bundle Protocol Security Classes
  Author: Nate Richard
- Modified: 01/14/2026
+ Modified: 01/15/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -40,7 +40,7 @@ software to foreign countries or providing access to foreign persons.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Union
+from typing import Union
 
 import cbor2
 
@@ -63,7 +63,7 @@ class SecurityParameter:
     """
 
     parm_id: int
-    value: Any  # Value type depends on the Security Context (CBOR encoded)
+    value: Union[bytes, int]
 
 
 @dataclass
@@ -74,7 +74,7 @@ class SecurityResult:
     """
 
     result_id: int
-    value: Any  # Value type depends on the Security Context (CBOR encoded)
+    value: bytes
 
 
 @dataclass
@@ -160,7 +160,9 @@ class AbstractSecurityBlock(CanonicalBlock):
     @property
     def parm_present_fragment(self) -> bool:
         """Return whether the security block has security context parameters."""
-        return bool(self._security_context_flags & SecurityContextFlags.CONTAIN_SECURITY_PARM)
+        return bool(
+            self._security_context_flags & SecurityContextFlags.CONTAIN_SECURITY_PARM
+        )
 
     @parm_present_fragment.setter
     def parm_present_fragment(self, value: bool):
