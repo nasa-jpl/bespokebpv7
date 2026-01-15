@@ -217,10 +217,8 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
     ) -> None:
         """Sets or clears an individual security context flag."""
         if state:
-            # Bitwise OR to set the bit
             self._integrity_scope_flags |= int(security_flag)
         else:
-            # Bitwise AND with inverted mask to clear the bit
             self._integrity_scope_flags &= ~int(security_flag)
 
     @property

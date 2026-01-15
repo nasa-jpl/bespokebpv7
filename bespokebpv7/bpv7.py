@@ -74,10 +74,6 @@ class BPv7(dpkt.Packet):
         self.next_block_num = count(2)
 
     def __str__(self) -> str:
-        """
-        Provides the human-readable string representation used by print().
-        This is called automatically when you run print(bundle_object).
-        """
         lines = [
             f"{'=' * 40}",
             " BPv7 BUNDLE SUMMARY ",
@@ -92,7 +88,6 @@ class BPv7(dpkt.Packet):
         return "\n".join(lines)
 
     def __repr__(self) -> str:
-        """Standard developer representation"""
         lines = [
             f"BPv7(src='{self.primary_block.route.source_eid}'"
             f", dst='{self.primary_block.route.dest_eid}',",

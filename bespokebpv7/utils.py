@@ -60,11 +60,7 @@ def calculate_crc(block_list: list, crc_type: CRCType) -> Union[bytes, None]:
     if crc_type == CRCType.NONE:
         return None
 
-    # Create a copy and replace the CRC field with an empty byte string
-    calc_block = list(block_list)
-
-    # Serialize the 'stripped' block to CBOR
-    data_to_hash = cbor2.dumps(calc_block)
+    data_to_hash = cbor2.dumps(block_list)
 
     if crc_type == CRCType.CRC16:
         # CRC-16/X-25
