@@ -52,11 +52,9 @@ from bespokebpv7.blocks import (
     ExtensionBlocks,
     PayloadBlock,
     PrimaryBlock,
-    list_to_canonical,
-    list_to_payload,
-    list_to_prime,
 )
 from bespokebpv7.utils import calculate_crc
+from bespokebpv7.converter import converter
 
 
 class BPv7(dpkt.Packet):
@@ -98,9 +96,16 @@ class BPv7(dpkt.Packet):
     def __bytes__(self) -> bytes:
         """Serializes as an indefinite CBOR array (0x9f ... 0xff)"""
         if self.primary_block:
-            all_blocks = [self.primary_block.get_serializable_data()] + [
-                extblock.get_serializable_data() for extblock in self.blocks.values()
+            # 1. Unstructure PrimaryBlock to list
+            pb_list = converter.unstructure(self.primary_block)
+
+            # 2. Unstructure all extension blocks to lists
+            ext_lists = [
+                converter.unstructure(extblock) for extblock in self.blocks.values()
             ]
+
+            # 3. Combine and serialize contents
+            all_blocks = [pb_list] + ext_lists
             body = b"".join(cbor2.dumps(b) for b in all_blocks)
         else:
             body = b""
@@ -147,14 +152,13 @@ class BPv7(dpkt.Packet):
             print("Error decoding bundle")
             return
 
-        self.primary_block = list_to_prime(bundle_data[0])
+        self.primary_block = converter.structure(bundle_data[0], PrimaryBlock)
 
         for exts in bundle_data[1:]:
-            block_type = exts[0]
-            if block_type == BlockType.PAYLOAD_BLOCK:
-                ext = list_to_payload(exts)
-            else:
-                ext = list_to_canonical(exts)
+            block_type = BlockType(exts[0])
+
+            ext = converter.structure(exts, CanonicalBlock)
+
             if self.debug:
                 recv_ext = cbor2.dumps(exts).hex()
                 recv_exts += recv_ext
@@ -179,12 +183,13 @@ class BPv7(dpkt.Packet):
             )
             print(f"received:  9f{recv_hed}{recv_exts}ff")
             print(f"processed: 9f{bytes(self.primary_block).hex()}{proc_exts}ff")
-        # Basic validation: check if primary CRC matches (if present)
+
         if self.primary_block.crc_type != CRCType.NONE:
             actual_crc = self.primary_block.crc
-            primary_check = self.primary_block.get_serializable_data()[:-1] + [
-                self.primary_block.crc_type.fill_value
-            ]
+            primary_list = converter.unstructure(self.primary_block)
+
+            primary_check = primary_list[:-1] + [self.primary_block.crc_type.fill_value]
+
             expected_crc = calculate_crc(primary_check, self.primary_block.crc_type)
             if actual_crc != expected_crc:
                 warnings.warn("Primary Block CRC mismatch!", UserWarning)

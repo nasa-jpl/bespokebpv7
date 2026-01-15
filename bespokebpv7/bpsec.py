@@ -40,9 +40,7 @@ software to foreign countries or providing access to foreign persons.
 """
 
 from dataclasses import dataclass, field
-from typing import Union
-
-import cbor2
+from typing import Union, List
 
 from bespokebpv7.block_enum import (
     BIBParmEnum,
@@ -61,7 +59,6 @@ class SecurityParameter:
     Represents a single Security Context Parameter.
     Structure: [ Parameter ID, Parameter Value ]
     """
-
     parm_id: int
     value: Union[bytes, int]
 
@@ -72,7 +69,6 @@ class SecurityResult:
     Represents a single Security Result.
     Structure: [ Result ID, Result Value ]
     """
-
     result_id: int
     value: bytes
 
@@ -80,51 +76,25 @@ class SecurityResult:
 @dataclass
 class AbstractSecurityBlock(CanonicalBlock):
     """
-    Represents the Abstract Security Block (ASB) defined in RFC 9172 Section 3.6.
-
-    The ASB is not a standalone block but defines the structure of the
-    'block-type-specific-data' field for BIB (Block Integrity Block) and
-    BCB (Block Confidentiality Block).
-
-    The presence of optional security parameters is determined by the
-    `security_context_flags`.
+    Represents the Abstract Security Block (ASB) defined in RFC 9172.
     """
+    # 1. Security Targets
+    security_targets: List[int] = field(default_factory=list)
 
-    # 1. Security Targets: List of Block Numbers (Unsigned Integers)
-    # Identifies the blocks within the bundle that this security service applies to.
-    _security_targets: list[int] = field(default_factory=list[int])
-
-    # 2. Security Context ID: Unsigned Integer
-    # Identifies the security context (algorithm/service) used (e.g., HMAC-SHA256).
+    # 2. Security Context ID
     security_context_id: int = 0
 
-    # 3. Security Context Flags: Unsigned Integer (Bitfield)
-    # Controls the processing and presence of optional fields.
+    # 3. Security Context Flags
     _security_context_flags: SecurityContextFlags = SecurityContextFlags(0)
 
-    # 4. Security Source: Endpoint ID (Optional)
-    # Present if 'Security Source Present' flag (0x02) is set.
-    # Represents the node that inserted this security block.
-    security_source: list = field(default_factory=lambda: [1, "none"])
+    # 4. Security Source
+    security_source: List = field(default_factory=lambda: [1, "none"])
 
-    # 5. Security Parameters: List of Parameters (Optional)
-    # Present if 'Security Parameters Present' flag (0x01) is set.
-    # Configuration data required by the security context.
-    security_parameters: list[SecurityParameter] = field(default_factory=list)
+    # 5. Security Parameters
+    security_parameters: List[SecurityParameter] = field(default_factory=list)
 
-    # 6. Security Results: List of Results (Optional)
-    # Present if 'Security Results Present' flag (0x04) is set.
-    # The output of the security operation (e.g., signatures, auth tags).
-    security_results: list[SecurityResult] = field(default_factory=list)
-
-    def set_data(self) -> None:
-        """Sets defined security data as block specific data."""
-        security_data = []
-        for name, val in self.__dict__.items():
-            if "security" in name:
-                security_data.append(val)
-
-        self.data = cbor2.dumps(security_data)
+    # 6. Security Results
+    security_results: List[SecurityResult] = field(default_factory=list)
 
     def set_context_flag(
         self,
@@ -133,20 +103,9 @@ class AbstractSecurityBlock(CanonicalBlock):
     ) -> None:
         """Sets or clears an individual security context flag."""
         if state:
-            # Bitwise OR to set the bit
             self._security_context_flags |= int(security_flag)
         else:
-            # Bitwise AND with inverted mask to clear the bit
             self._security_context_flags &= ~int(security_flag)
-
-    @property
-    def security_targets(self) -> list:
-        """Return list of block numbers that are security targets"""
-        return self._security_targets
-
-    @security_targets.setter
-    def security_targets(self, value: int) -> None:
-        self._security_targets.append(value)
 
     @property
     def security_context_flags(self) -> SecurityContextFlags:
@@ -173,17 +132,13 @@ class AbstractSecurityBlock(CanonicalBlock):
 class BlockIntegrityBlock(AbstractSecurityBlock):
     """
     Block Integrity Block (BIB) as defined in RFC 9173.
-
-    The BIB is an instantiation of the Abstract Security Block (ASB)
-    with Block Type Code 11. It provides data integrity services
-    for the target blocks.
     """
-
     _block_type: BlockType = BlockType.BIB
     security_context_id: int = 1
     _integrity_scope_flags: IntegrityScopeFlags = IntegrityScopeFlags(7)
 
     def __post_init__(self):
+        # Set default flags
         self.security_context_flags = SecurityContextFlags(1)
 
     def set_sha_variant(self, variant: BIBSHAVariant) -> None:

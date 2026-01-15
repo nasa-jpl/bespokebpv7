@@ -43,26 +43,25 @@ software to foreign countries or providing access to foreign persons.
 import datetime
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Callable, ClassVar, Optional, TypedDict, Union
+from typing import Any, Optional, Union
 
 import cbor2
 
 from bespokebpv7.block_enum import BlockFlags, BlockType, BundleFlags, CRCType
 from bespokebpv7.bundle_params import BundleFragmentation, BundleLife, BundleRoute
-from bespokebpv7.utils import DTN_EPOCH, calculate_crc, parse_eid_string
+from bespokebpv7.utils import DTN_EPOCH, calculate_crc
+from bespokebpv7.converter import converter
 
 BPVERSION = 7
 
 
 def flag_property(flag_bit):
     """Generates a property that gets/sets a bit in the instance's _flags attribute."""
-
     def getter(self):
         return bool(self.flags & flag_bit)
 
     def setter(self, value: bool):
         self.set_flag(flag_bit, value)
-
     return property(getter, setter)
 
 
@@ -75,16 +74,6 @@ class ExtensionBlocks(OrderedDict):
             self.move_to_end(BlockType.PAYLOAD_BLOCK)
 
 
-class FieldFunctions(TypedDict):
-    """Typing Dict for handling primary block parameters"""
-
-    get: Callable[["PrimaryBlock"], Any]
-    set: Callable[["PrimaryBlock", Any], None]
-
-
-FieldMapType = dict[str, FieldFunctions]
-
-
 @dataclass
 class BaseBlock:
     """
@@ -95,43 +84,16 @@ class BaseBlock:
     _flags: Any = 0
     _crc_type: CRCType = CRCType.NONE
     crc: Optional[bytes] = CRCType.NONE.fill_value
-    serial_fields: list[str] = field(default_factory=list, repr=False)
 
     def __bytes__(self):
-        return cbor2.dumps(self.get_serializable_data())
+        return cbor2.dumps(converter.unstructure(self))
 
     def update_crc(self):
         """Manual trigger to update CRC based on current state."""
         if self.crc_type != CRCType.NONE:
             self.crc = self.crc_type.fill_value
-            data_to_hash = self.get_serializable_data()
-            self.crc = calculate_crc(data_to_hash, self.crc_type)
-
-    def get_serializable_data(self) -> list:
-        """
-        Constructs the CBOR-ready list based on class-specific field order.
-        """
-        serial_data = []
-
-        for name in self.serial_fields:
-            # RFC 9171: If CRC type is NONE, the CRC field is omitted
-            if name == "crc" and self._crc_type == CRCType.NONE:
-                break
-
-            val = getattr(self, name)
-
-            # Delegate specialized encoding to a helper method
-            serial_data.append(self._process_field_for_serial(name, val))
-
-        return serial_data
-
-    def _process_field_for_serial(
-        self,
-        name: str,  # pylint: disable=unused-argument
-        val: Any,
-    ) -> Any:
-        """Hook for subclasses to handle specific field encoding (like CBOR wrapping)."""
-        return val
+            list_data = converter.unstructure(self)
+            self.crc = calculate_crc(list_data, self.crc_type)
 
     def set_flag(self, flag: Union[BundleFlags, BlockFlags], state=True) -> None:
         """Sets or clears an individual flag."""
@@ -174,25 +136,6 @@ class CanonicalBlock(BaseBlock):
     status_report = flag_property(BlockFlags.STATUS_BUNDLE)
     delete_bundle = flag_property(BlockFlags.DELETE_BUNDLE)
     discard_block = flag_property(BlockFlags.DISCARD_BLOCK)
-    serial_fields: list[str] = field(
-        default_factory=lambda: [
-            "_block_type",
-            "_block_number",
-            "_flags",
-            "_crc_type",
-            "_data",
-            "crc",
-        ],
-        repr=False,
-    )
-
-    def _process_field_for_serial(self, name: str, val: Any) -> Any:
-        """
-        Encodes non-payload data as a CBOR byte string.
-        """
-        if name == "_data" and self._block_type != BlockType.PAYLOAD_BLOCK:
-            return cbor2.dumps(val)
-        return val
 
     @property
     def block_number(self) -> int:
@@ -240,6 +183,7 @@ class PrimaryBlock(BaseBlock):
     route: BundleRoute = field(default_factory=BundleRoute)
     life: BundleLife = field(default_factory=BundleLife)
     fragmentation: BundleFragmentation = field(default_factory=BundleFragmentation)
+
     is_fragment = flag_property(BundleFlags.IS_FRAGMENT)
     adu_is_admin = flag_property(BundleFlags.ADU_IS_ADMIN_RECORD)
     no_fragment = flag_property(BundleFlags.DO_NOT_FRAGMENT)
@@ -249,93 +193,16 @@ class PrimaryBlock(BaseBlock):
     fwd_report = flag_property(BundleFlags.STATUS_REPORT_FWD)
     recv_report = flag_property(BundleFlags.STATUS_REPORT_RECV)
     del_report = flag_property(BundleFlags.STATUS_REPORT_DEL)
-    serial_fields: list[str] = field(
-        default_factory=lambda: [
-            "version",
-            "_flags",
-            "_crc_type",
-            "dest_eid",
-            "source_eid",
-            "report_to_eid",
-            "creation",
-            "lifetime",
-            "fragment_offset",
-            "total_adu_len",
-            "crc",
-        ],
-        repr=False,
-    )
-
-    FIELD_MAP: ClassVar[FieldMapType] = {
-        "dest_eid": {
-            "get": lambda self: parse_eid_string(self.route.dest_eid),
-            "set": lambda self, v: setattr(self.route, "dest_eid", v),
-        },
-        "source_eid": {
-            "get": lambda self: parse_eid_string(self.route.source_eid),
-            "set": lambda self, v: setattr(self.route, "source_eid", v),
-        },
-        "report_to_eid": {
-            "get": lambda self: parse_eid_string(self.route.report_to),
-            "set": lambda self, v: setattr(self.route, "report_to", v),
-        },
-        "creation": {
-            "get": lambda self: [self.life.timestamp_ms, self.life.sequence],
-            "set": lambda self, v: self.set_creation(ms=v[0], seq=v[1]),
-        },
-        "lifetime": {
-            "get": lambda self: self.life.lifetime,
-            "set": lambda self, v: setattr(self.life, "lifetime", v),
-        },
-        "fragment_offset": {
-            "get": lambda self: self.fragmentation.fragment_offset,
-            "set": lambda self, v: setattr(self.fragmentation, "fragment_offset", v),
-        },
-        "total_adu_len": {
-            "get": lambda self: self.fragmentation.total_adu_len,
-            "set": lambda self, v: setattr(self.fragmentation, "total_adu_len", v),
-        },
-    }
 
     def set_creation(self, ms: Union[int, None] = None, seq: int = 0) -> None:
-        """
-        Set primary block creation time, if nothing is passed sets to time
-        at time of function call.
-        """
-        # Set creation timestamp if it wasn't provided
+        """Set primary block creation time."""
         if not ms:
             dt = datetime.datetime.now(datetime.timezone.utc)
-            # Ensure DTN_EPOCH is a datetime object
             dt_now = int((dt - DTN_EPOCH).total_seconds() * 1000)
             self.life.timestamp_ms = dt_now
         else:
             self.life.timestamp_ms = ms
         self.life.sequence = seq
-
-    def get_serializable_data(self) -> list:
-        """
-        Constructs the CBOR-ready list based on class-specific field order.
-        """
-        serial_data = []
-
-        for name in self.serial_fields:
-            # RFC 9171: If CRC type is NONE, the CRC field is omitted
-            if name == "crc" and self._crc_type == CRCType.NONE:
-                break
-
-            # don't include if bundle is not fragmented
-            if not self.is_fragment and name in ["fragment_offset", "total_adu_len"]:
-                continue
-
-            if name in self.FIELD_MAP:
-                val = self.FIELD_MAP[name]["get"](self)
-            else:
-                val = getattr(self, name)
-
-            # Delegate specialized encoding to a helper method
-            serial_data.append(self._process_field_for_serial(name, val))
-
-        return serial_data
 
     @property
     def flags(self) -> BundleFlags:
@@ -349,59 +216,5 @@ class PrimaryBlock(BaseBlock):
 @dataclass
 class PayloadBlock(CanonicalBlock):
     """Modification of Canonical block to ensure ADU is stored correctly."""
-
     _block_type: BlockType = BlockType.PAYLOAD_BLOCK
     _block_number: int = 1
-
-    @property
-    def data(self) -> bytes:
-        return self._data
-
-    @data.setter
-    def data(self, value: bytes) -> None:
-        self._data = value
-
-
-def list_to_prime(prime_list: list) -> PrimaryBlock:
-    """
-    Loops through list of primary block values. Only works with values that
-    are in order as defined in RFC 9171.
-    """
-    block = PrimaryBlock()
-    for attr_name, val in zip(block.serial_fields, prime_list):
-        if attr_name in block.FIELD_MAP:
-            block.FIELD_MAP[attr_name]["set"](block, val)
-        else:
-            attr_name = attr_name[1:] if attr_name.startswith("_") else attr_name
-            setattr(block, attr_name, val)
-
-    return block
-
-
-def list_to_canonical(canonical_list: list) -> CanonicalBlock:
-    """
-    Loops through list of canonical block values. Only works with values
-    that are in order as defined in RFC 9171.
-    """
-    block = CanonicalBlock()
-    for attr_name, val in zip(block.serial_fields, canonical_list):
-        if "_" in attr_name:
-            attr_name = attr_name[1:]
-        setattr(block, attr_name, val)
-
-    return block
-
-
-def list_to_payload(payload_list: list) -> CanonicalBlock:
-    """
-    Loops through list of canonical block values. Only works with values that
-    are in order as defined in RFC 9171. Specific to payload block as ADU
-    handling is different.
-    """
-    block = PayloadBlock()
-    for attr_name, val in zip(block.serial_fields, payload_list):
-        if "_" in attr_name:
-            attr_name = attr_name[1:]
-        setattr(block, attr_name, val)
-
-    return block
