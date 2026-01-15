@@ -235,7 +235,7 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
     @property
     def include_primary_block(self) -> bool:
         """Return whether to include primary block"""
-        return bool(self.flags & IntegrityScopeFlags.INCLUDE_PRIMARY_BLOCK)
+        return bool(self._integrity_scope_flags & IntegrityScopeFlags.INCLUDE_PRIMARY_BLOCK)
 
     @include_primary_block.setter
     def include_primary_block(self, value: bool):
@@ -244,7 +244,7 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
     @property
     def include_target_header(self) -> bool:
         """Return whether to include target header"""
-        return bool(self.flags & IntegrityScopeFlags.INCLUDE_TARGET_HEADER)
+        return bool(self._integrity_scope_flags & IntegrityScopeFlags.INCLUDE_TARGET_HEADER)
 
     @include_target_header.setter
     def include_target_header(self, value: bool):
@@ -253,7 +253,7 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
     @property
     def include_security_header(self) -> bool:
         """Return whether to include security header"""
-        return bool(self.flags & IntegrityScopeFlags.INCLUDE_SECURITY_HEADER)
+        return bool(self._integrity_scope_flags & IntegrityScopeFlags.INCLUDE_SECURITY_HEADER)
 
     @include_security_header.setter
     def include_security_header(self, value: bool):
