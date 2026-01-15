@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bundle Protocol v7 Class
  Author: Nate Richard
- Modified: 01/14/2026
+ Modified: 01/15/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -97,13 +97,10 @@ class BPv7(dpkt.Packet):
 
     def __bytes__(self) -> bytes:
         """Serializes as an indefinite CBOR array (0x9f ... 0xff)"""
-        if self.primary_block:
-            all_blocks = [self.primary_block.get_serializable_data()] + [
-                extblock.get_serializable_data() for extblock in self.blocks.values()
-            ]
-            body = b"".join(cbor2.dumps(b) for b in all_blocks)
-        else:
-            body = b""
+        all_blocks = [self.primary_block.get_serializable_data()] + [
+            extblock.get_serializable_data() for extblock in self.blocks.values()
+        ]
+        body = b"".join(cbor2.dumps(b) for b in all_blocks)
         return b"\x9f" + body + b"\xff"
 
     def add_canonical_block(
