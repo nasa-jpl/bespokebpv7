@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bundle Protocol Security Classes
  Author: Nate Richard
- Modified: 01/15/2026
+ Modified: 01/16/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -47,12 +47,10 @@ from cattrs.strategies import use_class_methods
 import cbor2
 
 from bespokebpv7.block_enum import (
-    BlockFlags,
     BIBParmEnum,
     BIBResultEnum,
     BIBSHAVariant,
     BlockType,
-    CRCType,
     IntegrityScopeFlags,
     SecurityContextFlags,
 )
@@ -204,46 +202,26 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
         else:
             self.integrity_scope_flags &= ~int(security_flag)
 
-    @classmethod
-    def _structure(cls, data: list) -> "BlockIntegrityBlock":
-        """BIB structure method."""
-        block = cls()
-        block.block_type = BlockType(data[0])
-        block.block_number = data[1]
-        block.flags = BlockFlags(data[2])
-        block.crc_type = CRCType(data[3])
-        block.data = data[4]
-        bib_data = cbor2.loads(data[4])
+    def _proc_in_data(self, block_data: bytes) -> None:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
+        self.data = block_data
+        bib_data = cbor2.loads(block_data)
 
-        block.security_targets = bib_data[0]
-        block.security_context_id = bib_data[1]
-        block.security_context_flags = bib_data[2]
+        self.security_targets = bib_data[0]
+        self.security_context_id = bib_data[1]
+        self.security_context_flags = bib_data[2]
         next_idx = 3
 
-        if block.parm_present:
+        if self.parm_present:
             for parm in bib_data[next_idx]:
-                block.security_parameters.append(SecurityParameter(parm[0], parm[1]))
+                self.security_parameters.append(SecurityParameter(parm[0], parm[1]))
             next_idx += 1
 
         for result in bib_data[next_idx]:
-            block.security_results.append(SecurityResult(result[0], result[1]))
+            self.security_results.append(SecurityResult(result[0], result[1]))
 
-        if len(data) > 5:
-            block.crc = data[5]
-        else:
-            block.crc = CRCType.NONE.fill_value
-
-        return block
-
-    def _unstructure(self) -> list:
-        """BIB unstructure method."""
-        out: list[Union[int, bytes]] = [
-            int(self.block_type),
-            self.block_number,
-            int(self.flags),
-            int(self.crc_type),
-        ]
-
+    def _proc_out_data(self) -> bytes:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
         data = [
             self.security_targets,
             self.security_context_id,
@@ -255,12 +233,8 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
 
         result_list = [result.unstructure() for result in self.security_results]
         data.append(result_list)
-        out.append(cbor2.dumps(data))
 
-        if self.crc_type != CRCType.NONE and self.crc:
-            out.append(self.crc)
-
-        return out
+        return cbor2.dumps(data)
 
 
 bpsec_converter = make_converter()
