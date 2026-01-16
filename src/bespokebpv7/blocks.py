@@ -44,10 +44,10 @@ import datetime
 from collections import OrderedDict
 from typing import Any, NotRequired, Optional, TypedDict, Union
 
+import cbor2
 from attrs import define, field
 from cattrs.preconf.cbor2 import make_converter
 from cattrs.strategies import use_class_methods
-import cbor2
 
 from bespokebpv7.block_enum import BlockFlags, BlockType, BundleFlags, CRCType
 from bespokebpv7.bundle_params import BundleFragmentation, BundleLife, BundleRoute

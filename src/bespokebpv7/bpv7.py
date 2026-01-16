@@ -46,16 +46,16 @@ from typing import Any, Optional
 import cbor2
 import dpkt  # type: ignore
 
-from bespokebpv7.block_enum import BlockType, CRCType, BlockFlags
+from bespokebpv7.block_enum import BlockFlags, BlockType, CRCType
 from bespokebpv7.blocks import (
     CanonicalBlock,
+    CanonicalBlockInit,
     ExtensionBlocks,
     PrimaryBlock,
     block_converter,
-    CanonicalBlockInit,
 )
+from bespokebpv7.ext_functions import BLOCKFUNCTIONS, ext_converter
 from bespokebpv7.utils import calculate_crc
-from bespokebpv7.ext_functions import ext_converter, BLOCKFUNCTIONS
 
 
 class BPv7(dpkt.Packet):

@@ -41,10 +41,10 @@ software to foreign countries or providing access to foreign persons.
 
 from typing import Optional, Union
 
+import cbor2
 from attrs import define, field
 from cattrs.preconf.cbor2 import make_converter
 from cattrs.strategies import use_class_methods
-import cbor2
 
 from bespokebpv7.block_enum import (
     BIBParmEnum,

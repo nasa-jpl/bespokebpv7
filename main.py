@@ -3,9 +3,9 @@ import binascii
 import cbor2
 
 from bespokebpv7.block_enum import BlockType, CRCType
+from bespokebpv7.blocks import CanonicalBlockInit
 from bespokebpv7.bpv7 import BPv7
 from bespokebpv7.utils import parse_eid_string
-from bespokebpv7.blocks import CanonicalBlockInit
 
 
 def test():

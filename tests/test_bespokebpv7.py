@@ -40,37 +40,38 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import datetime
-import pytest
-from hypothesis import given, strategies as st
-import cbor2
 
-from bespokebpv7.utils import parse_eid_string, format_eid, calculate_crc, DTN_EPOCH
+import cbor2
+import pytest
+from hypothesis import given
+from hypothesis import strategies as st
+
 from bespokebpv7.block_enum import (
-    BlockType,
-    BundleFlags,
-    BlockFlags,
-    CRCType,
-    IntegrityScopeFlags,
     BIBParmEnum,
     BIBResultEnum,
     BIBSHAVariant,
+    BlockFlags,
+    BlockType,
+    BundleFlags,
+    CRCType,
+    IntegrityScopeFlags,
 )
-from bespokebpv7.bundle_params import BundleRoute, BundleLife
 from bespokebpv7.blocks import (
     CanonicalBlock,
+    CanonicalBlockInit,
     PrimaryBlock,
     block_converter,
-    CanonicalBlockInit,
 )
 from bespokebpv7.bpsec import BlockIntegrityBlock
+from bespokebpv7.bpv7 import BPv7
+from bespokebpv7.bundle_params import BundleLife, BundleRoute
 from bespokebpv7.ext_functions import (
     BundleAgeExt,
-    PreviousNodeExt,
     HopCountExt,
+    PreviousNodeExt,
     ext_converter,
 )
-from bespokebpv7.bpv7 import BPv7
-
+from bespokebpv7.utils import DTN_EPOCH, calculate_crc, format_eid, parse_eid_string
 
 # --- Strategies for Hypothesis ---
 st_ipn_eid = st.builds(
