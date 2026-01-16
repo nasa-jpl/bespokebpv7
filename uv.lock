@@ -31,6 +31,7 @@ name = "bespokebpv7"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "attrs" },
     { name = "cattrs" },
     { name = "cbor2" },
     { name = "dpkt" },
@@ -49,6 +50,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "attrs", specifier = ">=25.4.0" },
     { name = "cattrs", specifier = ">=25.3.0" },
     { name = "cbor2", specifier = ">=5.8.0" },
     { name = "dpkt", specifier = ">=1.9.8" },
