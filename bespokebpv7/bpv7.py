@@ -52,6 +52,7 @@ from bespokebpv7.blocks import (
     ExtensionBlocks,
     PrimaryBlock,
     block_converter,
+    CanonicalBlockInit,
 )
 from bespokebpv7.utils import calculate_crc
 from bespokebpv7.ext_functions import ext_converter, BLOCKFUNCTIONS
@@ -107,25 +108,32 @@ class BPv7(dpkt.Packet):
         body = b"".join(cbor2.dumps(b) for b in all_blocks)
         return b"\x9f" + body + b"\xff"
 
-    def add_canonical_block(
-        self,
-        type_code: BlockType,
-        data: bytes,
-        block_num: Optional[int] = None,
-        flags: BlockFlags = BlockFlags(0),
-        crc_type: CRCType = CRCType.NONE,
-    ) -> None:
+    def add_canonical_block(self, block_parms: CanonicalBlockInit, data: bytes) -> None:
         """Helper to format a canonical block"""
-        block = BLOCKFUNCTIONS.get(type_code, CanonicalBlock)
-        if not block_num:
+        type_code = block_parms["block_type"]
+
+        if "block_num" not in block_parms:
             block_number = next(self.next_block_num)
         else:
-            block_number = block_num
+            block_number = block_parms["block_num"]
+
+        if "crc_type" not in block_parms:
+            crc_type = CRCType.NONE
+        else:
+            crc_type = block_parms["crc_type"]
+
+        if "block_flags" not in block_parms:
+            flags = BlockFlags(0)
+        else:
+            flags = block_parms["block_flags"]
 
         block_inputs = [type_code, block_number, flags, crc_type, data]
-        if crc_type != CRCType.NONE:
+
+        if crc_type and crc_type != CRCType.NONE:
             crc = calculate_crc(block_inputs + [crc_type.fill_value], crc_type)
             block_inputs.append(crc)
+
+        block = BLOCKFUNCTIONS.get(type_code, CanonicalBlock)
         self.blocks[type_code] = ext_converter.structure(block_inputs, block)
 
     def add_payload_block(
@@ -179,7 +187,10 @@ class BPv7(dpkt.Packet):
                 warnings.warn("Primary Block CRC mismatch!", UserWarning)
 
     def _debug(
-        self, in_data: list, block_type: Optional[BlockType] = None, header: bool = False
+        self,
+        in_data: list,
+        block_type: Optional[BlockType] = None,
+        header: bool = False,
     ) -> None:
         """Function to help with debugging parsing."""
         type_str_in = "header in"

@@ -42,7 +42,7 @@ software to foreign countries or providing access to foreign persons.
 
 import datetime
 from collections import OrderedDict
-from typing import Any, Optional, Union
+from typing import Any, NotRequired, Optional, TypedDict, Union
 
 from attrs import define, field
 from cattrs.preconf.cbor2 import make_converter
@@ -75,6 +75,15 @@ class ExtensionBlocks(OrderedDict):
         super().__setitem__(key, value)
         if BlockType.PAYLOAD_BLOCK in self.keys():
             self.move_to_end(BlockType.PAYLOAD_BLOCK)
+
+
+class CanonicalBlockInit(TypedDict):
+    """Parameters needed to initialize a Canonical Block."""
+
+    block_type: BlockType
+    block_num: NotRequired[int]
+    block_flags: NotRequired[BlockFlags]
+    crc_type: NotRequired[CRCType]
 
 
 @define
