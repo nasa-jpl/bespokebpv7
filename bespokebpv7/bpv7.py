@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bundle Protocol v7 Class
  Author: Nate Richard
- Modified: 01/15/2026
+ Modified: 01/16/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -67,6 +67,8 @@ class BPv7(dpkt.Packet):
         self.debug = debug
         self.primary_block = PrimaryBlock()
         self.blocks = ExtensionBlocks()
+        self.proc_exts = ""
+        self.recv_exts = ""
         super().__init__(*args, **kwargs)
 
         self.next_block_num = count(2)
@@ -149,45 +151,25 @@ class BPv7(dpkt.Packet):
             return None
 
     def unpack(self, buf: bytes) -> None:
-        recv_exts = ""
-        proc_exts = ""
         try:
             bundle_data = cbor2.loads(buf)
-        except cbor2.CBORDecodeError:
-            print("Error decoding bundle")
-            return
+        except cbor2.CBORDecodeError as err:
+            raise ValueError("Unable to decode cbor array.") from err
 
         self.primary_block = block_converter.structure(bundle_data[0], PrimaryBlock)
 
+        ext: CanonicalBlock
         for exts in bundle_data[1:]:
             block_type = BlockType(exts[0])
+            block = BLOCKFUNCTIONS.get(block_type, CanonicalBlock)
+            ext = ext_converter.structure(exts, block)
 
-            ext = ext_converter.structure(exts, CanonicalBlock)
-
-            if self.debug:
-                recv_ext = cbor2.dumps(exts).hex()
-                recv_exts += recv_ext
-                proc_ext = bytes(ext).hex()
-                proc_exts += proc_ext
-                print(
-                    f"block {block_type:>3} in:  {recv_ext}\n",
-                    f"block {int(ext.block_type):>3} out: {proc_ext}",
-                    sep="",
-                )
             self.blocks[block_type] = ext
+            if self.debug:
+                self._debug(exts, block_type)
 
         if self.debug:
-            try:
-                recv_hed = cbor2.dumps(bundle_data[0]).hex()
-            except cbor2.CBOREncodeError:
-                print("Error encoding data")
-                return
-
-            print(
-                f"header in:  {recv_hed}\nheader out: {bytes(self.primary_block).hex()}"
-            )
-            print(f"received:  9f{recv_hed}{recv_exts}ff")
-            print(f"processed: 9f{bytes(self.primary_block).hex()}{proc_exts}ff")
+            self._debug(bundle_data[0], header=True)
 
         if self.primary_block.crc_type != CRCType.NONE:
             actual_crc = self.primary_block.crc
@@ -198,3 +180,28 @@ class BPv7(dpkt.Packet):
             expected_crc = calculate_crc(primary_check, self.primary_block.crc_type)
             if actual_crc != expected_crc:
                 warnings.warn("Primary Block CRC mismatch!", UserWarning)
+
+    def _debug(
+        self, in_data: list, block_type: Union[BlockType, None] = None, header: bool = False
+    ) -> None:
+        """Function to help with debugging parsing."""
+        type_str_in = "header in"
+        type_str_out = "header out"
+        if not header:
+            out_num = self.blocks[block_type].block_type
+            type_str_in = f"block {block_type:>3}"
+            type_str_out = f"block {int(out_num):>3}"
+
+        hexstr = cbor2.dumps(in_data).hex()
+        if not header:
+            out_data = bytes(self.blocks[block_type]).hex()
+            self.recv_exts += hexstr
+            self.proc_exts += out_data
+        else:
+            out_data = bytes(self.primary_block).hex()
+
+        print(f"{type_str_in}:  {hexstr}\n{type_str_out}:  {out_data}", sep="")
+
+        if header:
+            print(f"received:  9f{hexstr}{self.recv_exts}ff")
+            print(f"processed: 9f{bytes(self.primary_block).hex()}{self.proc_exts}ff")
