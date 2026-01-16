@@ -176,10 +176,12 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
         self.security_parameters.append(
             SecurityParameter(BIBParmEnum.SHA_VARIANT, variant)
         )
+        self.parm_present = True
 
     def add_wrapped_key(self, key: bytes):
         """Set wrapped key security key."""
         self.security_parameters.append(SecurityParameter(BIBParmEnum.WRAPPED_KEY, key))
+        self.parm_present = True
 
     def add_integrity_scope(self, val: Union[int, None] = None):
         """Stores Integrity scope flags as a security parameter."""
@@ -188,6 +190,7 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
         self.security_parameters.append(
             SecurityParameter(BIBParmEnum.INTEGRITY_SCOPE_FLAGS, val)
         )
+        self.parm_present = True
 
     def add_security_result(self, result: bytes):
         """Add expected HMAC result"""
