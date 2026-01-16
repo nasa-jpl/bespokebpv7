@@ -1,10 +1,7 @@
-# Version 0.2.0
+# Version 0.2.1
 
-First formal release
+Verify GitHub connection update
 
 ## Changed
 
-- Refactor code to better support data de/serialization
-- Change non-BPSec extension blocks to classes
-- Fix flag setting in BIB
-- Correct security parameter value for BIB
+- Cleanup imports
