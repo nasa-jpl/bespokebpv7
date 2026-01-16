@@ -171,8 +171,10 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
     def __attrs_post_init__(self):
         self.security_context_flags = SecurityContextFlags(1)
 
-    def set_sha_variant(self, variant: BIBSHAVariant) -> None:
+    def set_sha_variant(self, variant: Optional[BIBSHAVariant] = None) -> None:
         """Set SHA variant security parameter."""
+        if not variant:
+            variant = BIBSHAVariant.HMAC_384_384
         self.security_parameters.append(
             SecurityParameter(BIBParmEnum.SHA_VARIANT, variant)
         )

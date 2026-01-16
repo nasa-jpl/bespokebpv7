@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Block enumerations
  Author: Nate Richard
- Modified: 12/19/2025
+ Modified: 01/16/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -146,7 +146,7 @@ class BIBParmEnum(IntEnum):
     __str__ = Enum.__str__
     SHA_VARIANT = 1
     WRAPPED_KEY = 2
-    INTEGRITY_SCOPE_FLAGS = 2
+    INTEGRITY_SCOPE_FLAGS = 3
 
 
 class BIBResultEnum(IntEnum):
