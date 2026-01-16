@@ -56,7 +56,12 @@ from bespokebpv7.block_enum import (
     BIBSHAVariant,
 )
 from bespokebpv7.bundle_params import BundleRoute, BundleLife
-from bespokebpv7.blocks import CanonicalBlock, PrimaryBlock, block_converter
+from bespokebpv7.blocks import (
+    CanonicalBlock,
+    PrimaryBlock,
+    block_converter,
+    CanonicalBlockInit,
+)
 from bespokebpv7.bpsec import BlockIntegrityBlock
 from bespokebpv7.ext_functions import (
     BundleAgeExt,
@@ -343,7 +348,8 @@ def test_bpv7_add_blocks():
     age = 500
     bundle = BPv7()
     bundle.add_payload_block(b"payload")
-    bundle.add_canonical_block(BlockType.BUNDLE_AGE, cbor2.dumps(age))
+    block_parms: CanonicalBlockInit = {"block_type": BlockType.BUNDLE_AGE}
+    bundle.add_canonical_block(block_parms, cbor2.dumps(age))
 
     assert BlockType.PAYLOAD_BLOCK in bundle.blocks
     assert BlockType.BUNDLE_AGE in bundle.blocks
@@ -378,7 +384,8 @@ def test_bpv7_pack_unpack_roundtrip(src, dst, payload):
     b1.primary_block.set_creation(1000, 0)
 
     b1.add_payload_block(payload)
-    b1.add_canonical_block(BlockType.BUNDLE_AGE, cbor2.dumps(age))
+    block_parms: CanonicalBlockInit = {"block_type": BlockType.BUNDLE_AGE}
+    b1.add_canonical_block(block_parms, cbor2.dumps(age))
     raw_bytes = bytes(b1)
 
     b2 = BPv7(raw_bytes)
@@ -427,7 +434,12 @@ def test_bpv7_crc_setting():
     assert len(p_blk.crc) == 2
 
     age_data = cbor2.dumps(100)
-    bundle.add_canonical_block(BlockType.BUNDLE_AGE, age_data, block_num=88, crc_type=CRCType.CRC32)
+    block_parms: CanonicalBlockInit = {
+        "block_type": BlockType.BUNDLE_AGE,
+        "block_num": 88,
+        "crc_type": CRCType.CRC32,
+    }
+    bundle.add_canonical_block(block_parms, age_data)
 
     a_blk = bundle.get_block_by_type(BlockType.BUNDLE_AGE)
     assert a_blk and a_blk.crc_type == CRCType.CRC32

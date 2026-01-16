@@ -5,6 +5,7 @@ import cbor2
 from bespokebpv7.block_enum import BlockType, CRCType
 from bespokebpv7.bpv7 import BPv7
 from bespokebpv7.utils import parse_eid_string
+from bespokebpv7.blocks import CanonicalBlockInit
 
 
 def test():
@@ -28,9 +29,8 @@ def create_new():
     x.primary_block.route.source_eid = "ipn:2.1"
     x.primary_block.route.dest_eid = "ipn:3.1"
     x.primary_block.update_crc()
-    x.add_canonical_block(
-        BlockType.PREVIOUS_NODE, cbor2.dumps(parse_eid_string("ipn:2.0"))
-    )
+    block_parms: CanonicalBlockInit = {"block_type": BlockType.PREVIOUS_NODE}
+    x.add_canonical_block(block_parms, cbor2.dumps(parse_eid_string("ipn:2.0")))
     print(x)
     print(bytes(x).hex())
 
