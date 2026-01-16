@@ -1,0 +1,32 @@
+#!/bin/bash
+echo "Creating distribution..."
+
+uv pip freeze --exclude-editable > requirements.txt
+
+version="$1"
+uv version $version
+
+echo "Compiling release..."
+cd $HOME/bespokebpv7
+uv version
+uv build --wheel
+if [ -z "$2" ]
+  then
+    echo "Test Release Created"
+else
+    echo "Creating release notes..."
+        # Create Release file from Changelog to be used in Release
+    python release_scripts/mk_release.py $version
+
+    echo "Updating git..."
+    # Add Release files to git
+    git add .
+    git commit -m "Release version $version"
+    git tag -f -a v$version -m "Release version $version"
+    git push
+
+    echo "Pushing release..."
+    gh release create v$version dist/*.whl -F RELEASE.md
+
+    echo "Version '$version' Released"
+fi
