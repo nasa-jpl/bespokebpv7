@@ -9,7 +9,7 @@ the extent both supported and unsupported by the RFC. Want to set the do not
 fragment and is a fragment flag, we won't stop you! It also supports definition
 and modification of standardized Extension Blocks, specifically the Bundle Age
 Block, the Hop Count Block, the Previous Node Block, and the Block Integrity
-Block. Eventually, it will support the non-standard extension blocks within
+Block. Eventually, it will support the non-standard Extension Blocks within
 ION. It can also take in a hex  representation of bundle and parse out the
 parameters, provided it is CBOR conformant. Below are a few examples for using
 this package.
