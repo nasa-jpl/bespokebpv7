@@ -288,7 +288,7 @@ def test_block_integrity_block_creation():
     bib = BlockIntegrityBlock()
     bib.security_context_id = 1
 
-    bib.set_sha_variant(BIBSHAVariant.HMAC_256_256)
+    bib.set_sha_variant()
     assert len(bib.security_parameters) == 1
     assert bib.security_parameters[0].parm_id == BIBParmEnum.SHA_VARIANT
 
@@ -300,6 +300,8 @@ def test_block_integrity_block_creation():
     assert bib.security_results[0].result_id == BIBResultEnum.EXPECTED_HMAC
 
     bib.include_primary_block = True
+    bib.add_integrity_scope()
+    assert bib.security_parameters[2].parm_id == BIBParmEnum.INTEGRITY_SCOPE_FLAGS
     assert bib.integrity_scope_flags & IntegrityScopeFlags.INCLUDE_PRIMARY_BLOCK
 
     assert bib.parm_present
