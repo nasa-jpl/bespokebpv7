@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bundle Extension Block functions
  Author: Nate Richard
- Modified: 01/14/2025
+ Modified: 01/15/2025
  Company: JPL
  Date:   12/19/2025
 
@@ -40,61 +40,89 @@ software to foreign countries or providing access to foreign persons.
 """
 
 from typing import Union
+
 import cbor2
+from attrs import define, field
+from cattrs.preconf.cbor2 import make_converter
+from cattrs.strategies import use_class_methods
 
 from bespokebpv7.block_enum import BlockType
 from bespokebpv7.blocks import CanonicalBlock
+from bespokebpv7.bpsec import BlockIntegrityBlock
 from bespokebpv7.utils import format_eid, parse_eid_string
 
 
-def process_bae(bae: CanonicalBlock) -> Union[int, None]:
-    """Extract Bundle Age from Canonical block."""
-    if bae.block_type != BlockType.BUNDLE_AGE:
-        print("Wrong block")
-        return None
+@define
+class BundleAgeExt(CanonicalBlock):
+    """Class definition for Bundle Age extension block"""
 
-    bundle_age = cbor2.loads(bae.data)
-    return bundle_age
+    age: int = field(default=0)
 
+    def _proc_out_data(self) -> bytes:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
+        return cbor2.dumps(self.age)
 
-def create_bae(age: int) -> bytes:
-    """Format data required to add BAE."""
-    return cbor2.dumps(age)
-
-
-def process_pnb(bae: CanonicalBlock) -> Union[str, None]:
-    """Extract Previous Node from Canonical block."""
-    if bae.block_type != BlockType.PREVIOUS_NODE:
-        print("Wrong block")
-        return None
-
-    bundle_age = cbor2.loads(bae.data)
-    return format_eid(bundle_age)
+    def _proc_in_data(self, block_data: bytes) -> None:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
+        self.data = block_data
+        self.age = cbor2.loads(block_data)
 
 
-def create_pnb(previous_node: str) -> bytes:
-    """Format data required to add BAE."""
-    return cbor2.dumps(parse_eid_string(previous_node))
+@define
+class PreviousNodeExt(CanonicalBlock):
+    """Class definition for Previous Node extension block"""
+
+    _previous_node: list = field(factory=lambda: [1, "none"])
+
+    @property
+    def previous_node(self) -> str:
+        """Return source EID"""
+        return format_eid(self._previous_node)
+
+    @previous_node.setter
+    def previous_node(self, value: Union[str, list]) -> None:
+        if isinstance(value, list):
+            self._previous_node = value
+        else:
+            self._previous_node = parse_eid_string(value)
+
+    def _proc_out_data(self) -> bytes:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
+        return cbor2.dumps(self._previous_node)
+
+    def _proc_in_data(self, block_data: bytes) -> None:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
+        self.data = block_data
+        self.previous_node = cbor2.loads(block_data)
 
 
-def process_hcb(hcb: CanonicalBlock) -> tuple:
-    """Extract bundle hop count data."""
-    if hcb.block_type != BlockType.HOP_COUNT:
-        print("Wrong block")
-        return None, None
+@define
+class HopCountExt(CanonicalBlock):
+    """Class definition for  extension block"""
 
-    hop_list = cbor2.loads(hcb.data)
-    return hop_list[0], hop_list[1]
+    hop_limit: int = field(default=0)
+    hop_count: int = field(default=0)
+
+    def _proc_out_data(self) -> bytes:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
+        return cbor2.dumps([self.hop_limit, self.hop_count])
+
+    def _proc_in_data(self, block_data: bytes) -> None:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
+        self.data = block_data
+        hcb_data = cbor2.loads(block_data)
+        if len(hcb_data) == 2:
+            self.hop_limit = hcb_data[0]
+            self.hop_count = hcb_data[1]
 
 
-def create_hcb(hop_limit: int, hop_count: int = 0) -> bytes:
-    """Format data required to add bundle hop count."""
-    return cbor2.dumps([hop_limit, hop_count])
-
-
-def process_bib():
-    """Extract BIB data."""
-
-
-def create_bib():
-    """Format data required to add BIB."""
+ext_converter = make_converter()
+use_class_methods(ext_converter, "_structure", "_unstructure")
+BLOCKFUNCTIONS = {
+    BlockType.BIB: BlockIntegrityBlock,
+    BlockType.PAYLOAD_BLOCK: CanonicalBlock,
+    BlockType.PREVIOUS_NODE: PreviousNodeExt,
+    BlockType.BUNDLE_AGE: BundleAgeExt,
+    BlockType.HOP_COUNT: HopCountExt,
+    BlockType.UNKNOWN_BLOCK: CanonicalBlock,
+}

@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: BPv7 Block Classes & helper functions
  Author: Nate Richard
- Modified: 01/14/2026
+ Modified: 01/16/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -42,9 +42,11 @@ software to foreign countries or providing access to foreign persons.
 
 import datetime
 from collections import OrderedDict
-from dataclasses import dataclass, field
-from typing import Any, Callable, ClassVar, Optional, TypedDict, Union
+from typing import Any, NotRequired, Optional, TypedDict, Union
 
+from attrs import define, field
+from cattrs.preconf.cbor2 import make_converter
+from cattrs.strategies import use_class_methods
 import cbor2
 
 from bespokebpv7.block_enum import BlockFlags, BlockType, BundleFlags, CRCType
@@ -75,63 +77,34 @@ class ExtensionBlocks(OrderedDict):
             self.move_to_end(BlockType.PAYLOAD_BLOCK)
 
 
-class FieldFunctions(TypedDict):
-    """Typing Dict for handling primary block parameters"""
+class CanonicalBlockInit(TypedDict):
+    """Parameters needed to initialize a Canonical Block."""
 
-    get: Callable[["PrimaryBlock"], Any]
-    set: Callable[["PrimaryBlock", Any], None]
+    block_type: BlockType
+    block_num: NotRequired[int]
+    block_flags: NotRequired[BlockFlags]
+    crc_type: NotRequired[CRCType]
 
 
-FieldMapType = dict[str, FieldFunctions]
-
-
-@dataclass
+@define
 class BaseBlock:
     """
-    Dataclass that contains values required for both across primary and
+    Class that contains values required for both across primary and
     canonical blocks.
     """
 
-    _flags: Any = 0
-    _crc_type: CRCType = CRCType.NONE
+    flags: Any = 0
+    crc_type: CRCType = field(default=CRCType.NONE, converter=CRCType)
     crc: Optional[bytes] = CRCType.NONE.fill_value
-    serial_fields: list[str] = field(default_factory=list, repr=False)
 
     def __bytes__(self):
-        return cbor2.dumps(self.get_serializable_data())
+        return cbor2.dumps(self._unstructure())
 
     def update_crc(self):
         """Manual trigger to update CRC based on current state."""
         if self.crc_type != CRCType.NONE:
             self.crc = self.crc_type.fill_value
-            data_to_hash = self.get_serializable_data()
-            self.crc = calculate_crc(data_to_hash, self.crc_type)
-
-    def get_serializable_data(self) -> list:
-        """
-        Constructs the CBOR-ready list based on class-specific field order.
-        """
-        serial_data = []
-
-        for name in self.serial_fields:
-            # RFC 9171: If CRC type is NONE, the CRC field is omitted
-            if name == "crc" and self._crc_type == CRCType.NONE:
-                break
-
-            val = getattr(self, name)
-
-            # Delegate specialized encoding to a helper method
-            serial_data.append(self._process_field_for_serial(name, val))
-
-        return serial_data
-
-    def _process_field_for_serial(
-        self,
-        name: str,  # pylint: disable=unused-argument
-        val: Any,
-    ) -> Any:
-        """Hook for subclasses to handle specific field encoding (like CBOR wrapping)."""
-        return val
+            self.crc = calculate_crc(self._unstructure(), self.crc_type)
 
     def set_flag(self, flag: Union[BundleFlags, BlockFlags], state=True) -> None:
         """Sets or clears an individual flag."""
@@ -140,106 +113,80 @@ class BaseBlock:
         else:
             self.flags &= ~int(flag)
 
-    @property
-    def crc_type(self) -> CRCType:
-        """Returns CRC type set for block."""
-        return self._crc_type
-
-    @crc_type.setter
-    def crc_type(self, value: int) -> None:
-        self._crc_type = CRCType(value)
-
-    @property
-    def flags(self) -> Union[BundleFlags, BlockFlags]:
-        """Returns flags as set for block."""
-        return self._flags
-
-    @flags.setter
-    def flags(self, value: Union[BundleFlags, BlockFlags]) -> None:
-        self._flags = value
+    def _unstructure(self) -> list:
+        """Base unstructure method, should be overridden."""
+        raise NotImplementedError
 
 
-@dataclass
+@define
 class CanonicalBlock(BaseBlock):
     """
     Parameter definitions for Canonical blocks.
+    Structure: [block_type, block_number, flags, crc_type, data, crc]
     """
 
-    _flags: BlockFlags = BlockFlags(0)
-    _block_type: BlockType = BlockType.UNKNOWN_BLOCK
-    _block_number: int = 2  # cannot be 0 (primary) or 1 (payload)
-    _data: bytes = field(default_factory=bytes)
+    flags: BlockFlags = field(default=BlockFlags(0), converter=BlockFlags)
+    block_type: BlockType = field(default=BlockType.UNKNOWN_BLOCK, converter=BlockType)
+    block_number: int = field(default=1, converter=int)  # cannot be 0 (primary)
+    data: bytes = field(factory=bytes)
 
     replica_fragment = flag_property(BlockFlags.REPLICATE_FRAGMENT)
     status_report = flag_property(BlockFlags.STATUS_BUNDLE)
     delete_bundle = flag_property(BlockFlags.DELETE_BUNDLE)
     discard_block = flag_property(BlockFlags.DISCARD_BLOCK)
-    serial_fields: list[str] = field(
-        default_factory=lambda: [
-            "_block_type",
-            "_block_number",
-            "_flags",
-            "_crc_type",
-            "_data",
-            "crc",
-        ],
-        repr=False,
-    )
 
-    def _process_field_for_serial(self, name: str, val: Any) -> Any:
-        """
-        Encodes non-payload data as a CBOR byte string.
-        """
-        if name == "_data" and self._block_type != BlockType.PAYLOAD_BLOCK:
-            return cbor2.dumps(val)
-        return val
+    @classmethod
+    def _structure(cls, data: list) -> "CanonicalBlock":
+        """Class-specific structure method."""
+        block = cls()
+        block.block_type = BlockType(data[0])
+        block.block_number = data[1]
+        block.flags = BlockFlags(data[2])
+        block.crc_type = CRCType(data[3])
+        block._proc_in_data(data[4])
 
-    @property
-    def block_number(self) -> int:
-        """Return block number set for block."""
-        return self._block_number
+        if len(data) > 5:
+            block.crc = data[5]
+        else:
+            block.crc = block.crc_type.fill_value
+        return block
 
-    @block_number.setter
-    def block_number(self, value: int):
-        self._block_number = value
+    def _unstructure(self) -> list:
+        """Class-specific unstructure method."""
+        out: list[Union[int, bytes]] = [
+            int(self.block_type),
+            self.block_number,
+            int(self.flags),
+            int(self.crc_type),
+        ]
 
-    @property
-    def data(self) -> Any:
-        """Return underlying data."""
-        return self._data
+        out.append(self._proc_out_data())
 
-    @data.setter
-    def data(self, value: Any):
-        self._data = value
+        if self.crc_type != CRCType.NONE and self.crc:
+            out.append(self.crc)
+        return out
 
-    @property
-    def flags(self) -> BlockFlags:
-        """Return set Block flags"""
-        return self._flags
+    def _proc_out_data(self) -> bytes:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
+        if not isinstance(self.data, bytes):
+            return cbor2.dumps(self.data)
+        return self.data
 
-    @flags.setter
-    def flags(self, value: int) -> None:
-        self._flags = BlockFlags(value)
-
-    @property
-    def block_type(self) -> BlockType:
-        """Return set block type, cannot be 1 or 0."""
-        return self._block_type
-
-    @block_type.setter
-    def block_type(self, value: int) -> None:
-        self._block_type = BlockType(value)
+    def _proc_in_data(self, block_data: bytes) -> None:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
+        self.data = block_data
 
 
-@dataclass
+@define
 class PrimaryBlock(BaseBlock):
     """Parameter definitions for Primary Block."""
 
     version: int = field(default=BPVERSION)
-    _flags: BundleFlags = BundleFlags(0)
-    route: BundleRoute = field(default_factory=BundleRoute)
-    life: BundleLife = field(default_factory=BundleLife)
-    fragmentation: BundleFragmentation = field(default_factory=BundleFragmentation)
+    flags: BundleFlags = field(default=BundleFlags(0), converter=BundleFlags)
+    route: BundleRoute = field(factory=BundleRoute)
+    life: BundleLife = field(factory=BundleLife)
+    fragmentation: Optional[BundleFragmentation] = field(factory=BundleFragmentation)
+
     is_fragment = flag_property(BundleFlags.IS_FRAGMENT)
     adu_is_admin = flag_property(BundleFlags.ADU_IS_ADMIN_RECORD)
     no_fragment = flag_property(BundleFlags.DO_NOT_FRAGMENT)
@@ -249,159 +196,72 @@ class PrimaryBlock(BaseBlock):
     fwd_report = flag_property(BundleFlags.STATUS_REPORT_FWD)
     recv_report = flag_property(BundleFlags.STATUS_REPORT_RECV)
     del_report = flag_property(BundleFlags.STATUS_REPORT_DEL)
-    serial_fields: list[str] = field(
-        default_factory=lambda: [
-            "version",
-            "_flags",
-            "_crc_type",
-            "dest_eid",
-            "source_eid",
-            "report_to_eid",
-            "creation",
-            "lifetime",
-            "fragment_offset",
-            "total_adu_len",
-            "crc",
-        ],
-        repr=False,
-    )
 
-    FIELD_MAP: ClassVar[FieldMapType] = {
-        "dest_eid": {
-            "get": lambda self: parse_eid_string(self.route.dest_eid),
-            "set": lambda self, v: setattr(self.route, "dest_eid", v),
-        },
-        "source_eid": {
-            "get": lambda self: parse_eid_string(self.route.source_eid),
-            "set": lambda self, v: setattr(self.route, "source_eid", v),
-        },
-        "report_to_eid": {
-            "get": lambda self: parse_eid_string(self.route.report_to),
-            "set": lambda self, v: setattr(self.route, "report_to", v),
-        },
-        "creation": {
-            "get": lambda self: [self.life.timestamp_ms, self.life.sequence],
-            "set": lambda self, v: self.set_creation(ms=v[0], seq=v[1]),
-        },
-        "lifetime": {
-            "get": lambda self: self.life.lifetime,
-            "set": lambda self, v: setattr(self.life, "lifetime", v),
-        },
-        "fragment_offset": {
-            "get": lambda self: self.fragmentation.fragment_offset,
-            "set": lambda self, v: setattr(self.fragmentation, "fragment_offset", v),
-        },
-        "total_adu_len": {
-            "get": lambda self: self.fragmentation.total_adu_len,
-            "set": lambda self, v: setattr(self.fragmentation, "total_adu_len", v),
-        },
-    }
-
-    def set_creation(self, ms: Union[int, None] = None, seq: int = 0) -> None:
-        """
-        Set primary block creation time, if nothing is passed sets to time
-        at time of function call.
-        """
-        # Set creation timestamp if it wasn't provided
+    def set_creation(self, ms: Optional[int] = None, seq: int = 0) -> None:
+        """Set primary block creation time."""
         if not ms:
             dt = datetime.datetime.now(datetime.timezone.utc)
-            # Ensure DTN_EPOCH is a datetime object
             dt_now = int((dt - DTN_EPOCH).total_seconds() * 1000)
             self.life.timestamp_ms = dt_now
         else:
             self.life.timestamp_ms = ms
         self.life.sequence = seq
 
-    def get_serializable_data(self) -> list:
-        """
-        Constructs the CBOR-ready list based on class-specific field order.
-        """
-        serial_data = []
+    @classmethod
+    def _structure(cls, data: list) -> "PrimaryBlock":
+        """Structure CBOR List as Primary Block."""
+        block = cls()
+        block.version = data[0]
+        block.flags = BundleFlags(data[1])
+        block.crc_type = CRCType(data[2])
 
-        for name in self.serial_fields:
-            # RFC 9171: If CRC type is NONE, the CRC field is omitted
-            if name == "crc" and self._crc_type == CRCType.NONE:
-                break
+        # Route
+        block.route.dest_eid = data[3]
+        block.route.source_eid = data[4]
+        block.route.report_to = data[5]
 
-            # don't include if bundle is not fragmented
-            if not self.is_fragment and name in ["fragment_offset", "total_adu_len"]:
-                continue
+        # Life (creation is [ms, seq])
+        creation = data[6]
+        block.life.timestamp_ms = creation[0]
+        block.life.sequence = creation[1]
+        block.life.lifetime = data[7]
 
-            if name in self.FIELD_MAP:
-                val = self.FIELD_MAP[name]["get"](self)
-            else:
-                val = getattr(self, name)
+        # Fragmentation
+        idx = 8
+        if block.is_fragment and block.fragmentation:
+            block.fragmentation.fragment_offset = data[idx]
+            block.fragmentation.total_adu_len = data[idx + 1]
+            idx += 2
 
-            # Delegate specialized encoding to a helper method
-            serial_data.append(self._process_field_for_serial(name, val))
-
-        return serial_data
-
-    @property
-    def flags(self) -> BundleFlags:
-        return self._flags
-
-    @flags.setter
-    def flags(self, value: int) -> None:
-        self._flags = BundleFlags(value)
-
-
-@dataclass
-class PayloadBlock(CanonicalBlock):
-    """Modification of Canonical block to ensure ADU is stored correctly."""
-
-    _block_type: BlockType = BlockType.PAYLOAD_BLOCK
-    _block_number: int = 1
-
-    @property
-    def data(self) -> bytes:
-        return self._data
-
-    @data.setter
-    def data(self, value: bytes) -> None:
-        self._data = value
-
-
-def list_to_prime(prime_list: list) -> PrimaryBlock:
-    """
-    Loops through list of primary block values. Only works with values that
-    are in order as defined in RFC 9171.
-    """
-    block = PrimaryBlock()
-    for attr_name, val in zip(block.serial_fields, prime_list):
-        if attr_name in block.FIELD_MAP:
-            block.FIELD_MAP[attr_name]["set"](block, val)
+        if idx < len(data):
+            block.crc = data[idx]
         else:
-            attr_name = attr_name[1:] if attr_name.startswith("_") else attr_name
-            setattr(block, attr_name, val)
+            block.crc = block.crc_type.fill_value
 
-    return block
+        return block
+
+    def _unstructure(self) -> list:
+        """Convert PrimaryBlock to CBOR list."""
+        out: list[Union[int, list, bytes]] = [
+            self.version,
+            int(self.flags),
+            int(self.crc_type),
+            parse_eid_string(self.route.dest_eid),
+            parse_eid_string(self.route.source_eid),
+            parse_eid_string(self.route.report_to),
+            [self.life.timestamp_ms, self.life.sequence],
+            self.life.lifetime,
+        ]
+
+        if self.is_fragment and self.fragmentation:
+            out.append(self.fragmentation.fragment_offset)
+            out.append(self.fragmentation.total_adu_len)
+
+        if self.crc_type != CRCType.NONE and self.crc:
+            out.append(self.crc)
+
+        return out
 
 
-def list_to_canonical(canonical_list: list) -> CanonicalBlock:
-    """
-    Loops through list of canonical block values. Only works with values
-    that are in order as defined in RFC 9171.
-    """
-    block = CanonicalBlock()
-    for attr_name, val in zip(block.serial_fields, canonical_list):
-        if "_" in attr_name:
-            attr_name = attr_name[1:]
-        setattr(block, attr_name, val)
-
-    return block
-
-
-def list_to_payload(payload_list: list) -> CanonicalBlock:
-    """
-    Loops through list of canonical block values. Only works with values that
-    are in order as defined in RFC 9171. Specific to payload block as ADU
-    handling is different.
-    """
-    block = PayloadBlock()
-    for attr_name, val in zip(block.serial_fields, payload_list):
-        if "_" in attr_name:
-            attr_name = attr_name[1:]
-        setattr(block, attr_name, val)
-
-    return block
+block_converter = make_converter()
+use_class_methods(block_converter, "_structure", "_unstructure")

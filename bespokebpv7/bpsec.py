@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bundle Protocol Security Classes
  Author: Nate Richard
- Modified: 01/15/2026
+ Modified: 01/16/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -39,9 +39,11 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-from dataclasses import dataclass, field
-from typing import Union
+from typing import Optional, Union
 
+from attrs import define, field
+from cattrs.preconf.cbor2 import make_converter
+from cattrs.strategies import use_class_methods
 import cbor2
 
 from bespokebpv7.block_enum import (
@@ -55,7 +57,37 @@ from bespokebpv7.block_enum import (
 from bespokebpv7.blocks import CanonicalBlock
 
 
-@dataclass
+def asb_flag_property(flag_bit):
+    """
+    Generates a property that gets/sets a bit in the instance's security
+    context flags attribute.
+    """
+
+    def getter(self):
+        return bool(self.security_context_flags & flag_bit)
+
+    def setter(self, value: bool):
+        self.set_context_flag(flag_bit, value)
+
+    return property(getter, setter)
+
+
+def integrity_flag_property(flag_bit):
+    """
+    Generates a property that gets/sets a bit in the instance's integrity scope
+    flags attribute.
+    """
+
+    def getter(self):
+        return bool(self.integrity_scope_flags & flag_bit)
+
+    def setter(self, value: bool):
+        self.set_scope_flag(flag_bit, value)
+
+    return property(getter, setter)
+
+
+@define
 class SecurityParameter:
     """
     Represents a single Security Context Parameter.
@@ -65,8 +97,12 @@ class SecurityParameter:
     parm_id: int
     value: Union[bytes, int]
 
+    def unstructure(self):
+        """Flatten class for cbor encoding"""
+        return [self.parm_id, self.value]
 
-@dataclass
+
+@define
 class SecurityResult:
     """
     Represents a single Security Result.
@@ -76,55 +112,27 @@ class SecurityResult:
     result_id: int
     value: bytes
 
+    def unstructure(self):
+        """Flatten class for cbor encoding"""
+        return [self.result_id, self.value]
 
-@dataclass
+
+@define
 class AbstractSecurityBlock(CanonicalBlock):
     """
-    Represents the Abstract Security Block (ASB) defined in RFC 9172 Section 3.6.
-
-    The ASB is not a standalone block but defines the structure of the
-    'block-type-specific-data' field for BIB (Block Integrity Block) and
-    BCB (Block Confidentiality Block).
-
-    The presence of optional security parameters is determined by the
-    `security_context_flags`.
+    Represents the Abstract Security Block (ASB).
     """
 
-    # 1. Security Targets: List of Block Numbers (Unsigned Integers)
-    # Identifies the blocks within the bundle that this security service applies to.
-    _security_targets: list[int] = field(default_factory=list[int])
+    security_targets: list[int] = field(factory=list)
+    security_context_id: int = field(default=0)
+    security_context_flags: SecurityContextFlags = field(
+        default=SecurityContextFlags(0), converter=SecurityContextFlags
+    )
+    security_source: list = field(factory=lambda: [1, "none"])
+    security_parameters: list[SecurityParameter] = field(factory=list)
+    security_results: list[SecurityResult] = field(factory=list)
 
-    # 2. Security Context ID: Unsigned Integer
-    # Identifies the security context (algorithm/service) used (e.g., HMAC-SHA256).
-    security_context_id: int = 0
-
-    # 3. Security Context Flags: Unsigned Integer (Bitfield)
-    # Controls the processing and presence of optional fields.
-    _security_context_flags: SecurityContextFlags = SecurityContextFlags(0)
-
-    # 4. Security Source: Endpoint ID (Optional)
-    # Present if 'Security Source Present' flag (0x02) is set.
-    # Represents the node that inserted this security block.
-    security_source: list = field(default_factory=lambda: [1, "none"])
-
-    # 5. Security Parameters: List of Parameters (Optional)
-    # Present if 'Security Parameters Present' flag (0x01) is set.
-    # Configuration data required by the security context.
-    security_parameters: list[SecurityParameter] = field(default_factory=list)
-
-    # 6. Security Results: List of Results (Optional)
-    # Present if 'Security Results Present' flag (0x04) is set.
-    # The output of the security operation (e.g., signatures, auth tags).
-    security_results: list[SecurityResult] = field(default_factory=list)
-
-    def set_data(self) -> None:
-        """Sets defined security data as block specific data."""
-        security_data = []
-        for name, val in self.__dict__.items():
-            if "security" in name:
-                security_data.append(val)
-
-        self.data = cbor2.dumps(security_data)
+    parm_present = asb_flag_property(SecurityContextFlags.CONTAIN_SECURITY_PARM)
 
     def set_context_flag(
         self,
@@ -133,76 +141,58 @@ class AbstractSecurityBlock(CanonicalBlock):
     ) -> None:
         """Sets or clears an individual security context flag."""
         if state:
-            # Bitwise OR to set the bit
-            self._security_context_flags |= int(security_flag)
+            self.security_context_flags |= int(security_flag)
         else:
-            # Bitwise AND with inverted mask to clear the bit
-            self._security_context_flags &= ~int(security_flag)
-
-    @property
-    def security_targets(self) -> list:
-        """Return list of block numbers that are security targets"""
-        return self._security_targets
-
-    @security_targets.setter
-    def security_targets(self, value: int) -> None:
-        self._security_targets.append(value)
-
-    @property
-    def security_context_flags(self) -> SecurityContextFlags:
-        """Returns flags as set for block."""
-        return self._security_context_flags
-
-    @security_context_flags.setter
-    def security_context_flags(self, value: SecurityContextFlags) -> None:
-        self._security_context_flags = value
-
-    @property
-    def parm_present_fragment(self) -> bool:
-        """Return whether the security block has security context parameters."""
-        return bool(
-            self._security_context_flags & SecurityContextFlags.CONTAIN_SECURITY_PARM
-        )
-
-    @parm_present_fragment.setter
-    def parm_present_fragment(self, value: bool):
-        self.set_context_flag(SecurityContextFlags.CONTAIN_SECURITY_PARM, value)
+            self.security_context_flags &= ~int(security_flag)
 
 
-@dataclass
+@define
 class BlockIntegrityBlock(AbstractSecurityBlock):
     """
-    Block Integrity Block (BIB) as defined in RFC 9173.
-
-    The BIB is an instantiation of the Abstract Security Block (ASB)
-    with Block Type Code 11. It provides data integrity services
-    for the target blocks.
+    Block Integrity Block (BIB).
     """
 
-    _block_type: BlockType = BlockType.BIB
-    security_context_id: int = 1
-    _integrity_scope_flags: IntegrityScopeFlags = IntegrityScopeFlags(7)
+    block_type: BlockType = field(default=BlockType.BIB, converter=BlockType)
+    security_context_id: int = field(default=1)
+    integrity_scope_flags: IntegrityScopeFlags = field(
+        default=IntegrityScopeFlags(7), converter=IntegrityScopeFlags
+    )
 
-    def __post_init__(self):
+    include_primary_block = integrity_flag_property(
+        IntegrityScopeFlags.INCLUDE_PRIMARY_BLOCK
+    )
+    include_target_header = integrity_flag_property(
+        IntegrityScopeFlags.INCLUDE_TARGET_HEADER
+    )
+    include_security_header = integrity_flag_property(
+        IntegrityScopeFlags.INCLUDE_SECURITY_HEADER
+    )
+
+    def __attrs_post_init__(self):
         self.security_context_flags = SecurityContextFlags(1)
 
-    def set_sha_variant(self, variant: BIBSHAVariant) -> None:
+    def set_sha_variant(self, variant: Optional[BIBSHAVariant] = None) -> None:
         """Set SHA variant security parameter."""
+        if not variant:
+            variant = BIBSHAVariant.HMAC_384_384
         self.security_parameters.append(
             SecurityParameter(BIBParmEnum.SHA_VARIANT, variant)
         )
+        self.parm_present = True
 
     def add_wrapped_key(self, key: bytes):
         """Set wrapped key security key."""
         self.security_parameters.append(SecurityParameter(BIBParmEnum.WRAPPED_KEY, key))
+        self.parm_present = True
 
-    def add_integrity_scope(self, val: Union[int, None] = None):
+    def add_integrity_scope(self, val: Optional[int] = None):
         """Stores Integrity scope flags as a security parameter."""
         if not val:
             val = self.integrity_scope_flags
         self.security_parameters.append(
             SecurityParameter(BIBParmEnum.INTEGRITY_SCOPE_FLAGS, val)
         )
+        self.parm_present = True
 
     def add_security_result(self, result: bytes):
         """Add expected HMAC result"""
@@ -210,49 +200,47 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
             SecurityResult(BIBResultEnum.EXPECTED_HMAC, result)
         )
 
-    def set_scope_flag(
-        self,
-        security_flag: IntegrityScopeFlags,
-        state=True,
-    ) -> None:
+    def set_scope_flag(self, security_flag: IntegrityScopeFlags, state=True) -> None:
         """Sets or clears an individual security context flag."""
         if state:
-            self._integrity_scope_flags |= int(security_flag)
+            self.integrity_scope_flags |= int(security_flag)
         else:
-            self._integrity_scope_flags &= ~int(security_flag)
+            self.integrity_scope_flags &= ~int(security_flag)
 
-    @property
-    def integrity_scope_flags(self) -> IntegrityScopeFlags:
-        """Returns flags as set for block."""
-        return self._integrity_scope_flags
+    def _proc_in_data(self, block_data: bytes) -> None:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
+        self.data = block_data
+        bib_data = cbor2.loads(block_data)
 
-    @integrity_scope_flags.setter
-    def integrity_scope_flags(self, value: int) -> None:
-        self._integrity_scope_flags = IntegrityScopeFlags(value)
+        self.security_targets = bib_data[0]
+        self.security_context_id = bib_data[1]
+        self.security_context_flags = bib_data[2]
+        next_idx = 3
 
-    @property
-    def include_primary_block(self) -> bool:
-        """Return whether to include primary block"""
-        return bool(self._integrity_scope_flags & IntegrityScopeFlags.INCLUDE_PRIMARY_BLOCK)
+        if self.parm_present:
+            for parm in bib_data[next_idx]:
+                self.security_parameters.append(SecurityParameter(parm[0], parm[1]))
+            next_idx += 1
 
-    @include_primary_block.setter
-    def include_primary_block(self, value: bool):
-        self.set_scope_flag(IntegrityScopeFlags.INCLUDE_PRIMARY_BLOCK, value)
+        for result in bib_data[next_idx]:
+            self.security_results.append(SecurityResult(result[0], result[1]))
 
-    @property
-    def include_target_header(self) -> bool:
-        """Return whether to include target header"""
-        return bool(self._integrity_scope_flags & IntegrityScopeFlags.INCLUDE_TARGET_HEADER)
+    def _proc_out_data(self) -> bytes:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
+        data = [
+            self.security_targets,
+            self.security_context_id,
+            int(self.security_context_flags),
+        ]
+        if self.parm_present:
+            parm_list = [parm.unstructure() for parm in self.security_parameters]
+            data.append(parm_list)
 
-    @include_target_header.setter
-    def include_target_header(self, value: bool):
-        self.set_scope_flag(IntegrityScopeFlags.INCLUDE_TARGET_HEADER, value)
+        result_list = [result.unstructure() for result in self.security_results]
+        data.append(result_list)
 
-    @property
-    def include_security_header(self) -> bool:
-        """Return whether to include security header"""
-        return bool(self._integrity_scope_flags & IntegrityScopeFlags.INCLUDE_SECURITY_HEADER)
+        return cbor2.dumps(data)
 
-    @include_security_header.setter
-    def include_security_header(self, value: bool):
-        self.set_scope_flag(IntegrityScopeFlags.INCLUDE_SECURITY_HEADER, value)
+
+bpsec_converter = make_converter()
+use_class_methods(bpsec_converter, "_structure", "_unstructure")

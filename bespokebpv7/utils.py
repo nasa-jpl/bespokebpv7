@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Utility functions for bundle processing
  Author: Nate Richard
- Modified: 01/14/2026
+ Modified: 01/16/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -42,7 +42,7 @@ software to foreign countries or providing access to foreign persons.
 
 import datetime
 import struct
-from typing import Union
+from typing import Optional, Union
 
 import cbor2
 import fastcrc
@@ -52,7 +52,7 @@ from bespokebpv7.block_enum import CRCType, SchemeCode
 DTN_EPOCH = datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc)
 
 
-def calculate_crc(block_list: list, crc_type: CRCType) -> Union[bytes, None]:
+def calculate_crc(block_list: list, crc_type: CRCType) -> Optional[bytes]:
     """
     Calculates CRC per RFC 9171.
     The CRC field (last element) is replaced by an empty byte string for calculation.
@@ -74,7 +74,7 @@ def calculate_crc(block_list: list, crc_type: CRCType) -> Union[bytes, None]:
     return None
 
 
-def parse_eid_string(eid_str: str) -> Union[list[int], list[object]]:
+def parse_eid_string(eid_str: str) -> list[Union[int, Union[list[int], str]]]:
     """
     Converts 'ipn:node.service' or 'dtn:name' into CBOR list format.
     - ipn:3.1 -> [2, 3, 1]
@@ -91,8 +91,8 @@ def parse_eid_string(eid_str: str) -> Union[list[int], list[object]]:
 
     # assume some sort of type conversion error as a CBOR unsigned int of 0
     # means dtn:none per RFC 9171 4.2.5.11
-    if ssp == "0":
-        ssp = "none"
+    if ssp in ["0", "none"]:
+        return [int(SchemeCode.DTN), 0]
     return [int(SchemeCode.DTN), ssp]
 
 
