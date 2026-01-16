@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Utility functions for bundle processing
  Author: Nate Richard
- Modified: 01/14/2026
+ Modified: 01/15/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -74,7 +74,7 @@ def calculate_crc(block_list: list, crc_type: CRCType) -> Union[bytes, None]:
     return None
 
 
-def parse_eid_string(eid_str: str) -> Union[list[int], list[object]]:
+def parse_eid_string(eid_str: str) -> list[Union[int, Union[list[int], str]]]:
     """
     Converts 'ipn:node.service' or 'dtn:name' into CBOR list format.
     - ipn:3.1 -> [2, 3, 1]
@@ -91,8 +91,8 @@ def parse_eid_string(eid_str: str) -> Union[list[int], list[object]]:
 
     # assume some sort of type conversion error as a CBOR unsigned int of 0
     # means dtn:none per RFC 9171 4.2.5.11
-    if ssp == "0":
-        ssp = "none"
+    if ssp in ["0", "none"]:
+        return [int(SchemeCode.DTN), 0]
     return [int(SchemeCode.DTN), ssp]
 
 
