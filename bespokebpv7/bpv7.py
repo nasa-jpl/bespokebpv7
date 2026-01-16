@@ -17,7 +17,11 @@
 *****************************************************************************
  Title: Bundle Protocol v7 Class
  Author: Nate Richard
+<<<<<<< HEAD
  Modified: 01/16/2026
+=======
+ Modified: 01/15/2026
+>>>>>>> main
  Company: JPL
  Date:   12/19/2025
 
