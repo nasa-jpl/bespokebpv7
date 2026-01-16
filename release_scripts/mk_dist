@@ -9,6 +9,7 @@ uv version $version
 echo "Compiling release..."
 cd $HOME/bespokebpv7
 uv version
+rm dist/*.whl
 uv build --wheel
 if [ -z "$2" ]
   then
