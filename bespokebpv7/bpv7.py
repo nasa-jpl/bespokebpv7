@@ -41,7 +41,7 @@ software to foreign countries or providing access to foreign persons.
 
 import warnings
 from itertools import count
-from typing import Any, Union
+from typing import Any, Optional
 
 import cbor2
 import dpkt  # type: ignore
@@ -97,24 +97,21 @@ class BPv7(dpkt.Packet):
 
     def __bytes__(self) -> bytes:
         """Serializes as an indefinite CBOR array (0x9f ... 0xff)"""
-        if self.primary_block:
-            pb_list = block_converter.unstructure(self.primary_block)
+        pb_list = block_converter.unstructure(self.primary_block)
 
-            ext_lists = [
-                ext_converter.unstructure(extblock) for extblock in self.blocks.values()
-            ]
+        ext_lists = [
+            ext_converter.unstructure(extblock) for extblock in self.blocks.values()
+        ]
 
-            all_blocks = [pb_list] + ext_lists
-            body = b"".join(cbor2.dumps(b) for b in all_blocks)
-        else:
-            body = b""
+        all_blocks = [pb_list] + ext_lists
+        body = b"".join(cbor2.dumps(b) for b in all_blocks)
         return b"\x9f" + body + b"\xff"
 
     def add_canonical_block(
         self,
         type_code: BlockType,
         data: bytes,
-        block_num: Union[int, None] = None,
+        block_num: Optional[int] = None,
         flags: BlockFlags = BlockFlags(0),
         crc_type: CRCType = CRCType.NONE,
     ) -> None:
@@ -143,7 +140,7 @@ class BPv7(dpkt.Packet):
             block_inputs, CanonicalBlock
         )
 
-    def get_block_by_type(self, type_code: BlockType) -> Union[Any, None]:
+    def get_block_by_type(self, type_code: BlockType) -> Optional[Any]:
         """Returns the data field of the first block matching type_code"""
         try:
             return self.blocks[type_code]
@@ -182,7 +179,7 @@ class BPv7(dpkt.Packet):
                 warnings.warn("Primary Block CRC mismatch!", UserWarning)
 
     def _debug(
-        self, in_data: list, block_type: Union[BlockType, None] = None, header: bool = False
+        self, in_data: list, block_type: Optional[BlockType] = None, header: bool = False
     ) -> None:
         """Function to help with debugging parsing."""
         type_str_in = "header in"

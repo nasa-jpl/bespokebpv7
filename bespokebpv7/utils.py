@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Utility functions for bundle processing
  Author: Nate Richard
- Modified: 01/15/2026
+ Modified: 01/16/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -42,7 +42,7 @@ software to foreign countries or providing access to foreign persons.
 
 import datetime
 import struct
-from typing import Union
+from typing import Optional, Union
 
 import cbor2
 import fastcrc
@@ -52,7 +52,7 @@ from bespokebpv7.block_enum import CRCType, SchemeCode
 DTN_EPOCH = datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc)
 
 
-def calculate_crc(block_list: list, crc_type: CRCType) -> Union[bytes, None]:
+def calculate_crc(block_list: list, crc_type: CRCType) -> Optional[bytes]:
     """
     Calculates CRC per RFC 9171.
     The CRC field (last element) is replaced by an empty byte string for calculation.

@@ -39,7 +39,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-from typing import Union
+from typing import Optional, Union
 
 from attrs import define, field
 from cattrs.preconf.cbor2 import make_converter
@@ -183,7 +183,7 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
         self.security_parameters.append(SecurityParameter(BIBParmEnum.WRAPPED_KEY, key))
         self.parm_present = True
 
-    def add_integrity_scope(self, val: Union[int, None] = None):
+    def add_integrity_scope(self, val: Optional[int] = None):
         """Stores Integrity scope flags as a security parameter."""
         if not val:
             val = self.integrity_scope_flags

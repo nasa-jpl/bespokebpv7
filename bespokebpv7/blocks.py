@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: BPv7 Block Classes & helper functions
  Author: Nate Richard
- Modified: 01/15/2026
+ Modified: 01/16/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -188,7 +188,7 @@ class PrimaryBlock(BaseBlock):
     recv_report = flag_property(BundleFlags.STATUS_REPORT_RECV)
     del_report = flag_property(BundleFlags.STATUS_REPORT_DEL)
 
-    def set_creation(self, ms: Union[int, None] = None, seq: int = 0) -> None:
+    def set_creation(self, ms: Optional[int] = None, seq: int = 0) -> None:
         """Set primary block creation time."""
         if not ms:
             dt = datetime.datetime.now(datetime.timezone.utc)
