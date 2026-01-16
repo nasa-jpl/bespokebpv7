@@ -355,6 +355,10 @@ def test_bpv7_add_blocks():
     assert isinstance(a_blk, BundleAgeExt)
     assert a_blk.age == age
 
+    # Verify returns None on non-existing block
+    no_blk = bundle.get_block_by_type(BlockType.BCB)
+    assert no_blk is None
+
 
 @given(st_eid, st_eid, st_data)
 def test_bpv7_pack_unpack_roundtrip(src, dst, payload):
@@ -381,11 +385,9 @@ def test_bpv7_pack_unpack_roundtrip(src, dst, payload):
     assert b2.primary_block.route.source_eid == expected_src
     assert b2.primary_block.route.dest_eid == expected_dest
 
-    # Check Payload
     p_blk = b2.get_block_by_type(BlockType.PAYLOAD_BLOCK)
     assert p_blk and p_blk.data == payload
 
-    # Check BAE
     bae_blk = b2.get_block_by_type(BlockType.BUNDLE_AGE)
     assert isinstance(bae_blk, BundleAgeExt)
     assert bae_blk.age == age
@@ -410,3 +412,56 @@ def test_unpack_decode_errors():
     with pytest.raises(ValueError, match="Unable to decode cbor array."):
         # Unclosed indefinite array
         BPv7(b"\x9f\x01\x00\x00")
+
+
+def test_bpv7_crc_setting():
+    """Test setting CRC type for payload and canonical blocks."""
+    bundle = BPv7()
+
+    payload_data = b"payload_with_crc"
+    bundle.add_payload_block(payload_data, crc_type=CRCType.CRC16)
+
+    p_blk = bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK)
+    assert p_blk and p_blk.crc_type == CRCType.CRC16
+    assert p_blk.crc is not None
+    assert len(p_blk.crc) == 2
+
+    age_data = cbor2.dumps(100)
+    bundle.add_canonical_block(BlockType.BUNDLE_AGE, age_data, block_num=88, crc_type=CRCType.CRC32)
+
+    a_blk = bundle.get_block_by_type(BlockType.BUNDLE_AGE)
+    assert a_blk and a_blk.crc_type == CRCType.CRC32
+    assert a_blk.crc is not None
+    assert len(a_blk.crc) == 4
+
+
+def test_fragmentation_settings():
+    """Test that fragmentation fields are handled correctly based on flags."""
+    frag_offet = 1024
+    total_adu_len = 5000
+    pb = PrimaryBlock()
+    pb.is_fragment = True
+    if pb.fragmentation:
+        pb.fragmentation.fragment_offset = frag_offet
+        pb.fragmentation.total_adu_len = total_adu_len
+    else:
+        raise ValueError("Fragmentation not created")
+
+    assert pb.flags & BundleFlags.IS_FRAGMENT
+
+    out_list = block_converter.unstructure(pb)
+    assert frag_offet in out_list
+    assert total_adu_len in out_list
+
+    pb_new = block_converter.structure(out_list, PrimaryBlock)
+    if not pb_new.fragmentation:
+        raise ValueError("Fragmentation parsing Error")
+    assert pb_new.is_fragment
+    assert pb_new.fragmentation.fragment_offset == frag_offet
+    assert pb_new.fragmentation.total_adu_len == total_adu_len
+
+    pb.is_fragment = False
+    out_list_no_frag = block_converter.unstructure(pb)
+
+    assert frag_offet not in out_list_no_frag
+    assert total_adu_len not in out_list_no_frag
