@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bundle Protocol v7 Class
  Author: Nate Richard
- Modified: 01/14/2026
+ Modified: 01/15/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -46,15 +46,15 @@ from typing import Any, Union
 import cbor2
 import dpkt  # type: ignore
 
-from bespokebpv7.block_enum import BlockType, CRCType
+from bespokebpv7.block_enum import BlockType, CRCType, BlockFlags
 from bespokebpv7.blocks import (
     CanonicalBlock,
     ExtensionBlocks,
-    PayloadBlock,
     PrimaryBlock,
+    block_converter,
 )
 from bespokebpv7.utils import calculate_crc
-from bespokebpv7.converter import converter
+from bespokebpv7.ext_functions import ext_converter, BLOCKFUNCTIONS
 
 
 class BPv7(dpkt.Packet):
@@ -96,15 +96,12 @@ class BPv7(dpkt.Packet):
     def __bytes__(self) -> bytes:
         """Serializes as an indefinite CBOR array (0x9f ... 0xff)"""
         if self.primary_block:
-            # 1. Unstructure PrimaryBlock to list
-            pb_list = converter.unstructure(self.primary_block)
+            pb_list = block_converter.unstructure(self.primary_block)
 
-            # 2. Unstructure all extension blocks to lists
             ext_lists = [
-                converter.unstructure(extblock) for extblock in self.blocks.values()
+                ext_converter.unstructure(extblock) for extblock in self.blocks.values()
             ]
 
-            # 3. Combine and serialize contents
             all_blocks = [pb_list] + ext_lists
             body = b"".join(cbor2.dumps(b) for b in all_blocks)
         else:
@@ -116,25 +113,33 @@ class BPv7(dpkt.Packet):
         type_code: BlockType,
         data: bytes,
         block_num: Union[int, None] = None,
+        flags: BlockFlags = BlockFlags(0),
         crc_type: CRCType = CRCType.NONE,
     ) -> None:
         """Helper to format a canonical block"""
-        block = CanonicalBlock()
+        block = BLOCKFUNCTIONS.get(type_code, CanonicalBlock)
         if not block_num:
-            block.block_number = next(self.next_block_num)
+            block_number = next(self.next_block_num)
         else:
-            block.block_number = block_num
-        block.data = data
-        block.block_type = type_code
-        block.crc_type = crc_type
-        self.blocks[type_code] = block
+            block_number = block_num
 
-    def add_payload_block(self, data: bytes, crc_type=CRCType.NONE) -> None:
+        block_inputs = [type_code, block_number, flags, crc_type, data]
+        if crc_type != CRCType.NONE:
+            crc = calculate_crc(block_inputs + [crc_type.fill_value], crc_type)
+            block_inputs.append(crc)
+        self.blocks[type_code] = ext_converter.structure(block_inputs, block)
+
+    def add_payload_block(
+        self, data: bytes, flags: BlockFlags = BlockFlags(0), crc_type=CRCType.NONE
+    ) -> None:
         """Adds a Payload Block with optional CRC"""
-        block = PayloadBlock()
-        block.data = data
-        block.crc_type = crc_type
-        self.blocks[BlockType.PAYLOAD_BLOCK] = block
+        block_inputs = [BlockType.PAYLOAD_BLOCK, 1, flags, crc_type, data]
+        if crc_type != CRCType.NONE:
+            crc = calculate_crc(block_inputs + [crc_type.fill_value], crc_type)
+            block_inputs.append(crc)
+        self.blocks[BlockType.PAYLOAD_BLOCK] = block_converter.structure(
+            block_inputs, CanonicalBlock
+        )
 
     def get_block_by_type(self, type_code: BlockType) -> Union[Any, None]:
         """Returns the data field of the first block matching type_code"""
@@ -152,12 +157,12 @@ class BPv7(dpkt.Packet):
             print("Error decoding bundle")
             return
 
-        self.primary_block = converter.structure(bundle_data[0], PrimaryBlock)
+        self.primary_block = block_converter.structure(bundle_data[0], PrimaryBlock)
 
         for exts in bundle_data[1:]:
             block_type = BlockType(exts[0])
 
-            ext = converter.structure(exts, CanonicalBlock)
+            ext = ext_converter.structure(exts, CanonicalBlock)
 
             if self.debug:
                 recv_ext = cbor2.dumps(exts).hex()
@@ -186,7 +191,7 @@ class BPv7(dpkt.Packet):
 
         if self.primary_block.crc_type != CRCType.NONE:
             actual_crc = self.primary_block.crc
-            primary_list = converter.unstructure(self.primary_block)
+            primary_list = block_converter.unstructure(self.primary_block)
 
             primary_check = primary_list[:-1] + [self.primary_block.crc_type.fill_value]
 

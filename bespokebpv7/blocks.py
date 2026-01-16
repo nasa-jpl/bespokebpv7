@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: BPv7 Block Classes & helper functions
  Author: Nate Richard
- Modified: 01/14/2026
+ Modified: 01/15/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -42,26 +42,29 @@ software to foreign countries or providing access to foreign persons.
 
 import datetime
 from collections import OrderedDict
-from dataclasses import dataclass, field
 from typing import Any, Optional, Union
 
+from attrs import define, field
+from cattrs.preconf.cbor2 import make_converter
+from cattrs.strategies import use_class_methods
 import cbor2
 
 from bespokebpv7.block_enum import BlockFlags, BlockType, BundleFlags, CRCType
 from bespokebpv7.bundle_params import BundleFragmentation, BundleLife, BundleRoute
-from bespokebpv7.utils import DTN_EPOCH, calculate_crc
-from bespokebpv7.converter import converter
+from bespokebpv7.utils import DTN_EPOCH, calculate_crc, parse_eid_string
 
 BPVERSION = 7
 
 
 def flag_property(flag_bit):
     """Generates a property that gets/sets a bit in the instance's _flags attribute."""
+
     def getter(self):
         return bool(self.flags & flag_bit)
 
     def setter(self, value: bool):
         self.set_flag(flag_bit, value)
+
     return property(getter, setter)
 
 
@@ -74,26 +77,25 @@ class ExtensionBlocks(OrderedDict):
             self.move_to_end(BlockType.PAYLOAD_BLOCK)
 
 
-@dataclass
+@define
 class BaseBlock:
     """
-    Dataclass that contains values required for both across primary and
+    Class that contains values required for both across primary and
     canonical blocks.
     """
 
-    _flags: Any = 0
-    _crc_type: CRCType = CRCType.NONE
+    flags: Any = 0
+    crc_type: CRCType = field(default=CRCType.NONE, converter=CRCType)
     crc: Optional[bytes] = CRCType.NONE.fill_value
 
     def __bytes__(self):
-        return cbor2.dumps(converter.unstructure(self))
+        return cbor2.dumps(self._unstructure())
 
     def update_crc(self):
         """Manual trigger to update CRC based on current state."""
         if self.crc_type != CRCType.NONE:
             self.crc = self.crc_type.fill_value
-            list_data = converter.unstructure(self)
-            self.crc = calculate_crc(list_data, self.crc_type)
+            self.crc = calculate_crc(self._unstructure(), self.crc_type)
 
     def set_flag(self, flag: Union[BundleFlags, BlockFlags], state=True) -> None:
         """Sets or clears an individual flag."""
@@ -102,87 +104,79 @@ class BaseBlock:
         else:
             self.flags &= ~int(flag)
 
-    @property
-    def crc_type(self) -> CRCType:
-        """Returns CRC type set for block."""
-        return self._crc_type
-
-    @crc_type.setter
-    def crc_type(self, value: int) -> None:
-        self._crc_type = CRCType(value)
-
-    @property
-    def flags(self) -> Union[BundleFlags, BlockFlags]:
-        """Returns flags as set for block."""
-        return self._flags
-
-    @flags.setter
-    def flags(self, value: Union[BundleFlags, BlockFlags]) -> None:
-        self._flags = value
+    def _unstructure(self) -> list:
+        """Base unstructure method, should be overridden."""
+        raise NotImplementedError
 
 
-@dataclass
+@define
 class CanonicalBlock(BaseBlock):
     """
     Parameter definitions for Canonical blocks.
+    Structure: [block_type, block_number, flags, crc_type, data, crc]
     """
 
-    _flags: BlockFlags = BlockFlags(0)
-    _block_type: BlockType = BlockType.UNKNOWN_BLOCK
-    _block_number: int = 2  # cannot be 0 (primary) or 1 (payload)
-    _data: bytes = field(default_factory=bytes)
+    flags: BlockFlags = field(default=BlockFlags(0), converter=BlockFlags)
+    block_type: BlockType = field(default=BlockType.UNKNOWN_BLOCK, converter=BlockType)
+    block_number: int = field(default=1, converter=int)  # cannot be 0 (primary)
+    data: bytes = field(factory=bytes)
 
     replica_fragment = flag_property(BlockFlags.REPLICATE_FRAGMENT)
     status_report = flag_property(BlockFlags.STATUS_BUNDLE)
     delete_bundle = flag_property(BlockFlags.DELETE_BUNDLE)
     discard_block = flag_property(BlockFlags.DISCARD_BLOCK)
 
-    @property
-    def block_number(self) -> int:
-        """Return block number set for block."""
-        return self._block_number
+    @classmethod
+    def _structure(cls, data: list) -> "CanonicalBlock":
+        """Class-specific structure method."""
+        block = cls()
+        block.block_type = BlockType(data[0])
+        block.block_number = data[1]
+        block.flags = BlockFlags(data[2])
+        block.crc_type = CRCType(data[3])
+        block._proc_in_data(data[4])
 
-    @block_number.setter
-    def block_number(self, value: int):
-        self._block_number = value
+        if len(data) > 5:
+            block.crc = data[5]
+        else:
+            block.crc = block.crc_type.fill_value
+        return block
 
-    @property
-    def data(self) -> Any:
-        """Return underlying data."""
-        return self._data
+    def _unstructure(self) -> list:
+        """Class-specific unstructure method."""
+        out: list[Union[int, bytes]] = [
+            int(self.block_type),
+            self.block_number,
+            int(self.flags),
+            int(self.crc_type),
+        ]
 
-    @data.setter
-    def data(self, value: Any):
-        self._data = value
+        out.append(self._proc_out_data())
 
-    @property
-    def flags(self) -> BlockFlags:
-        """Return set Block flags"""
-        return self._flags
+        if self.crc_type != CRCType.NONE and self.crc:
+            out.append(self.crc)
+        return out
 
-    @flags.setter
-    def flags(self, value: int) -> None:
-        self._flags = BlockFlags(value)
+    def _proc_out_data(self) -> bytes:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
+        if not isinstance(self.data, bytes):
+            return cbor2.dumps(self.data)
+        return self.data
 
-    @property
-    def block_type(self) -> BlockType:
-        """Return set block type, cannot be 1 or 0."""
-        return self._block_type
-
-    @block_type.setter
-    def block_type(self, value: int) -> None:
-        self._block_type = BlockType(value)
+    def _proc_in_data(self, block_data: bytes) -> None:
+        """Any conversions required to meet RFC 9171 requirements for block data."""
+        self.data = block_data
 
 
-@dataclass
+@define
 class PrimaryBlock(BaseBlock):
     """Parameter definitions for Primary Block."""
 
     version: int = field(default=BPVERSION)
-    _flags: BundleFlags = BundleFlags(0)
-    route: BundleRoute = field(default_factory=BundleRoute)
-    life: BundleLife = field(default_factory=BundleLife)
-    fragmentation: BundleFragmentation = field(default_factory=BundleFragmentation)
+    flags: BundleFlags = field(default=BundleFlags(0), converter=BundleFlags)
+    route: BundleRoute = field(factory=BundleRoute)
+    life: BundleLife = field(factory=BundleLife)
+    fragmentation: Optional[BundleFragmentation] = field(factory=BundleFragmentation)
 
     is_fragment = flag_property(BundleFlags.IS_FRAGMENT)
     adu_is_admin = flag_property(BundleFlags.ADU_IS_ADMIN_RECORD)
@@ -204,17 +198,61 @@ class PrimaryBlock(BaseBlock):
             self.life.timestamp_ms = ms
         self.life.sequence = seq
 
-    @property
-    def flags(self) -> BundleFlags:
-        return self._flags
+    @classmethod
+    def _structure(cls, data: list) -> "PrimaryBlock":
+        """Structure CBOR List as Primary Block."""
+        block = cls()
+        block.version = data[0]
+        block.flags = BundleFlags(data[1])
+        block.crc_type = CRCType(data[2])
 
-    @flags.setter
-    def flags(self, value: int) -> None:
-        self._flags = BundleFlags(value)
+        # Route
+        block.route.dest_eid = data[3]
+        block.route.source_eid = data[4]
+        block.route.report_to = data[5]
+
+        # Life (creation is [ms, seq])
+        creation = data[6]
+        block.life.timestamp_ms = creation[0]
+        block.life.sequence = creation[1]
+        block.life.lifetime = data[7]
+
+        # Fragmentation
+        idx = 8
+        if block.is_fragment and block.fragmentation:
+            block.fragmentation.fragment_offset = data[idx]
+            block.fragmentation.total_adu_len = data[idx + 1]
+            idx += 2
+
+        if idx < len(data):
+            block.crc = data[idx]
+        else:
+            block.crc = block.crc_type.fill_value
+
+        return block
+
+    def _unstructure(self) -> list:
+        """Convert PrimaryBlock to CBOR list."""
+        out: list[Union[int, list, bytes]] = [
+            self.version,
+            int(self.flags),
+            int(self.crc_type),
+            parse_eid_string(self.route.dest_eid),
+            parse_eid_string(self.route.source_eid),
+            parse_eid_string(self.route.report_to),
+            [self.life.timestamp_ms, self.life.sequence],
+            self.life.lifetime,
+        ]
+
+        if self.is_fragment and self.fragmentation:
+            out.append(self.fragmentation.fragment_offset)
+            out.append(self.fragmentation.total_adu_len)
+
+        if self.crc_type != CRCType.NONE and self.crc:
+            out.append(self.crc)
+
+        return out
 
 
-@dataclass
-class PayloadBlock(CanonicalBlock):
-    """Modification of Canonical block to ensure ADU is stored correctly."""
-    _block_type: BlockType = BlockType.PAYLOAD_BLOCK
-    _block_number: int = 1
+block_converter = make_converter()
+use_class_methods(block_converter, "_structure", "_unstructure")

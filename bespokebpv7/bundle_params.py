@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: BPv7 Primary Block Parameters
  Author: Nate Richard
- Modified: 01/14/2026
+ Modified: 01/15/2026
  Company: JPL
  Date:   01/07/2026
 
@@ -41,19 +41,20 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import datetime
-from dataclasses import dataclass, field
 from typing import Union
+
+from attrs import define, field
 
 from bespokebpv7.utils import DTN_EPOCH, format_eid, parse_eid_string
 
 
-@dataclass
+@define
 class BundleRoute:
     """Routing EIDs for a bundle."""
 
-    _dest_eid: list = field(default_factory=lambda: [1, "none"])
-    _source_eid: list = field(default_factory=lambda: [1, "none"])
-    _report_to_eid: list = field(default_factory=lambda: [1, "none"])
+    _dest_eid: list = field(factory=lambda: [1, None])
+    _source_eid: list = field(factory=lambda: [1, None])
+    _report_to_eid: list = field(factory=lambda: [1, None])
 
     @property
     def source_eid(self) -> str:
@@ -92,13 +93,13 @@ class BundleRoute:
             self._report_to_eid = parse_eid_string(value)
 
 
-@dataclass
+@define
 class BundleLife:
     """Parameters for bundle life cycle."""
 
-    timestamp_ms: int = 0
-    sequence: int = 0
-    lifetime: int = 86400000  # 1 day
+    timestamp_ms: int = field(default=0)
+    sequence: int = field(default=0)
+    lifetime: int = field(default=86400000)  # 1 day
 
     @property
     def creation_dt(self) -> datetime.datetime:
@@ -106,9 +107,9 @@ class BundleLife:
         return DTN_EPOCH + datetime.timedelta(milliseconds=self.timestamp_ms)
 
 
-@dataclass
+@define
 class BundleFragmentation:
     """Parameters when a bundle is fragmented."""
 
-    fragment_offset: int = 0
-    total_adu_len: int = 0
+    fragment_offset: int = field(default=0)
+    total_adu_len: int = field(default=0)
