@@ -1,5 +1,4 @@
-"""
-------------------------------------
+"""------------------------------------
      JET PROPULSION LABORATORY
 ------------------------------------
          ___  _______  ___
@@ -101,7 +100,7 @@ class CRCType(IntEnum):
     CRC32 = 2
 
     @property
-    def fill_value(self):
+    def fill_value(self) -> bytes:
         """Returns the null/fill byte string for the CRC field per RFC 9171."""
         if self == CRCType.CRC16:
             return b"\x00\x00"
@@ -125,8 +124,7 @@ class IntegrityScopeFlags(IntFlag):
 
 
 class AADScopeFlags(IntFlag):
-    """
-    Enumerations for  additional authenticated data Scope Flags from
+    """Enumerations for additional authenticated data Scope Flags from
     RFC 9173
     """
 

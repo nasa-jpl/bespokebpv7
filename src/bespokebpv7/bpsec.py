@@ -1,5 +1,4 @@
-"""
-------------------------------------
+"""------------------------------------
      JET PROPULSION LABORATORY
 ------------------------------------
          ___  _______  ___
@@ -39,8 +38,6 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-from typing import Optional, Union
-
 import cbor2
 from attrs import define, field
 from cattrs.preconf.cbor2 import make_converter
@@ -57,31 +54,37 @@ from bespokebpv7.block_enum import (
 from bespokebpv7.blocks import CanonicalBlock
 
 
-def asb_flag_property(flag_bit):
-    """
-    Generates a property that gets/sets a bit in the instance's security
+def asb_flag_property(flag_bit: SecurityContextFlags) -> property:
+    """Generate a property that gets/sets a bit in the instance's security
     context flags attribute.
+
+    Returns:
+        Property to get/set flag
+
     """
 
-    def getter(self):
+    def getter(self) -> bool:
         return bool(self.security_context_flags & flag_bit)
 
-    def setter(self, value: bool):
+    def setter(self, value: bool) -> None:
         self.set_context_flag(flag_bit, value)
 
     return property(getter, setter)
 
 
-def integrity_flag_property(flag_bit):
-    """
-    Generates a property that gets/sets a bit in the instance's integrity scope
+def integrity_flag_property(flag_bit: IntegrityScopeFlags) -> property:
+    """Generate a property that gets/sets a bit in the instance's integrity scope
     flags attribute.
+
+    Returns:
+        Property to get/set flag
+
     """
 
-    def getter(self):
+    def getter(self) -> bool:
         return bool(self.integrity_scope_flags & flag_bit)
 
-    def setter(self, value: bool):
+    def setter(self, value: bool) -> None:
         self.set_scope_flag(flag_bit, value)
 
     return property(getter, setter)
@@ -89,44 +92,51 @@ def integrity_flag_property(flag_bit):
 
 @define
 class SecurityParameter:
-    """
-    Represents a single Security Context Parameter.
+    """Represents a single Security Context Parameter.
     Structure: [ Parameter ID, Parameter Value ]
     """
 
     parm_id: int
-    value: Union[bytes, int]
+    value: bytes | int
 
-    def unstructure(self):
-        """Flatten class for cbor encoding"""
+    def unstructure(self) -> list:
+        """Flatten class for cbor encoding.
+
+        Returns:
+            list of parameter id and parameter value.
+
+        """
         return [self.parm_id, self.value]
 
 
 @define
 class SecurityResult:
-    """
-    Represents a single Security Result.
+    """Represents a single Security Result.
     Structure: [ Result ID, Result Value ]
     """
 
     result_id: int
     value: bytes
 
-    def unstructure(self):
-        """Flatten class for cbor encoding"""
+    def unstructure(self) -> list[int | bytes]:
+        """Flatten class for cbor encoding.
+
+        Returns:
+            list of security result id and security result
+
+        """
         return [self.result_id, self.value]
 
 
 @define
 class AbstractSecurityBlock(CanonicalBlock):
-    """
-    Represents the Abstract Security Block (ASB).
-    """
+    """Represents the Abstract Security Block (ASB)."""
 
     security_targets: list[int] = field(factory=list)
     security_context_id: int = field(default=0)
     security_context_flags: SecurityContextFlags = field(
-        default=SecurityContextFlags(0), converter=SecurityContextFlags
+        default=SecurityContextFlags(0),
+        converter=SecurityContextFlags,
     )
     security_source: list = field(factory=lambda: [1, "none"])
     security_parameters: list[SecurityParameter] = field(factory=list)
@@ -137,9 +147,9 @@ class AbstractSecurityBlock(CanonicalBlock):
     def set_context_flag(
         self,
         security_flag: SecurityContextFlags,
-        state=True,
+        state: bool = True,
     ) -> None:
-        """Sets or clears an individual security context flag."""
+        """Set or clear an individual security context flag."""
         if state:
             self.security_context_flags |= int(security_flag)
         else:
@@ -148,60 +158,62 @@ class AbstractSecurityBlock(CanonicalBlock):
 
 @define
 class BlockIntegrityBlock(AbstractSecurityBlock):
-    """
-    Block Integrity Block (BIB).
-    """
+    """Block Integrity Block (BIB)."""
 
     block_type: BlockType = field(default=BlockType.BIB, converter=BlockType)
     security_context_id: int = field(default=1)
     integrity_scope_flags: IntegrityScopeFlags = field(
-        default=IntegrityScopeFlags(7), converter=IntegrityScopeFlags
+        default=IntegrityScopeFlags(7),
+        converter=IntegrityScopeFlags,
     )
 
     include_primary_block = integrity_flag_property(
-        IntegrityScopeFlags.INCLUDE_PRIMARY_BLOCK
+        IntegrityScopeFlags.INCLUDE_PRIMARY_BLOCK,
     )
     include_target_header = integrity_flag_property(
-        IntegrityScopeFlags.INCLUDE_TARGET_HEADER
+        IntegrityScopeFlags.INCLUDE_TARGET_HEADER,
     )
     include_security_header = integrity_flag_property(
-        IntegrityScopeFlags.INCLUDE_SECURITY_HEADER
+        IntegrityScopeFlags.INCLUDE_SECURITY_HEADER,
     )
 
-    def __attrs_post_init__(self):
+    def __attrs_post_init__(self) -> None:
+        """Set security context flags are initiation."""
         self.security_context_flags = SecurityContextFlags(1)
 
-    def set_sha_variant(self, variant: Optional[BIBSHAVariant] = None) -> None:
+    def set_sha_variant(self, variant: BIBSHAVariant | None = None) -> None:
         """Set SHA variant security parameter."""
         if not variant:
             variant = BIBSHAVariant.HMAC_384_384
         self.security_parameters.append(
-            SecurityParameter(BIBParmEnum.SHA_VARIANT, variant)
+            SecurityParameter(BIBParmEnum.SHA_VARIANT, variant),
         )
         self.parm_present = True
 
-    def add_wrapped_key(self, key: bytes):
+    def add_wrapped_key(self, key: bytes) -> None:
         """Set wrapped key security key."""
         self.security_parameters.append(SecurityParameter(BIBParmEnum.WRAPPED_KEY, key))
         self.parm_present = True
 
-    def add_integrity_scope(self, val: Optional[int] = None):
-        """Stores Integrity scope flags as a security parameter."""
+    def add_integrity_scope(self, val: int | None = None) -> None:
+        """Store Integrity scope flags as a security parameter."""
         if not val:
             val = self.integrity_scope_flags
         self.security_parameters.append(
-            SecurityParameter(BIBParmEnum.INTEGRITY_SCOPE_FLAGS, val)
+            SecurityParameter(BIBParmEnum.INTEGRITY_SCOPE_FLAGS, val),
         )
         self.parm_present = True
 
-    def add_security_result(self, result: bytes):
+    def add_security_result(self, result: bytes) -> None:
         """Add expected HMAC result"""
         self.security_results.append(
-            SecurityResult(BIBResultEnum.EXPECTED_HMAC, result)
+            SecurityResult(BIBResultEnum.EXPECTED_HMAC, result),
         )
 
-    def set_scope_flag(self, security_flag: IntegrityScopeFlags, state=True) -> None:
-        """Sets or clears an individual security context flag."""
+    def set_scope_flag(
+        self, security_flag: IntegrityScopeFlags, state: bool = True
+    ) -> None:
+        """Set or clear an individual security context flag."""
         if state:
             self.integrity_scope_flags |= int(security_flag)
         else:
@@ -226,7 +238,12 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
             self.security_results.append(SecurityResult(result[0], result[1]))
 
     def _proc_out_data(self) -> bytes:
-        """Any conversions required to meet RFC 9171 requirements for block data."""
+        """Any conversions required to meet RFC 9171 requirements for block data.
+
+        Returns:
+            Converted integrity data as CBOR array
+
+        """
         data = [
             self.security_targets,
             self.security_context_id,

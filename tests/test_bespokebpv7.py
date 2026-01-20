@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bespoke BPv7 test suite
  Author: Nate Richard
- Modified: 01/16/2026
+ Modified: 01/20/2026
  Company: JPL
  Date:   01/14/2026
 
@@ -89,20 +89,18 @@ st_data = st.binary(max_size=1024)
 # Tests for bespokebpv7/utils.py
 # ==========================================
 @given(st_eid)
-def test_eid_roundtrip(eid_str):
+def test_eid_roundtrip(eid_str: str) -> None:
     """Test that parsing and then formatting an EID returns the original string."""
     parsed = parse_eid_string(eid_str)
     formatted = format_eid(parsed)
     # Note: dtn:none edge case handling might result in dtn:0 -> dtn:none
-    if eid_str == "dtn:none":
-        assert formatted == "dtn:none"
-    elif eid_str == "dtn:0":
+    if eid_str in {"dtn:none", "dtn:0"}:
         assert formatted == "dtn:none"
     else:
         assert formatted == eid_str
 
 
-def test_parse_eid_defaults():
+def test_parse_eid_defaults() -> None:
     """Test parsing edge cases."""
     parsed = parse_eid_string("node1")
     assert parsed == [1, "node1"]
@@ -114,15 +112,17 @@ def test_parse_eid_defaults():
     assert parsed_0 == [1, 0]
 
 
-def test_calculate_crc():
+def test_calculate_crc() -> None:
     """Test CRC calculation."""
     data = [1, 2, b""]
 
     crc16 = calculate_crc(data, CRCType.CRC16)
-    assert crc16 and len(crc16) == 2
+    assert crc16
+    assert len(crc16) == len(CRCType.CRC16.fill_value)
 
     crc32 = calculate_crc(data, CRCType.CRC32)
-    assert crc32 and len(crc32) == 4
+    assert crc32
+    assert len(crc32) == len(CRCType.CRC32.fill_value)
 
     assert calculate_crc(data, CRCType.NONE) is None
 
@@ -131,7 +131,7 @@ def test_calculate_crc():
 # Tests for bespokebpv7/bundle_params.py
 # ==========================================
 @given(st_eid, st_eid)
-def test_bundle_route(src, dst):
+def test_bundle_route(src: str, dst: str) -> None:
     """Verify values are stored correctly in BundleRoute class."""
     expected_src = src
     expected_dest = dst
@@ -153,7 +153,7 @@ def test_bundle_route(src, dst):
     assert route.report_to == "dtn:test"
 
 
-def test_bundle_life():
+def test_bundle_life() -> None:
     """Verify bundle lifetime information is stored correctly in BundleLife."""
     life = BundleLife()
     life.timestamp_ms = 1000
@@ -164,7 +164,7 @@ def test_bundle_life():
 # ==========================================
 # Tests for bespokebpv7/blocks.py
 # ==========================================
-def test_primary_block_flags():
+def test_primary_block_flags() -> None:
     """Verify Primary block flags are set correctly."""
     pb = PrimaryBlock()
     assert not pb.is_fragment
@@ -177,20 +177,24 @@ def test_primary_block_flags():
     assert not pb.is_fragment
 
 
-def test_primary_block_creation_time():
+def test_primary_block_creation_time() -> None:
     """Verify primary block creation time works."""
+    btimestamp = 12345
+    bseq = 1
     pb = PrimaryBlock()
 
-    pb.set_creation(12345, 1)
-    assert pb.life.timestamp_ms == 12345
-    assert pb.life.sequence == 1
+    pb.set_creation(btimestamp, bseq)
+    assert pb.life.timestamp_ms == btimestamp
+    assert pb.life.sequence == bseq
 
     pb.set_creation()
     assert pb.life.timestamp_ms > 0
 
 
 @given(st_eid, st_eid, st.integers(min_value=0, max_value=100))
-def test_primary_block_serialization_roundtrip(src, dst, lifetime):
+def test_primary_block_serialization_roundtrip(
+    src: str, dst: str, lifetime: int
+) -> None:
     """Verify primary block encodes and decodes correctly."""
     expected_src = src
     expected_dest = dst
@@ -214,7 +218,7 @@ def test_primary_block_serialization_roundtrip(src, dst, lifetime):
     assert pb_new.life.lifetime == lifetime
 
 
-def test_canonical_block_logic():
+def test_canonical_block_logic() -> None:
     """Verify canonical block creation"""
     cb = CanonicalBlock()
     cb.block_type = BlockType.UNKNOWN_BLOCK
@@ -233,7 +237,7 @@ def test_canonical_block_logic():
 # ==========================================
 # Tests for bespokebpv7/ext_functions.py
 # ==========================================
-def test_bundle_age_ext():
+def test_bundle_age_ext() -> None:
     """Verify bundle age creation"""
     age = 5000
 
@@ -252,7 +256,7 @@ def test_bundle_age_ext():
     assert bae_new.block_type == BlockType.BUNDLE_AGE
 
 
-def test_previous_node_ext():
+def test_previous_node_ext() -> None:
     """Verify previous node creation"""
     previous_node = "ipn:1.0"
     cbor_pn = parse_eid_string(previous_node)
@@ -268,7 +272,7 @@ def test_previous_node_ext():
     assert pnb_new.previous_node == previous_node
 
 
-def test_hop_count_ext():
+def test_hop_count_ext() -> None:
     """Verify hop count creation"""
     hop_limit = 10
     hop_count = 5
@@ -289,7 +293,7 @@ def test_hop_count_ext():
 # ==========================================
 # Tests for bespokebpv7/bpsec.py
 # ==========================================
-def test_block_integrity_block_creation():
+def test_block_integrity_block_creation() -> None:
     """Verify BIB creation"""
     bib = BlockIntegrityBlock()
     bib.security_context_id = 1
@@ -313,19 +317,20 @@ def test_block_integrity_block_creation():
     assert bib.parm_present
 
 
-def test_bib_roundtrip():
+def test_bib_roundtrip() -> None:
     """Verify BIB can structure/unstructure."""
+    sha_variant = b"res"
     bib = BlockIntegrityBlock()
     bib.set_sha_variant(BIBSHAVariant.HMAC_256_256)
     bib.parm_present = True
-    bib.add_security_result(b"res")
+    bib.add_security_result(sha_variant)
 
     out_list = ext_converter.unstructure(bib)
     bib_data_bytes = out_list[4]
     bib_data = cbor2.loads(bib_data_bytes)
 
     assert bib_data[1] == 1
-    assert len(bib_data) >= 4
+    assert len(bib_data) >= len(sha_variant)
 
     bib_new = ext_converter.structure(out_list, BlockIntegrityBlock)
     assert len(bib_new.security_parameters) == 1
@@ -336,15 +341,15 @@ def test_bib_roundtrip():
 # ==========================================
 # Tests for bespokebpv7/bpv7.py (Integration)
 # ==========================================
-def test_bpv7_structure():
+def test_bpv7_structure() -> None:
     """Verify bundle display works."""
     bundle = BPv7()
-    assert str(bundle) != ""
+    assert str(bundle)
     assert "BPv7 BUNDLE SUMMARY" in str(bundle)
     assert repr(bundle).startswith("BPv7")
 
 
-def test_bpv7_add_blocks():
+def test_bpv7_add_blocks() -> None:
     """Verify adding blocks works correctly."""
     age = 500
     bundle = BPv7()
@@ -368,7 +373,7 @@ def test_bpv7_add_blocks():
 
 
 @given(st_eid, st_eid, st_data)
-def test_bpv7_pack_unpack_roundtrip(src, dst, payload):
+def test_bpv7_pack_unpack_roundtrip(src: str, dst: str, payload: bytes) -> None:
     """Full serialization round trip."""
     expected_src = src
     expected_dest = dst
@@ -394,14 +399,15 @@ def test_bpv7_pack_unpack_roundtrip(src, dst, payload):
     assert b2.primary_block.route.dest_eid == expected_dest
 
     p_blk = b2.get_block_by_type(BlockType.PAYLOAD_BLOCK)
-    assert p_blk and p_blk.data == payload
+    assert p_blk
+    assert p_blk.data == payload
 
     bae_blk = b2.get_block_by_type(BlockType.BUNDLE_AGE)
     assert isinstance(bae_blk, BundleAgeExt)
     assert bae_blk.age == age
 
 
-def test_bpv7_unpack_crc_check():
+def test_bpv7_unpack_crc_check() -> None:
     """Test that unpacking checks CRC and captures the specific mismatch warning."""
     b1 = BPv7()
     b1.primary_block.crc_type = CRCType.CRC16
@@ -409,20 +415,20 @@ def test_bpv7_unpack_crc_check():
 
     raw = bytes(b1)
     tampered = bytearray(raw)
-    tampered[-2] = tampered[-2] ^ 0xFF
+    tampered[-2] ^= 0xFF
 
     with pytest.warns(UserWarning, match="Primary Block CRC mismatch!"):
         BPv7(tampered)
 
 
-def test_unpack_decode_errors():
+def test_unpack_decode_errors() -> None:
     """Test robustness against bad data."""
-    with pytest.raises(ValueError, match="Unable to decode cbor array."):
+    with pytest.raises(ValueError, match="CBOR decoding issue"):
         # Unclosed indefinite array
         BPv7(b"\x9f\x01\x00\x00")
 
 
-def test_bpv7_crc_setting():
+def test_bpv7_crc_setting() -> None:
     """Test setting CRC type for payload and canonical blocks."""
     bundle = BPv7()
 
@@ -430,9 +436,10 @@ def test_bpv7_crc_setting():
     bundle.add_payload_block(payload_data, crc_type=CRCType.CRC16)
 
     p_blk = bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK)
-    assert p_blk and p_blk.crc_type == CRCType.CRC16
+    assert p_blk
+    assert p_blk.crc_type == CRCType.CRC16
     assert p_blk.crc is not None
-    assert len(p_blk.crc) == 2
+    assert len(p_blk.crc) == len(CRCType.CRC16.fill_value)
 
     age_data = cbor2.dumps(100)
     block_parms: CanonicalBlockInit = {
@@ -443,13 +450,20 @@ def test_bpv7_crc_setting():
     bundle.add_canonical_block(block_parms, age_data)
 
     a_blk = bundle.get_block_by_type(BlockType.BUNDLE_AGE)
-    assert a_blk and a_blk.crc_type == CRCType.CRC32
+    assert a_blk
+    assert a_blk.crc_type == CRCType.CRC32
     assert a_blk.crc is not None
-    assert len(a_blk.crc) == 4
+    assert len(a_blk.crc) == len(CRCType.CRC32.fill_value)
 
 
-def test_fragmentation_settings():
-    """Test that fragmentation fields are handled correctly based on flags."""
+def test_fragmentation_settings() -> None:
+    """Test that fragmentation fields are handled correctly based on flags.
+
+    Raises:
+        ValueError: If there is an issue defining fragmentation.
+
+    """
+    errmsg = "Fragmentation error"
     frag_offet = 1024
     total_adu_len = 5000
     pb = PrimaryBlock()
@@ -458,7 +472,7 @@ def test_fragmentation_settings():
         pb.fragmentation.fragment_offset = frag_offet
         pb.fragmentation.total_adu_len = total_adu_len
     else:
-        raise ValueError("Fragmentation not created")
+        raise ValueError(errmsg)
 
     assert pb.flags & BundleFlags.IS_FRAGMENT
 
@@ -468,7 +482,7 @@ def test_fragmentation_settings():
 
     pb_new = block_converter.structure(out_list, PrimaryBlock)
     if not pb_new.fragmentation:
-        raise ValueError("Fragmentation parsing Error")
+        raise ValueError(errmsg)
     assert pb_new.is_fragment
     assert pb_new.fragmentation.fragment_offset == frag_offet
     assert pb_new.fragmentation.total_adu_len == total_adu_len

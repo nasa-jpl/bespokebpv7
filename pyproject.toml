@@ -3,7 +3,7 @@ name = "bespokebpv7"
 version = "0.2.1"
 description = "Generate whatever format of BPv7 bundles"
 readme = "README.md"
-requires-python = ">=3.12.11"
+requires-python = ">=3.10.19"
 dependencies = [
     "attrs>=25.4.0",
     "cattrs>=25.3.0",
@@ -20,8 +20,32 @@ dev = [
     "mypy>=1.19.1",
     "pytest>=9.0.2",
     "ruff>=0.14.10",
+    "tox>=4.34.1",
+    "tox-uv>=1.29.0",
 ]
 
 [build-system]
 requires = ["uv_build>=0.9.22,<0.10.0"]
 build-backend = "uv_build"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["ANN002", "ANN003", "D203", "D205", "D211", "D212", "D213", "D400", "D415", "COM812", "S101"]
+
+[tool.tox]
+requires = ["tox>=4.34.1"]
+env_list = ["3.10", "3.11", "3.12", "type", "lint"]
+
+[tool.tox.env_run_base]
+description = "Run test under {base_python}"
+commands = [["pytest"]]
+
+[tool.tox.env.type]
+description = "Run type check on code base"
+deps = ["mypy==1.19.1"]
+commands = [["mypy", "src{/}bespokebpv7"]]
+
+[tool.toc.env.lint]
+description = "Run Ruff"
+deps = ["ruff==0.14.10"]
+commands = [["ruff", "check", "--fix", "src{/}bespokebpv7"], ["ruff", "format", "src{/}bespokebpv7"]]

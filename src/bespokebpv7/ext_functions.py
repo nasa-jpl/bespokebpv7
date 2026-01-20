@@ -1,5 +1,4 @@
-"""
-------------------------------------
+"""------------------------------------
      JET PROPULSION LABORATORY
 ------------------------------------
          ___  _______  ___
@@ -17,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Extension Block functions
  Author: Nate Richard
- Modified: 01/15/2025
+ Modified: 01/16/2025
  Company: JPL
  Date:   12/19/2025
 
@@ -39,8 +38,6 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-from typing import Union
-
 import cbor2
 from attrs import define, field
 from cattrs.preconf.cbor2 import make_converter
@@ -59,11 +56,16 @@ class BundleAgeExt(CanonicalBlock):
     age: int = field(default=0)
 
     def _proc_out_data(self) -> bytes:
-        """Any conversions required to meet RFC 9171 requirements for block data."""
+        """Convert age to a CBOR unsigned int
+
+        Returns:
+            age as cbor bytes
+
+        """
         return cbor2.dumps(self.age)
 
     def _proc_in_data(self, block_data: bytes) -> None:
-        """Any conversions required to meet RFC 9171 requirements for block data."""
+        """Load CBOR data into age."""
         self.data = block_data
         self.age = cbor2.loads(block_data)
 
@@ -80,14 +82,19 @@ class PreviousNodeExt(CanonicalBlock):
         return format_eid(self._previous_node)
 
     @previous_node.setter
-    def previous_node(self, value: Union[str, list]) -> None:
+    def previous_node(self, value: str | list) -> None:
         if isinstance(value, list):
             self._previous_node = value
         else:
             self._previous_node = parse_eid_string(value)
 
     def _proc_out_data(self) -> bytes:
-        """Any conversions required to meet RFC 9171 requirements for block data."""
+        """Convert previous node into CBOR string.
+
+        Returns:
+            cbor string as bytes
+
+        """
         return cbor2.dumps(self._previous_node)
 
     def _proc_in_data(self, block_data: bytes) -> None:
@@ -98,20 +105,26 @@ class PreviousNodeExt(CanonicalBlock):
 
 @define
 class HopCountExt(CanonicalBlock):
-    """Class definition for  extension block"""
+    """Class definition for Hop Count extension block"""
 
     hop_limit: int = field(default=0)
     hop_count: int = field(default=0)
+    _hcb_array_len = 2
 
     def _proc_out_data(self) -> bytes:
-        """Any conversions required to meet RFC 9171 requirements for block data."""
+        """Dump Hop Cout parameters as CBOR definite array.
+
+        Returns:
+            hop count cbor array as bytes
+
+        """
         return cbor2.dumps([self.hop_limit, self.hop_count])
 
     def _proc_in_data(self, block_data: bytes) -> None:
-        """Any conversions required to meet RFC 9171 requirements for block data."""
+        """Convert CBOR data into hop count parameters."""
         self.data = block_data
         hcb_data = cbor2.loads(block_data)
-        if len(hcb_data) == 2:
+        if len(hcb_data) == self._hcb_array_len:
             self.hop_limit = hcb_data[0]
             self.hop_count = hcb_data[1]
 

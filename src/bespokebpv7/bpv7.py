@@ -1,5 +1,4 @@
-"""
-------------------------------------
+"""------------------------------------
      JET PROPULSION LABORATORY
 ------------------------------------
          ___  _______  ___
@@ -17,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Protocol v7 Class
  Author: Nate Richard
- Modified: 01/16/2026
+ Modified: 01/20/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -41,10 +40,9 @@ software to foreign countries or providing access to foreign persons.
 
 import warnings
 from itertools import count
-from typing import Any, Optional
 
 import cbor2
-import dpkt  # type: ignore
+import dpkt  # type: ignore[import-untyped]
 
 from bespokebpv7.block_enum import BlockFlags, BlockType, CRCType
 from bespokebpv7.blocks import (
@@ -59,12 +57,12 @@ from bespokebpv7.utils import calculate_crc
 
 
 class BPv7(dpkt.Packet):
-    """
-    Bundle Protocol Version 7 (RFC 9171)
+    """Bundle Protocol Version 7 (RFC 9171)
     Format: [primary_block, *canonical_blocks]
     """
 
-    def __init__(self, *args, debug=False, **kwargs):
+    def __init__(self, *args, debug: bool = False, **kwargs) -> None:
+        """Initialize bundle parameters."""
         self.debug = debug
         self.primary_block = PrimaryBlock()
         self.blocks = ExtensionBlocks()
@@ -75,41 +73,57 @@ class BPv7(dpkt.Packet):
         self.next_block_num = count(2)
 
     def __str__(self) -> str:
+        """Display basic bundle info.
+
+        Returns:
+            String of bundle information
+
+        """
+        created_str = self.primary_block.life.creation_dt.strftime("%Y-%m-%d %H:%M:%S")
+        block_str = f"(Primary + {len(self.blocks)} Canonical)"
         lines = [
             f"{'=' * 40}",
             " BPv7 BUNDLE SUMMARY ",
             f"{'=' * 40}",
             f"Source:      {self.primary_block.route.source_eid}",
             f"Destination: {self.primary_block.route.dest_eid}",
-            f"Created:     {self.primary_block.life.creation_dt.strftime('%Y-%m-%d %H:%M:%S')}",
-            f"Blocks:      {1 + len(self.blocks)} (Primary + {len(self.blocks)} Canonical)",
+            f"Created:     {created_str}",
+            f"Blocks:      {1 + len(self.blocks)} {block_str}",
             f"FLAGS:       {self.primary_block.flags}",
             f"{'=' * 40}",
         ]
         return "\n".join(lines)
 
     def __repr__(self) -> str:
-        lines = [
-            f"BPv7(src='{self.primary_block.route.source_eid}'"
-            f", dst='{self.primary_block.route.dest_eid}',",
-            f"flags={self.primary_block.flags})",
-        ]
-        return "\n".join(lines)
+        """Quick representation of a bundle.
+
+        Returns:
+            string of basic bundle info
+
+        """
+        src = f"src='{self.primary_block.route.source_eid}"
+        dest = f"dst='{self.primary_block.route.dest_eid}'"
+        return f"BPv7('{src}, {dest}, flags={self.primary_block.flags})"
 
     def __bytes__(self) -> bytes:
-        """Serializes as an indefinite CBOR array (0x9f ... 0xff)"""
+        """Serialize as an indefinite CBOR array (0x9f ... 0xff).
+
+        Returns:
+            bundle as byte string
+
+        """
         pb_list = block_converter.unstructure(self.primary_block)
 
         ext_lists = [
             ext_converter.unstructure(extblock) for extblock in self.blocks.values()
         ]
 
-        all_blocks = [pb_list] + ext_lists
+        all_blocks = [pb_list, *ext_lists]
         body = b"".join(cbor2.dumps(b) for b in all_blocks)
         return b"\x9f" + body + b"\xff"
 
     def add_canonical_block(self, block_parms: CanonicalBlockInit, data: bytes) -> None:
-        """Helper to format a canonical block"""
+        """Add an extension block."""
         type_code = block_parms["block_type"]
 
         if "block_num" not in block_parms:
@@ -130,36 +144,55 @@ class BPv7(dpkt.Packet):
         block_inputs = [type_code, block_number, flags, crc_type, data]
 
         if crc_type and crc_type != CRCType.NONE:
-            crc = calculate_crc(block_inputs + [crc_type.fill_value], crc_type)
+            crc = calculate_crc([*block_inputs, crc_type.fill_value], crc_type)
             block_inputs.append(crc)
 
         block = BLOCKFUNCTIONS.get(type_code, CanonicalBlock)
         self.blocks[type_code] = ext_converter.structure(block_inputs, block)
 
     def add_payload_block(
-        self, data: bytes, flags: BlockFlags = BlockFlags(0), crc_type=CRCType.NONE
+        self,
+        data: bytes,
+        flags: BlockFlags | None = None,
+        crc_type: CRCType = CRCType.NONE,
     ) -> None:
-        """Adds a Payload Block with optional CRC"""
+        """Add a Payload Block with optional CRC."""
+        if not flags:
+            flags = BlockFlags(0)
+
         block_inputs = [BlockType.PAYLOAD_BLOCK, 1, flags, crc_type, data]
         if crc_type != CRCType.NONE:
-            crc = calculate_crc(block_inputs + [crc_type.fill_value], crc_type)
+            crc = calculate_crc([*block_inputs, crc_type.fill_value], crc_type)
             block_inputs.append(crc)
         self.blocks[BlockType.PAYLOAD_BLOCK] = block_converter.structure(
-            block_inputs, CanonicalBlock
+            block_inputs,
+            CanonicalBlock,
         )
 
-    def get_block_by_type(self, type_code: BlockType) -> Optional[Any]:
-        """Returns the data field of the first block matching type_code"""
+    def get_block_by_type(self, type_code: BlockType) -> CanonicalBlock | None:
+        """Return the first matching block of the matching type_code.
+
+        Returns:
+            Canonical block if exists
+
+        """
         try:
             return self.blocks[type_code]
         except KeyError:
             return None
 
     def unpack(self, buf: bytes) -> None:
+        """Unpack indefinite CBOR array into a Bundle.
+
+        Raises:
+            ValueError: if it can't decode CBOR
+
+        """
         try:
             bundle_data = cbor2.loads(buf)
         except cbor2.CBORDecodeError as err:
-            raise ValueError("Unable to decode cbor array.") from err
+            errmsg = "CBOR decoding issue"
+            raise ValueError(errmsg) from err
 
         self.primary_block = block_converter.structure(bundle_data[0], PrimaryBlock)
 
@@ -171,45 +204,45 @@ class BPv7(dpkt.Packet):
 
             self.blocks[block_type] = ext
             if self.debug:
-                self._debug(exts, block_type)
+                self._debug(exts, block_type, "block")
 
         if self.debug:
-            self._debug(bundle_data[0], header=True)
+            self._debug(bundle_data[0])
 
         if self.primary_block.crc_type != CRCType.NONE:
             actual_crc = self.primary_block.crc
             primary_list = block_converter.unstructure(self.primary_block)
 
-            primary_check = primary_list[:-1] + [self.primary_block.crc_type.fill_value]
+            primary_check = [*primary_list[:-1], self.primary_block.crc_type.fill_value]
 
             expected_crc = calculate_crc(primary_check, self.primary_block.crc_type)
             if actual_crc != expected_crc:
-                warnings.warn("Primary Block CRC mismatch!", UserWarning)
+                warnings.warn("Primary Block CRC mismatch!", UserWarning, stacklevel=2)
 
     def _debug(
         self,
         in_data: list,
-        block_type: Optional[BlockType] = None,
-        header: bool = False,
+        block_type: BlockType | None = None,
+        typestr: str = "header",
     ) -> None:
-        """Function to help with debugging parsing."""
-        type_str_in = "header in"
-        type_str_out = "header out"
-        if not header:
+        """Display debugging parsing."""
+        type_str_in = f"{typestr} in"
+        type_str_out = f"{typestr} out"
+        if typestr == "block":
             out_num = self.blocks[block_type].block_type
-            type_str_in = f"block {block_type:>3}"
-            type_str_out = f"block {int(out_num):>3}"
+            type_str_in = f"{typestr} {block_type:>3}"
+            type_str_out = f"{typestr} {int(out_num):>3}"
 
         hexstr = cbor2.dumps(in_data).hex()
-        if not header:
+        if typestr == "block":
             out_data = bytes(self.blocks[block_type]).hex()
             self.recv_exts += hexstr
             self.proc_exts += out_data
         else:
             out_data = bytes(self.primary_block).hex()
 
-        print(f"{type_str_in}:  {hexstr}\n{type_str_out}:  {out_data}", sep="")
+        print(f"{type_str_in}:  {hexstr}\n{type_str_out}:  {out_data}")  # noqa: T201
 
-        if header:
-            print(f"received:  9f{hexstr}{self.recv_exts}ff")
-            print(f"processed: 9f{bytes(self.primary_block).hex()}{self.proc_exts}ff")
+        if typestr == "header":
+            print(f"received:  9f{hexstr}{self.recv_exts}ff")  # noqa: T201
+            print(f"processed: 9f{bytes(self.primary_block).hex()}{self.proc_exts}ff")  # noqa: T201

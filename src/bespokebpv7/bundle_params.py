@@ -1,5 +1,4 @@
-"""
-------------------------------------
+"""------------------------------------
      JET PROPULSION LABORATORY
 ------------------------------------
          ___  _______  ___
@@ -41,7 +40,6 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import datetime
-from typing import Union
 
 from attrs import define, field
 
@@ -62,7 +60,7 @@ class BundleRoute:
         return format_eid(self._source_eid)
 
     @source_eid.setter
-    def source_eid(self, value: Union[str, list]) -> None:
+    def source_eid(self, value: str | list) -> None:
         if isinstance(value, list):
             self._source_eid = value
         else:
@@ -74,7 +72,7 @@ class BundleRoute:
         return format_eid(self._dest_eid)
 
     @dest_eid.setter
-    def dest_eid(self, value: Union[str, list]) -> None:
+    def dest_eid(self, value: str | list) -> None:
         if isinstance(value, list):
             self._dest_eid = value
         else:
@@ -86,7 +84,7 @@ class BundleRoute:
         return format_eid(self._report_to_eid)
 
     @report_to.setter
-    def report_to(self, value: Union[str, list]) -> None:
+    def report_to(self, value: str | list) -> None:
         if isinstance(value, list):
             self._report_to_eid = value
         else:
