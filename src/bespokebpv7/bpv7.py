@@ -1,5 +1,4 @@
-"""
-------------------------------------
+"""------------------------------------
      JET PROPULSION LABORATORY
 ------------------------------------
          ___  _______  ___
@@ -96,12 +95,15 @@ class BPv7(dpkt.Packet):
         return "\n".join(lines)
 
     def __repr__(self) -> str:
-        lines = [
-            f"BPv7(src='{self.primary_block.route.source_eid}'"
-            f", dst='{self.primary_block.route.dest_eid}',",
-            f"flags={self.primary_block.flags})",
-        ]
-        return "\n".join(lines)
+        """Quick representation of a bundle.
+
+        Returns:
+            string of basic bundle info
+
+        """
+        src = f"src='{self.primary_block.route.source_eid}"
+        dest = f"dst='{self.primary_block.route.dest_eid}'"
+        return f"BPv7('{src}, {dest}, flags={self.primary_block.flags})"
 
     def __bytes__(self) -> bytes:
         """Serialize as an indefinite CBOR array (0x9f ... 0xff).
