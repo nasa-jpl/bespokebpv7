@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Block enumerations
  Author: Nate Richard
- Modified: 01/16/2026
+ Modified: 01/20/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -86,6 +86,8 @@ class BlockType(IntEnum):
     HOP_COUNT = 10
     BIB = 11
     BCB = 12
+    CTEB = 42  # Placeholder
+    CREB = 43  # Placeholder
     DATA_LABEL = 192
     QOS = 193
     IMC = 195
@@ -152,3 +154,15 @@ class BIBResultEnum(IntEnum):
 
     __str__ = Enum.__str__
     EXPECTED_HMAC = 1
+
+
+class CREBFlags(IntFlag):
+    """Enumeration for Custody Reporting extension block flags."""
+
+    __str__ = Enum.__str__
+    RECV_REPORT_REQ = 1 << 0
+    FWD_REPORT_REQ = 1 << 1
+    DELIV_REPORT_REQ = 1 << 2
+    DEL_REPORT_REQ = 1 << 3
+    CT_ACCEPT_REQ = 1 << 4
+    CT_REJECT_REQ = 1 << 5

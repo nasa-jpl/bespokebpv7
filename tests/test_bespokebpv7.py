@@ -55,6 +55,7 @@ from bespokebpv7.block_enum import (
     BundleFlags,
     CRCType,
     IntegrityScopeFlags,
+    CREBFlags,
 )
 from bespokebpv7.blocks import (
     CanonicalBlock,
@@ -69,6 +70,8 @@ from bespokebpv7.ext_functions import (
     BundleAgeExt,
     HopCountExt,
     PreviousNodeExt,
+    CustodyTransferExt,
+    CompressedReportingExt,
     ext_converter,
 )
 from bespokebpv7.utils import DTN_EPOCH, calculate_crc, format_eid, parse_eid_string
@@ -256,27 +259,28 @@ def test_bundle_age_ext() -> None:
     assert bae_new.block_type == BlockType.BUNDLE_AGE
 
 
-def test_previous_node_ext() -> None:
+@given(st_eid)
+def test_previous_node_ext(prev_eid: str) -> None:
     """Verify previous node creation"""
-    previous_node = "ipn:1.0"
-    cbor_pn = parse_eid_string(previous_node)
+    expected_prev = prev_eid
+    if prev_eid == "dtn:0":
+        expected_prev = "dtn:none"
+    cbor_pn = parse_eid_string(expected_prev)
 
     pnb = PreviousNodeExt()
     pnb.block_type = BlockType.PREVIOUS_NODE
-    pnb.previous_node = previous_node
+    pnb.previous_node = expected_prev
 
     out_list = ext_converter.unstructure(pnb)
     assert cbor2.loads(out_list[4]) == cbor_pn
 
     pnb_new = ext_converter.structure(out_list, PreviousNodeExt)
-    assert pnb_new.previous_node == previous_node
+    assert pnb_new.previous_node == expected_prev
 
 
-def test_hop_count_ext() -> None:
+@given(st.integers(min_value=0), st.integers(min_value=0))
+def test_hop_count_ext(hop_limit: int, hop_count: int) -> None:
     """Verify hop count creation"""
-    hop_limit = 10
-    hop_count = 5
-
     hcb = HopCountExt()
     hcb.block_type = BlockType.HOP_COUNT
     hcb.hop_limit = hop_limit
@@ -288,6 +292,108 @@ def test_hop_count_ext() -> None:
     hcb_new = ext_converter.structure(out_list, HopCountExt)
     assert hcb_new.hop_limit == hop_limit
     assert hcb_new.hop_count == hop_count
+
+
+@given(st.integers(min_value=0), st.integers(min_value=0), st_eid)
+def test_ct_ext(seq_num: int, seq_id: int, admin_eid: str) -> None:
+    """Verify custody transfer creation"""
+    expected_admin = admin_eid
+    if admin_eid == "dtn:0":
+        expected_admin = "dtn:none"
+
+    cteb = CustodyTransferExt(block_type=BlockType.CTEB)
+    cteb.sequence_num = seq_num
+    cteb.sequence_id = seq_id
+    cteb.block_src_admin_eid = expected_admin
+
+    out_list = ext_converter.unstructure(cteb)
+    assert cbor2.loads(out_list[4]) == [seq_num, seq_id, parse_eid_string(admin_eid)]
+
+    cteb_new = ext_converter.structure(out_list, CustodyTransferExt)
+    assert cteb_new.sequence_num == seq_num
+    assert cteb_new.sequence_id == seq_id
+    assert cteb_new.block_src_admin_eid == expected_admin
+
+
+@given(
+    st.integers(min_value=0),
+    st.integers(min_value=0),
+    st.integers(min_value=0, max_value=63),
+    st_eid,
+    st_eid,
+    st.integers(min_value=1, max_value=5),
+)
+def test_cr_ext(
+    seq_num: int,
+    seq_id: int,
+    int_flag: int,
+    admin_eid: str,
+    report_eid: str,
+    array_len: int,
+) -> None:
+    """Verify custody report creation"""
+    expected_admin = admin_eid
+    expected_report = report_eid
+    if admin_eid == "dtn:0":
+        expected_admin = "dtn:none"
+
+    if report_eid == "dtn:0":
+        expected_report = "dtn:none"
+
+    # since length can vary we'll truncate after the fact based on array_len value
+    inputs_total = [seq_num, seq_id, int_flag, expected_admin, expected_report]
+    inputs = inputs_total[:array_len]
+
+    creb = CompressedReportingExt(block_type=BlockType.CREB)
+    for idx, val in enumerate(inputs):
+        key = creb.__slots__[idx]  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
+        setattr(creb, key, val)
+
+    out_list = ext_converter.unstructure(creb)
+    assert cbor2.loads(out_list[4]) == inputs
+
+    creb_new = ext_converter.structure(out_list, CompressedReportingExt)
+    for idx, val in enumerate(inputs):
+        key = creb_new.__slots__[idx]  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
+        assert getattr(creb_new, key) == val
+
+
+def test_cr_ext_flags() -> None:
+    """Verify CREB flag setting"""
+    creb = CompressedReportingExt(block_type=BlockType.CREB)
+    creb.ct_accept_report = True
+    assert creb.status_report_flags
+    assert creb.status_report_flags & CREBFlags.CT_ACCEPT_REQ
+
+    creb.ct_accept_report = False
+    assert not creb.ct_accept_report
+
+
+@given(st_eid, st_eid)
+def test_cr_ext_eids(admin_eid: str, report_eid: str) -> None:
+    """Verify CREB EIDs are set correctly."""
+    expected_admin = admin_eid
+    expected_report = report_eid
+    if admin_eid == "dtn:0":
+        expected_admin = "dtn:none"
+
+    if report_eid == "dtn:0":
+        expected_report = "dtn:none"
+
+    # need to fill rest of array
+    seq_id = 0
+    flags = 0
+
+    creb = CompressedReportingExt(block_type=BlockType.CREB)
+    creb.block_src_admin_eid = expected_admin
+    creb.report_to_eid = expected_report
+    creb.sequence_id = seq_id
+    creb.status_report_flags = flags
+
+    out_list = ext_converter.unstructure(creb)
+    creb_new = ext_converter.structure(out_list, CompressedReportingExt)
+    assert creb_new.block_src_admin_eid == expected_admin
+    assert creb_new.report_to_eid == expected_report
 
 
 # ==========================================
