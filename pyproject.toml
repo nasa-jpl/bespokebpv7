@@ -25,3 +25,8 @@ dev = [
 [build-system]
 requires = ["uv_build>=0.9.22,<0.10.0"]
 build-backend = "uv_build"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["ANN002", "ANN003", "D203", "D205", "D211", "D212", "D213", "D400", "D415", "COM812"]
+

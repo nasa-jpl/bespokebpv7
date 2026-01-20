@@ -1,5 +1,4 @@
-"""
-------------------------------------
+"""------------------------------------
      JET PROPULSION LABORATORY
 ------------------------------------
          ___  _______  ___
@@ -42,7 +41,6 @@ software to foreign countries or providing access to foreign persons.
 
 import datetime
 import struct
-from typing import Optional, Union
 
 import cbor2
 import fastcrc
@@ -52,10 +50,13 @@ from bespokebpv7.block_enum import CRCType, SchemeCode
 DTN_EPOCH = datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc)
 
 
-def calculate_crc(block_list: list, crc_type: CRCType) -> Optional[bytes]:
-    """
-    Calculates CRC per RFC 9171.
+def calculate_crc(block_list: list, crc_type: CRCType) -> bytes | None:
+    """Calculate CRC per RFC 9171.
     The CRC field (last element) is replaced by an empty byte string for calculation.
+
+    Returns:
+        CRC as bytes or None if unexpected type or type NONE
+
     """
     if crc_type == CRCType.NONE:
         return None
@@ -74,11 +75,15 @@ def calculate_crc(block_list: list, crc_type: CRCType) -> Optional[bytes]:
     return None
 
 
-def parse_eid_string(eid_str: str) -> list[Union[int, Union[list[int], str]]]:
-    """
-    Converts 'ipn:node.service' or 'dtn:name' into CBOR list format.
+def parse_eid_string(eid_str: str) -> list[int | list[int] | str]:
+    """Convert 'ipn:node.service' or 'dtn:name' into CBOR list format.
     - ipn:3.1 -> [2, 3, 1]
     - dtn:node1 -> [1, "node1"]
+
+    Returns:
+        list where first element is scheme type, the either a list of ints for
+        IPN scheme or a string for a DTN scheme
+
     """
     if ":" not in eid_str:
         return [int(SchemeCode.DTN), eid_str]
@@ -91,14 +96,17 @@ def parse_eid_string(eid_str: str) -> list[Union[int, Union[list[int], str]]]:
 
     # assume some sort of type conversion error as a CBOR unsigned int of 0
     # means dtn:none per RFC 9171 4.2.5.11
-    if ssp in ["0", "none"]:
+    if ssp in {"0", "none"}:
         return [int(SchemeCode.DTN), 0]
     return [int(SchemeCode.DTN), ssp]
 
 
 def format_eid(eid: list) -> str:
-    """
-    Parses the EID array at primary_block[eid_index] into a URI string.
+    """Parse the EID array at primary_block[eid_index] into a URI string.
+
+    Returns:
+        A string representation of the endpoint
+
     """
     scheme = SchemeCode(eid[0])
 
