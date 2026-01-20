@@ -191,7 +191,8 @@ class BPv7(dpkt.Packet):
         try:
             bundle_data = cbor2.loads(buf)
         except cbor2.CBORDecodeError as err:
-            raise ValueError from err
+            errmsg = "CBOR decoding issue"
+            raise ValueError(errmsg) from err
 
         self.primary_block = block_converter.structure(bundle_data[0], PrimaryBlock)
 

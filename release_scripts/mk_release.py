@@ -46,7 +46,7 @@ version = sys.argv[1]
 result = "# Version " + version + "\n"
 RECORD = False
 
-with open("CHANGELOG.md", "r", encoding="utf-8") as f:
+with open("CHANGELOG.md", encoding="utf-8") as f:
     for line in f:
         if "##" in line and "###" not in line and RECORD is True:
             break
