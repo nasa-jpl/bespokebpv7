@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: BPv7 Block Classes & helper functions
  Author: Nate Richard
- Modified: 01/16/2026
+ Modified: 01/20/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -89,12 +89,13 @@ class BaseBlock:
             self.crc = self.crc_type.fill_value
             self.crc = calculate_crc(self._unstructure(), self.crc_type)
 
-    def set_flag(self, flag: BundleFlags | BlockFlags, state: bool = True) -> None:
-        """Set or clear an individual flag."""
-        if state:
-            self.flags |= int(flag)
-        else:
-            self.flags &= ~int(flag)
+    def set_flag(self, flag: BundleFlags | BlockFlags) -> None:
+        """Set an individual flag."""
+        self.flags |= int(flag)
+
+    def clear_flag(self, flag: BundleFlags | BlockFlags) -> None:
+        """Clear an individual flag."""
+        self.flags &= ~int(flag)
 
     def _unstructure(self) -> list:
         """Unstructure method, should be overridden."""
@@ -112,8 +113,11 @@ def flag_property(flag_bit: BundleFlags | BlockFlags) -> property:
     def getter(self: BaseBlock) -> bool:
         return bool(self.flags & flag_bit)
 
-    def setter(self: BaseBlock, value: bool) -> None:
-        self.set_flag(flag_bit, value)
+    def setter(self: BaseBlock, value: bool) -> None:  # noqa: FBT001
+        if value:
+            self.set_flag(flag_bit)
+        else:
+            self.clear_flag(flag_bit)
 
     return property(getter, setter)
 

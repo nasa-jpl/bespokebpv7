@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Protocol Security Classes
  Author: Nate Richard
- Modified: 01/16/2026
+ Modified: 01/20/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -63,11 +63,14 @@ def asb_flag_property(flag_bit: SecurityContextFlags) -> property:
 
     """
 
-    def getter(self) -> bool:
+    def getter(self) -> bool:  # noqa: ANN001
         return bool(self.security_context_flags & flag_bit)
 
-    def setter(self, value: bool) -> None:
-        self.set_context_flag(flag_bit, value)
+    def setter(self, value: bool) -> None:  # noqa: ANN001, FBT001
+        if value:
+            self.set_context_flag(flag_bit)
+        else:
+            self.clear_context_flag(flag_bit)
 
     return property(getter, setter)
 
@@ -81,12 +84,14 @@ def integrity_flag_property(flag_bit: IntegrityScopeFlags) -> property:
 
     """
 
-    def getter(self) -> bool:
+    def getter(self) -> bool:  # noqa: ANN001
         return bool(self.integrity_scope_flags & flag_bit)
 
-    def setter(self, value: bool) -> None:
-        self.set_scope_flag(flag_bit, value)
-
+    def setter(self, value: bool) -> None:  # noqa: ANN001, FBT001
+        if value:
+            self.set_scope_flag(flag_bit)
+        else:
+            self.clear_scope_flag(flag_bit)
     return property(getter, setter)
 
 
@@ -144,16 +149,13 @@ class AbstractSecurityBlock(CanonicalBlock):
 
     parm_present = asb_flag_property(SecurityContextFlags.CONTAIN_SECURITY_PARM)
 
-    def set_context_flag(
-        self,
-        security_flag: SecurityContextFlags,
-        state: bool = True,
-    ) -> None:
-        """Set or clear an individual security context flag."""
-        if state:
-            self.security_context_flags |= int(security_flag)
-        else:
-            self.security_context_flags &= ~int(security_flag)
+    def set_context_flag(self, security_flag: SecurityContextFlags) -> None:
+        """Set an individual security context flag."""
+        self.security_context_flags |= int(security_flag)
+
+    def clear_context_flag(self, security_flag: SecurityContextFlags) -> None:
+        """Clear an individual security context flag."""
+        self.security_context_flags &= ~int(security_flag)
 
 
 @define
@@ -210,14 +212,13 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
             SecurityResult(BIBResultEnum.EXPECTED_HMAC, result),
         )
 
-    def set_scope_flag(
-        self, security_flag: IntegrityScopeFlags, state: bool = True
-    ) -> None:
-        """Set or clear an individual security context flag."""
-        if state:
-            self.integrity_scope_flags |= int(security_flag)
-        else:
-            self.integrity_scope_flags &= ~int(security_flag)
+    def set_scope_flag(self, security_flag: IntegrityScopeFlags) -> None:
+        """Set an individual integrity scope flag."""
+        self.integrity_scope_flags |= int(security_flag)
+
+    def clear_scope_flag(self, security_flag: IntegrityScopeFlags) -> None:
+        """Clear an individual integrity scope flag."""
+        self.integrity_scope_flags &= ~int(security_flag)
 
     def _proc_in_data(self, block_data: bytes) -> None:
         """Any conversions required to meet RFC 9171 requirements for block data."""
