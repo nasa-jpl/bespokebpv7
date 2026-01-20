@@ -92,6 +92,7 @@ def integrity_flag_property(flag_bit: IntegrityScopeFlags) -> property:
             self.set_scope_flag(flag_bit)
         else:
             self.clear_scope_flag(flag_bit)
+
     return property(getter, setter)
 
 

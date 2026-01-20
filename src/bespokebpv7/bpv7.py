@@ -203,10 +203,10 @@ class BPv7(dpkt.Packet):
             ext = ext_converter.structure(exts, block)
 
             self.blocks[block_type] = ext
-            if self.debug:
+            if self.debug:  # pragma: no cover
                 self._debug(exts, block_type, "block")
 
-        if self.debug:
+        if self.debug:  # pragma: no cover
             self._debug(bundle_data[0])
 
         if self.primary_block.crc_type != CRCType.NONE:
@@ -219,7 +219,7 @@ class BPv7(dpkt.Packet):
             if actual_crc != expected_crc:
                 warnings.warn("Primary Block CRC mismatch!", UserWarning, stacklevel=2)
 
-    def _debug(
+    def _debug(  # pragma: no cover
         self,
         in_data: list,
         block_type: BlockType | None = None,
