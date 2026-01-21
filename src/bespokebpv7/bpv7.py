@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Protocol v7 Class
  Author: Nate Richard
- Modified: 01/20/2026
+ Modified: 01/21/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -44,7 +44,8 @@ from itertools import count
 import cbor2
 import dpkt  # type: ignore[import-untyped]
 
-from bespokebpv7.block_enum import BlockFlags, BlockType, CRCType
+from bespokebpv7.admin_records import ADMINFUNCTIONS, BundleStatusReport
+from bespokebpv7.block_enum import AdminRecordType, BlockFlags, BlockType, CRCType
 from bespokebpv7.blocks import (
     CanonicalBlock,
     CanonicalBlockInit,
@@ -199,7 +200,16 @@ class BPv7(dpkt.Packet):
         ext: CanonicalBlock
         for exts in bundle_data[1:]:
             block_type = BlockType(exts[0])
-            block = BLOCKFUNCTIONS.get(block_type, CanonicalBlock)
+            if (
+                self.primary_block.adu_is_admin
+                and block_type == BlockType.PAYLOAD_BLOCK
+            ):
+                admin_record = cbor2.loads(exts[4])
+                block = ADMINFUNCTIONS.get(
+                    AdminRecordType(admin_record[0]), BundleStatusReport
+                )
+            else:
+                block = BLOCKFUNCTIONS.get(block_type, CanonicalBlock)
             ext = ext_converter.structure(exts, block)
 
             self.blocks[block_type] = ext
