@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: BPv7 Primary Block Parameters
  Author: Nate Richard
- Modified: 01/15/2026
+ Modified: 01/21/2026
  Company: JPL
  Date:   01/07/2026
 
@@ -92,17 +92,23 @@ class BundleRoute:
 
 
 @define
-class BundleLife:
-    """Parameters for bundle life cycle."""
+class CreationTime:
+    """Bundle creation time parameters."""
 
     timestamp_ms: int = field(default=0)
     sequence: int = field(default=0)
-    lifetime: int = field(default=86400000)  # 1 day
 
     @property
     def creation_dt(self) -> datetime.datetime:
         """Return creation time as datetime object, does not use sequence number."""
         return DTN_EPOCH + datetime.timedelta(milliseconds=self.timestamp_ms)
+
+
+@define
+class BundleLife(CreationTime):
+    """Parameters for bundle life cycle."""
+
+    lifetime: int = field(default=86400000)  # 1 day
 
 
 @define
