@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: BPv7 Block Classes & helper functions
  Author: Nate Richard
- Modified: 01/20/2026
+ Modified: 01/21/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -48,8 +48,17 @@ from attrs import define, field
 from cattrs.preconf.cbor2 import make_converter
 from cattrs.strategies import use_class_methods
 
-from bespokebpv7.block_enum import BlockFlags, BlockType, BundleFlags, CRCType
-from bespokebpv7.bundle_params import BundleFragmentation, BundleLife, BundleRoute
+from bespokebpv7.block_enum import (
+    BlockFlags,
+    BlockType,
+    BundleFlags,
+    CRCType,
+)
+from bespokebpv7.bundle_params import (
+    BundleFragmentation,
+    BundleLife,
+    BundleRoute,
+)
 from bespokebpv7.utils import DTN_EPOCH, calculate_crc, parse_eid_string
 
 BPVERSION = 7
@@ -254,9 +263,10 @@ class PrimaryBlock(BaseBlock):
 
         # Fragmentation
         idx = 8
-        if block.is_fragment and block.fragmentation:
-            block.fragmentation.fragment_offset = data[idx]
-            block.fragmentation.total_adu_len = data[idx + 1]
+        if block.is_fragment:
+            block.fragmentation = BundleFragmentation(
+                fragment_offset=data[idx], total_adu_len=data[idx + 1]
+            )
             idx += 2
 
         if idx < len(data):
