@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Utility functions for bundle processing
  Author: Nate Richard
- Modified: 01/16/2026
+ Modified: 01/21/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -118,7 +118,7 @@ def format_eid(eid: list) -> str:
     if scheme == SchemeCode.DTN:
         # dtn format: [1, "string-name"] -> dtn:string-name
         dtnstr = eid[1]
-        if dtnstr == 0:
+        if dtnstr == 0 or dtnstr is None:
             dtnstr = "none"
         return f"dtn:{dtnstr}"
 
