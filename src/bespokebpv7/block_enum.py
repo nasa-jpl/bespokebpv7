@@ -171,6 +171,7 @@ class CREBFlags(IntFlag):
 class AdminRecordType(IntEnum):
     """Enumeration of Adminstrative Record type codes."""
 
+    __str__ = Enum.__str__
     BUNDLE_STATUS_REPORTS = 1
     COMPRESSED_CUSTODY_SIGNAL = 13  # Placeholder
     COMPRESSED_REPORT_SIGNAL = 14  # Placeholder
@@ -179,6 +180,7 @@ class AdminRecordType(IntEnum):
 class AdminReasonCode(IntEnum):
     """Enumeration of Bundle Status Report reason codes."""
 
+    __str__ = Enum.__str__
     NO_INFO = 0
     LIFETIME_EXPIRED = 1
     FWD_UNIDIRECTIONAL = 2
@@ -192,3 +194,29 @@ class AdminReasonCode(IntEnum):
     TRAFFIC_PARED = 10
     UNSUPPORTED = 11
     RESERVED = 255
+
+
+class CustodyAcceptanceCode(IntEnum):
+    """Disposition codes for custody acceptance."""
+
+    __str__ = Enum.__str__
+    CT_ACCEPTED = 1
+
+
+class CustodyRefusalCode(IntEnum):
+    """Disposition codes for custody refusal."""
+
+    __str__ = Enum.__str__
+    CT_REFUSED = -1
+
+
+class ReportReason(IntEnum):
+    """Status Report Reason Codes."""
+
+    __str__ = Enum.__str__
+    RECV_REPORT = 0
+    FWD_REPORT = 1
+    DELIV_REPORT = 2
+    DEL_REPORT = 3
+    CT_ACCEPT_REPORT = 4
+    CT_REJECT_REPORT = 5

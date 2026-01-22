@@ -274,3 +274,30 @@ class BaseStatusReport:
             self._status_src_eid = value
         else:
             self._status_src_eid = parse_eid_string(value)
+
+
+@define
+class CTBundleSequence:
+    """Bundle sequence definition for Compressed Custody Signal adminstrative record."""
+
+    dest_seq: int | list = field(default=0)
+    first_seq_num: int = field(default=0)
+    seq_range: int | list[int] = field(default=0)
+
+
+@define
+class CRBundleSequence(CTBundleSequence):
+    """Bundle sequence definition for Compressed reporting."""
+
+    _block_src_admin_eid: list | None = field(
+        factory=lambda: [1, None], converter=optional(list)
+    )
+
+
+@define
+class ReportBundleSequence:
+    """Bundle Sequence Collection for Compressed Reporting Signal adminstrative
+    record.
+    """
+
+    seq_collection: list[CRBundleSequence] = field(default=[])

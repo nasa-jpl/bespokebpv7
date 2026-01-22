@@ -42,9 +42,17 @@ software to foreign countries or providing access to foreign persons.
 import cbor2
 from attrs import define, field
 
-from bespokebpv7.block_enum import AdminRecordType
+from bespokebpv7.block_enum import (
+    AdminRecordType,
+    CustodyAcceptanceCode,
+    CustodyRefusalCode,
+)
 from bespokebpv7.blocks import CanonicalBlock
-from bespokebpv7.bundle_params import BaseStatusReport, BundleFragmentation
+from bespokebpv7.bundle_params import (
+    BaseStatusReport,
+    BundleFragmentation,
+    CTBundleSequence,
+)
 
 
 @define
@@ -93,6 +101,20 @@ class BundleStatusReport(AdminRecord):
 @define
 class CompressedCustodySignal(AdminRecord):
     """Compressed Custody Signal adminstrative record."""
+
+    custody_signal: dict[
+        CustodyAcceptanceCode | CustodyRefusalCode, CTBundleSequence
+    ] = field(
+        factory=dict[CustodyAcceptanceCode | CustodyRefusalCode, CTBundleSequence]
+    )
+
+    def set_custody_acceptance(self, seq: CTBundleSequence) -> None:
+        """Set custody acceptance for given bundle sequence."""
+        self.custody_signal[CustodyAcceptanceCode.CT_ACCEPTED] = seq
+
+    def set_custody_refusal(self, seq: CTBundleSequence) -> None:
+        """Set custody refusal for given bundle sequence."""
+        self.custody_signal[CustodyRefusalCode.CT_REFUSED] = seq
 
 
 @define
