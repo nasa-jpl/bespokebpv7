@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Extension Block functions
  Author: Nate Richard
- Modified: 01/20/2025
+ Modified: 01/21/2025
  Company: JPL
  Date:   12/19/2025
 
@@ -295,5 +295,7 @@ BLOCKFUNCTIONS = {
     BlockType.PREVIOUS_NODE: PreviousNodeExt,
     BlockType.BUNDLE_AGE: BundleAgeExt,
     BlockType.HOP_COUNT: HopCountExt,
+    BlockType.CTEB: CustodyTransferExt,
+    BlockType.CREB: CompressedReportingExt,
     BlockType.UNKNOWN_BLOCK: CanonicalBlock,
 }
