@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Protocol Security Classes
  Author: Nate Richard
- Modified: 01/20/2026
+ Modified: 01/26/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -38,10 +38,9 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-import cbor2
+from typing import Self
+
 from attrs import define, field
-from cattrs.preconf.cbor2 import make_converter
-from cattrs.strategies import use_class_methods
 
 from bespokebpv7.block_enum import (
     BIBParmEnum,
@@ -52,6 +51,7 @@ from bespokebpv7.block_enum import (
     SecurityContextFlags,
 )
 from bespokebpv7.blocks import CanonicalBlock
+from bespokebpv7.utils import bundle_converter
 
 
 def asb_flag_property(flag_bit: SecurityContextFlags) -> property:
@@ -105,7 +105,17 @@ class SecurityParameter:
     parm_id: int
     value: bytes | int
 
-    def unstructure(self) -> list:
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure a SecurityParameter from a list.
+
+        Returns:
+            Populate Security Parameter
+
+        """
+        return cls(parm_id=data[0], value=data[1])
+
+    def _unstructure(self) -> list:
         """Flatten class for cbor encoding.
 
         Returns:
@@ -124,7 +134,17 @@ class SecurityResult:
     result_id: int
     value: bytes
 
-    def unstructure(self) -> list[int | bytes]:
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure a SecurityResult from a list [id, value].
+
+        Returns:
+            Populated Security Result
+
+        """
+        return cls(result_id=data[0], value=data[1])
+
+    def _unstructure(self) -> list[int | bytes]:
         """Flatten class for cbor encoding.
 
         Returns:
@@ -221,45 +241,65 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
         """Clear an individual integrity scope flag."""
         self.integrity_scope_flags &= ~int(security_flag)
 
-    def _proc_in_data(self, block_data: bytes) -> None:
-        """Any conversions required to meet RFC 9171 requirements for block data."""
-        self.data = block_data
-        bib_data = cbor2.loads(block_data)
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure a BIB from a CBOR list (extension block fields).
 
-        self.security_targets = bib_data[0]
-        self.security_context_id = bib_data[1]
-        self.security_context_flags = bib_data[2]
+        Returns:
+            Populated Block Integrity Block
+
+        """
+        # Parse the outer CanonicalBlock fields
+        block = super()._structure(data)
+
+        # Parse the inner security specific fields from the data bytes
+        bib_data = bundle_converter.loads(block.data, list)
+
+        block.security_targets = bib_data[0]
+        block.security_context_id = bib_data[1]
+        block.security_context_flags = SecurityContextFlags(bib_data[2])
         next_idx = 3
 
-        if self.parm_present:
+        if block.parm_present:  # pylint: disable=E1101
             for parm in bib_data[next_idx]:
-                self.security_parameters.append(SecurityParameter(parm[0], parm[1]))
+                block.security_parameters.append(  # pylint: disable=E1101
+                    bundle_converter.structure(parm, SecurityParameter)
+                )
             next_idx += 1
 
         for result in bib_data[next_idx]:
-            self.security_results.append(SecurityResult(result[0], result[1]))
+            block.security_results.append(  # pylint: disable=E1101
+                bundle_converter.structure(result, SecurityResult)
+            )
 
-    def _proc_out_data(self) -> bytes:
-        """Any conversions required to meet RFC 9171 requirements for block data.
+        return block
+
+    def _unstructure(self) -> list:
+        """Unstructure the BIB into a CBOR list.
 
         Returns:
-            Converted integrity data as CBOR array
+            Class as list
 
         """
+        # Convert internal fields to the structure expected by RFC 9171
         data = [
             self.security_targets,
             self.security_context_id,
             int(self.security_context_flags),
         ]
         if self.parm_present:
-            parm_list = [parm.unstructure() for parm in self.security_parameters]
+            parm_list = [
+                bundle_converter.unstructure(parm) for parm in self.security_parameters
+            ]
             data.append(parm_list)
 
-        result_list = [result.unstructure() for result in self.security_results]
+        result_list = [
+            bundle_converter.unstructure(result) for result in self.security_results
+        ]
         data.append(result_list)
 
-        return cbor2.dumps(data)
+        # Pack into the data field of the CanonicalBlock
+        self.data = bundle_converter.dumps(data)
 
-
-bpsec_converter = make_converter()
-use_class_methods(bpsec_converter, "_structure", "_unstructure")
+        # Return the outer block structure
+        return super()._unstructure()

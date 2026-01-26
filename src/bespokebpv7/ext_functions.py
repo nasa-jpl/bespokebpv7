@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Extension Block functions
  Author: Nate Richard
- Modified: 01/21/2025
+ Modified: 01/26/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -38,16 +38,15 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-import cbor2
+from typing import Self
+
 from attrs import define, field
 from attrs.converters import optional
-from cattrs.preconf.cbor2 import make_converter
-from cattrs.strategies import use_class_methods
 
 from bespokebpv7.block_enum import BlockType, CREBFlags
 from bespokebpv7.blocks import CanonicalBlock
 from bespokebpv7.bpsec import BlockIntegrityBlock
-from bespokebpv7.utils import format_eid, parse_eid_string
+from bespokebpv7.utils import bundle_converter, format_eid, parse_eid_string
 
 
 @define
@@ -56,19 +55,27 @@ class BundleAgeExt(CanonicalBlock):
 
     age: int = field(default=0)
 
-    def _proc_out_data(self) -> bytes:
-        """Convert age to a CBOR unsigned int
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure BundleAgeExt from CBOR list.
 
         Returns:
-            age as cbor bytes
+            Populated Bundle Age extension
 
         """
-        return cbor2.dumps(self.age)
+        block = super()._structure(data)
+        block.age = bundle_converter.loads(block.data, int)
+        return block
 
-    def _proc_in_data(self, block_data: bytes) -> None:
-        """Load CBOR data into age."""
-        self.data = block_data
-        self.age = cbor2.loads(block_data)
+    def _unstructure(self) -> list:
+        """Unstructure BundleAgeExt to CBOR list.
+
+        Returns:
+            COnverted class as list
+
+        """
+        self.data = bundle_converter.dumps(self.age)
+        return super()._unstructure()
 
 
 @define
@@ -89,19 +96,27 @@ class PreviousNodeExt(CanonicalBlock):
         else:
             self._previous_node = parse_eid_string(value)
 
-    def _proc_out_data(self) -> bytes:
-        """Convert previous node into CBOR string.
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure PreviousNodeExt from CBOR list.
 
         Returns:
-            cbor string as bytes
+            Populated Previous Node Extension
 
         """
-        return cbor2.dumps(self._previous_node)
+        block = super()._structure(data)
+        block.previous_node = bundle_converter.loads(block.data, list)
+        return block
 
-    def _proc_in_data(self, block_data: bytes) -> None:
-        """Any conversions required to meet RFC 9171 requirements for block data."""
-        self.data = block_data
-        self.previous_node = cbor2.loads(block_data)
+    def _unstructure(self) -> list:
+        """Unstructure PreviousNodeExt to CBOR list.
+
+        Returns:
+            Converted class as list
+
+        """
+        self.data = bundle_converter.dumps(self._previous_node)
+        return super()._unstructure()
 
 
 @define
@@ -110,24 +125,32 @@ class HopCountExt(CanonicalBlock):
 
     hop_limit: int = field(default=0)
     hop_count: int = field(default=0)
-    _hcb_array_len = 2
+    hcb_array_len = 2
 
-    def _proc_out_data(self) -> bytes:
-        """Dump Hop Count parameters as CBOR definite array.
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure HopCountExt from CBOR list.
 
         Returns:
-            hop count cbor array as bytes
+            Populated Hop Count Extension
 
         """
-        return cbor2.dumps([self.hop_limit, self.hop_count])
+        block = super()._structure(data)
+        hcb_data = bundle_converter.loads(block.data, list)
+        if len(hcb_data) == block.hcb_array_len:  # pylint: disable=E1101
+            block.hop_limit = hcb_data[0]
+            block.hop_count = hcb_data[1]
+        return block
 
-    def _proc_in_data(self, block_data: bytes) -> None:
-        """Convert CBOR data into hop count parameters."""
-        self.data = block_data
-        hcb_data = cbor2.loads(block_data)
-        if len(hcb_data) == self._hcb_array_len:
-            self.hop_limit = hcb_data[0]
-            self.hop_count = hcb_data[1]
+    def _unstructure(self) -> list:
+        """Unstructure HopCountExt to CBOR list.
+
+        Returns:
+            Converted class as list
+
+        """
+        self.data = bundle_converter.dumps([self.hop_limit, self.hop_count])
+        return super()._unstructure()
 
 
 @define
@@ -137,7 +160,7 @@ class CustodyTransferExt(CanonicalBlock):
     sequence_num: int = field(default=0)
     sequence_id: int = field(default=0)
     _block_src_admin_eid: list = field(factory=lambda: [1, "none"])
-    _cteb_array_len = 3
+    cteb_array_len = 3
 
     @property
     def block_src_admin_eid(self) -> str:
@@ -151,25 +174,33 @@ class CustodyTransferExt(CanonicalBlock):
         else:
             self._block_src_admin_eid = parse_eid_string(value)
 
-    def _proc_out_data(self) -> bytes:
-        """Dump CTEB parameters as CBOR definite array.
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure CustodyTransferExt from CBOR list.
 
         Returns:
-            CTEB cbor array as bytes
+            Populated Custody Transfer Extension
 
         """
-        return cbor2.dumps(
+        block = super()._structure(data)
+        cteb_data = bundle_converter.loads(block.data, list)
+        if len(cteb_data) == block.cteb_array_len:  # pylint: disable=E1101
+            block.sequence_num = cteb_data[0]
+            block.sequence_id = cteb_data[1]
+            block.block_src_admin_eid = cteb_data[2]
+        return block
+
+    def _unstructure(self) -> list:
+        """Unstructure CustodyTransferExt to CBOR list.
+
+        Returns:
+            Converted class to list
+
+        """
+        self.data = bundle_converter.dumps(
             [self.sequence_num, self.sequence_id, self._block_src_admin_eid]
         )
-
-    def _proc_in_data(self, block_data: bytes) -> None:
-        """Convert CBOR data into CTEB parameters."""
-        self.data = block_data
-        cteb_data = cbor2.loads(block_data)
-        if len(cteb_data) == self._cteb_array_len:
-            self.sequence_num = cteb_data[0]
-            self.sequence_id = cteb_data[1]
-            self._block_src_admin_eid = cteb_data[2]
+        return super()._unstructure()
 
 
 def creb_flag_property(flag_bit: CREBFlags) -> property:
@@ -262,11 +293,27 @@ class CompressedReportingExt(CanonicalBlock):
             self.status_report_flags = CREBFlags(0)
         self.status_report_flags &= ~int(status_flag)
 
-    def _proc_out_data(self) -> bytes:
-        """Dump CREB parameters as CBOR definite array.
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure CompressedReportingExt from CBOR list.
 
         Returns:
-            CTEB cbor array as bytes
+            Populated Compressed Reporting Extension
+
+        """
+        block = super()._structure(data)
+        creb_data = bundle_converter.loads(block.data, list)
+        # NOTE: linting tools do not recognize attrs __slots__ so disabling warnings
+        for idx, value in enumerate(creb_data):
+            key = cls.__slots__[idx]  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
+            setattr(block, key, value)
+        return block
+
+    def _unstructure(self) -> list:
+        """Unstructure CompressedReportingExt to CBOR list.
+
+        Returns:
+            Converted class to list
 
         """
         # NOTE: linting tools do not recognize attrs __slots__ so disabling warnings
@@ -275,20 +322,10 @@ class CompressedReportingExt(CanonicalBlock):
             val = getattr(self, key)
             if val is not None:
                 block_data.append(val)
-        return cbor2.dumps(block_data)
-
-    def _proc_in_data(self, block_data: bytes) -> None:
-        """Convert CBOR data into CREB parameters."""
-        # NOTE: linting tools do not recognize attrs __slots__ so disabling warnings
-        self.data = block_data
-        creb_data = cbor2.loads(block_data)
-        for idx, value in enumerate(creb_data):
-            key = self.__slots__[idx]  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
-            setattr(self, key, value)
+        self.data = bundle_converter.dumps(block_data)
+        return super()._unstructure()
 
 
-ext_converter = make_converter()
-use_class_methods(ext_converter, "_structure", "_unstructure")
 BLOCKFUNCTIONS = {
     BlockType.BIB: BlockIntegrityBlock,
     BlockType.PAYLOAD_BLOCK: CanonicalBlock,

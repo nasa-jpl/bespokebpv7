@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: BPv7 Primary Block Parameters
  Author: Nate Richard
- Modified: 01/21/2026
+ Modified: 01/26/2026
  Company: JPL
  Date:   01/07/2026
 
@@ -40,12 +40,13 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import datetime
+from typing import Self
 
 from attrs import define, field
 from attrs.converters import optional
 
 from bespokebpv7.block_enum import AdminReasonCode
-from bespokebpv7.utils import DTN_EPOCH, format_eid, parse_eid_string
+from bespokebpv7.utils import DTN_EPOCH, bundle_converter, format_eid, parse_eid_string
 
 
 @define
@@ -105,6 +106,25 @@ class CreationTime:
         """Return creation time as datetime object, does not use sequence number."""
         return DTN_EPOCH + datetime.timedelta(milliseconds=self.timestamp_ms)
 
+    def _unstructure(self) -> list:
+        """Convert CreationTime to list for CBOR encoding.
+
+        Returns:
+            Creation time as list [timestamp_ms, sequence]
+
+        """
+        return [self.timestamp_ms, self.sequence]
+
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Convert list to CreationTime.
+
+        Returns:
+            Completed CreationTime class
+
+        """
+        return cls(timestamp_ms=data[0], sequence=data[1])
+
 
 @define
 class BundleLife(CreationTime):
@@ -127,7 +147,7 @@ class StatusAssertion:
 
     status_indicator: bool = field(default=False)
     asserted_time: int | None = field(default=None, converter=optional(int))
-    _max_assertion_len: int = 2
+    _max_array_len = 2
 
     def set_asserted_time(self, ms: int | None = None) -> None:
         """Set status report asserted time."""
@@ -138,44 +158,38 @@ class StatusAssertion:
         else:
             self.asserted_time = ms
 
-    def unstructure(self) -> list:
-        """Convert class to list for cbor encoding.
-
-        Returns:
-            Status assertion as lists
-
-        """
-        assertions = []
-        for key in self.__slots__:  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
-            if "_" not in key:  # skip private slots
-                value = getattr(self, key)
-                if value is not None:
-                    assertions.append(value)
-        return assertions
-
-    @classmethod
-    def structure(cls, asserted_list: list) -> "StatusAssertion":
-        """Convert list of values into Status Assertion.
-
-        Returns:
-            Completed StatusAssertion strucutre
-
-        """
-        asserted = cls()
-        asserted.status_indicator = asserted_list[0]
-        if (
-            len(asserted_list) == asserted._max_assertion_len
-            and asserted_list[1] is not None
-        ):
-            asserted.asserted_time = asserted_list[1]
-        return asserted
-
     @property
     def asserted_dt(self) -> datetime.datetime | None:
         """Return creation time as datetime object, does not use sequence number."""
         if self.asserted_time is not None:
             return DTN_EPOCH + datetime.timedelta(milliseconds=self.asserted_time)
         return None
+
+    def _unstructure(self) -> list:
+        """Convert StatusAssertion to list for cbor encoding.
+
+        Returns:
+            Status assertion as list
+
+        """
+        result: list[bool | int | None] = [self.status_indicator]
+        if self.asserted_time is not None:
+            result.append(self.asserted_time)
+        return result
+
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Convert list of values into Status Assertion.
+
+        Returns:
+            Completed StatusAssertion structure
+
+        """
+        asserted = cls()
+        asserted.status_indicator = data[0]
+        if len(data) == asserted._max_array_len and data[1] is not None:
+            asserted.asserted_time = data[1]
+        return asserted
 
 
 @define
@@ -187,33 +201,34 @@ class BundleStatusInformation:
     deliv_bundle: StatusAssertion = field(factory=StatusAssertion)
     del_bundle: StatusAssertion = field(factory=StatusAssertion)
 
-    def unstructure(self) -> list:
-        """Convert class to list for CBOR encoding.
+    def _unstructure(self) -> list:
+        """Convert BundleStatusInformation to list for CBOR encoding.
 
         Returns:
             Bundle Status Information as list.
 
         """
-        status_information = []
-        for key in self.__slots__:  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
-            if "_" not in key:  # skip private slots
-                value = getattr(self, key)
-                status_information.append(value.unstructure())
-        return status_information
+        return [
+            bundle_converter.unstructure(self.recv_bundle),
+            bundle_converter.unstructure(self.fwd_bundle),
+            bundle_converter.unstructure(self.deliv_bundle),
+            bundle_converter.unstructure(self.del_bundle),
+        ]
 
     @classmethod
-    def structure(cls, status_list: list[list]) -> "BundleStatusInformation":
+    def _structure(cls, data: list[list]) -> Self:
         """Convert list of lists into Bundle Status Information.
 
         Returns:
             Completed BundleStatusInformation class
 
         """
-        record = cls()
-        for idx, value in enumerate(status_list):
-            key = record.__slots__[idx]  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
-            setattr(record, key, StatusAssertion.structure(value))
-        return record
+        return cls(
+            recv_bundle=bundle_converter.structure(data[0], StatusAssertion),
+            fwd_bundle=bundle_converter.structure(data[1], StatusAssertion),
+            deliv_bundle=bundle_converter.structure(data[2], StatusAssertion),
+            del_bundle=bundle_converter.structure(data[3], StatusAssertion),
+        )
 
 
 @define
@@ -227,42 +242,6 @@ class BaseStatusReport:
     _status_src_eid: list = field(factory=lambda: [1, None])
     status_creation_time: CreationTime = field(factory=CreationTime)
 
-    def unstructure(self) -> list:
-        """Convert status report to list for CBOR encoding.
-
-        Returns:
-            BaseStatus Report as list
-
-        """
-        creation_time = [
-            self.status_creation_time.timestamp_ms,
-            self.status_creation_time.sequence,
-        ]
-        return [
-            self.status_info.unstructure(),
-            int(self.reason_code),
-            self._status_src_eid,
-            creation_time,
-        ]
-
-    @classmethod
-    def structure(cls, report_list: list) -> "BaseStatusReport":
-        """
-        Convert list to Base Status Report Information.
-
-        Returns:
-            Completed BaseStatusReport class
-
-        """
-        status = cls()
-        status.status_info = BundleStatusInformation.structure(report_list[0])
-        status.reason_code = AdminReasonCode(report_list[1])
-        status.status_src_eid = report_list[2]
-        creation_list = report_list[3]
-        status.status_creation_time.timestamp_ms = creation_list[0]
-        status.status_creation_time.sequence = creation_list[1]
-        return status
-
     @property
     def status_src_eid(self) -> str:
         """Return source EID"""
@@ -274,6 +253,37 @@ class BaseStatusReport:
             self._status_src_eid = value
         else:
             self._status_src_eid = parse_eid_string(value)
+
+    def _unstructure(self) -> list:
+        """Convert status report to list for CBOR encoding.
+
+        Returns:
+            BaseStatusReport as list
+
+        """
+        return [
+            bundle_converter.unstructure(self.status_info),
+            int(self.reason_code),
+            self._status_src_eid,
+            bundle_converter.unstructure(self.status_creation_time),
+        ]
+
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """
+        Convert list to Base Status Report Information.
+
+        Returns:
+            Completed BaseStatusReport class
+
+        """
+        block = cls(
+            status_info=bundle_converter.structure(data[0], BundleStatusInformation),
+            reason_code=AdminReasonCode(data[1]),
+            status_creation_time=bundle_converter.structure(data[3], CreationTime),
+        )
+        block.status_src_eid = data[2]
+        return block
 
 
 @define
@@ -300,4 +310,4 @@ class ReportBundleSequence:
     record.
     """
 
-    seq_collection: list[CRBundleSequence] = field(default=[])
+    seq_collection: list[CRBundleSequence] = field(factory=list)

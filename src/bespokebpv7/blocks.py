@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: BPv7 Block Classes & helper functions
  Author: Nate Richard
- Modified: 01/21/2026
+ Modified: 01/26/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -41,12 +41,9 @@ software to foreign countries or providing access to foreign persons.
 
 import datetime
 from collections import OrderedDict
-from typing import Any, NotRequired, TypedDict
+from typing import Any, NotRequired, Self, TypedDict
 
-import cbor2
 from attrs import define, field
-from cattrs.preconf.cbor2 import make_converter
-from cattrs.strategies import use_class_methods
 
 from bespokebpv7.block_enum import (
     BlockFlags,
@@ -59,7 +56,12 @@ from bespokebpv7.bundle_params import (
     BundleLife,
     BundleRoute,
 )
-from bespokebpv7.utils import DTN_EPOCH, calculate_crc, parse_eid_string
+from bespokebpv7.utils import (
+    DTN_EPOCH,
+    bundle_converter,
+    calculate_crc,
+    parse_eid_string,
+)
 
 BPVERSION = 7
 
@@ -90,13 +92,13 @@ class BaseBlock:
             block as byte string
 
         """
-        return cbor2.dumps(self._unstructure())
+        return bundle_converter.dumps(self)
 
     def update_crc(self) -> None:
         """Manual trigger to update CRC based on current state."""
         if self.crc_type != CRCType.NONE:
             self.crc = self.crc_type.fill_value
-            self.crc = calculate_crc(self._unstructure(), self.crc_type)
+            self.crc = calculate_crc(bundle_converter.unstructure(self), self.crc_type)
 
     def set_flag(self, flag: BundleFlags | BlockFlags) -> None:
         """Set an individual flag."""
@@ -105,10 +107,6 @@ class BaseBlock:
     def clear_flag(self, flag: BundleFlags | BlockFlags) -> None:
         """Clear an individual flag."""
         self.flags &= ~int(flag)
-
-    def _unstructure(self) -> list:
-        """Unstructure method, should be overridden."""
-        raise NotImplementedError
 
 
 def flag_property(flag_bit: BundleFlags | BlockFlags) -> property:
@@ -146,10 +144,10 @@ class CanonicalBlock(BaseBlock):
     status_report = flag_property(BlockFlags.STATUS_BUNDLE)
     delete_bundle = flag_property(BlockFlags.DELETE_BUNDLE)
     discard_block = flag_property(BlockFlags.DISCARD_BLOCK)
-    _block_array_len = 5
+    _max_array_len = 5
 
     @classmethod
-    def _structure(cls, data: list) -> "CanonicalBlock":
+    def _structure(cls, data: list) -> Self:
         """
         Structure CBOR List as Canonical Block.
 
@@ -162,9 +160,9 @@ class CanonicalBlock(BaseBlock):
         block.block_number = data[1]
         block.flags = BlockFlags(data[2])
         block.crc_type = CRCType(data[3])
-        block._proc_in_data(data[4])
+        block.data = data[4]  # Keep as bytes
 
-        if len(data) > block._block_array_len:
+        if len(data) > block._max_array_len:
             block.crc = data[5]
         else:
             block.crc = block.crc_type.fill_value
@@ -185,27 +183,15 @@ class CanonicalBlock(BaseBlock):
             int(self.crc_type),
         ]
 
-        out.append(self._proc_out_data())
+        # Process data - ensure it's bytes
+        if not isinstance(self.data, bytes):
+            out.append(bundle_converter.dumps(self.data))
+        else:
+            out.append(self.data)
 
         if self.crc_type != CRCType.NONE and self.crc:
             out.append(self.crc)
         return out
-
-    def _proc_out_data(self) -> bytes:
-        """
-        Any conversions required to meet RFC 9171 requirements for block data.
-
-        Returns:
-            CBOR Encoded data
-
-        """
-        if not isinstance(self.data, bytes):
-            return cbor2.dumps(self.data)
-        return self.data
-
-    def _proc_in_data(self, block_data: bytes) -> None:
-        """Any conversions required to meet RFC 9171 requirements for block data."""
-        self.data = block_data
 
 
 @define
@@ -216,7 +202,7 @@ class PrimaryBlock(BaseBlock):
     flags: BundleFlags = field(default=BundleFlags(0), converter=BundleFlags)
     route: BundleRoute = field(factory=BundleRoute)
     life: BundleLife = field(factory=BundleLife)
-    fragmentation: BundleFragmentation | None = field(factory=BundleFragmentation)
+    fragmentation: BundleFragmentation | None = None
 
     is_fragment = flag_property(BundleFlags.IS_FRAGMENT)
     adu_is_admin = flag_property(BundleFlags.ADU_IS_ADMIN_RECORD)
@@ -239,7 +225,7 @@ class PrimaryBlock(BaseBlock):
         self.life.sequence = seq
 
     @classmethod
-    def _structure(cls, data: list) -> "PrimaryBlock":
+    def _structure(cls, data: list) -> Self:
         """
         Structure CBOR List as Primary Block.
 
@@ -314,7 +300,3 @@ class ExtensionBlocks(OrderedDict):
         super().__setitem__(key, value)
         if BlockType.PAYLOAD_BLOCK in self.keys():
             self.move_to_end(BlockType.PAYLOAD_BLOCK)
-
-
-block_converter = make_converter()
-use_class_methods(block_converter, "_structure", "_unstructure")

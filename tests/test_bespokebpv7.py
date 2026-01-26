@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bespoke BPv7 test suite
  Author: Nate Richard
- Modified: 01/20/2026
+ Modified: 01/26/2026
  Company: JPL
  Date:   01/14/2026
 
@@ -54,27 +54,31 @@ from bespokebpv7.block_enum import (
     BlockType,
     BundleFlags,
     CRCType,
-    IntegrityScopeFlags,
     CREBFlags,
+    IntegrityScopeFlags,
 )
 from bespokebpv7.blocks import (
     CanonicalBlock,
     CanonicalBlockInit,
     PrimaryBlock,
-    block_converter,
 )
 from bespokebpv7.bpsec import BlockIntegrityBlock
 from bespokebpv7.bpv7 import BPv7
-from bespokebpv7.bundle_params import BundleLife, BundleRoute
+from bespokebpv7.bundle_params import BundleFragmentation, BundleLife, BundleRoute
 from bespokebpv7.ext_functions import (
     BundleAgeExt,
+    CompressedReportingExt,
+    CustodyTransferExt,
     HopCountExt,
     PreviousNodeExt,
-    CustodyTransferExt,
-    CompressedReportingExt,
-    ext_converter,
 )
-from bespokebpv7.utils import DTN_EPOCH, calculate_crc, format_eid, parse_eid_string
+from bespokebpv7.utils import (
+    DTN_EPOCH,
+    bundle_converter,
+    calculate_crc,
+    format_eid,
+    parse_eid_string,
+)
 
 # --- Strategies for Hypothesis ---
 st_ipn_eid = st.builds(
@@ -212,9 +216,9 @@ def test_primary_block_serialization_roundtrip(
     pb.route.dest_eid = dst
     pb.life.lifetime = lifetime
 
-    serialized_list = block_converter.unstructure(pb)
+    serialized_list = bundle_converter.unstructure(pb)
 
-    pb_new = block_converter.structure(serialized_list, PrimaryBlock)
+    pb_new = bundle_converter.structure(serialized_list, PrimaryBlock)
 
     assert pb_new.route.source_eid == expected_src
     assert pb_new.route.dest_eid == expected_dest
@@ -232,7 +236,7 @@ def test_canonical_block_logic() -> None:
     cb.delete_bundle = True
     assert cb.flags & BlockFlags.DELETE_BUNDLE
 
-    out_list = block_converter.unstructure(cb)
+    out_list = bundle_converter.unstructure(cb)
     assert out_list[0] == int(BlockType.UNKNOWN_BLOCK)
     assert out_list[4] == b"some_data"
 
@@ -248,13 +252,13 @@ def test_bundle_age_ext() -> None:
     bae.block_type = BlockType.BUNDLE_AGE
     bae.age = age
 
-    out_list = ext_converter.unstructure(bae)
+    out_list = bundle_converter.unstructure(bae)
     assert cbor2.loads(out_list[4]) == age
 
     data_bytes = cbor2.dumps(5000)
     in_list = [7, 2, 0, 0, data_bytes]
 
-    bae_new = ext_converter.structure(in_list, BundleAgeExt)
+    bae_new = bundle_converter.structure(in_list, BundleAgeExt)
     assert bae_new.age == age
     assert bae_new.block_type == BlockType.BUNDLE_AGE
 
@@ -271,10 +275,10 @@ def test_previous_node_ext(prev_eid: str) -> None:
     pnb.block_type = BlockType.PREVIOUS_NODE
     pnb.previous_node = expected_prev
 
-    out_list = ext_converter.unstructure(pnb)
+    out_list = bundle_converter.unstructure(pnb)
     assert cbor2.loads(out_list[4]) == cbor_pn
 
-    pnb_new = ext_converter.structure(out_list, PreviousNodeExt)
+    pnb_new = bundle_converter.structure(out_list, PreviousNodeExt)
     assert pnb_new.previous_node == expected_prev
 
 
@@ -286,10 +290,10 @@ def test_hop_count_ext(hop_limit: int, hop_count: int) -> None:
     hcb.hop_limit = hop_limit
     hcb.hop_count = hop_count
 
-    out_list = ext_converter.unstructure(hcb)
+    out_list = bundle_converter.unstructure(hcb)
     assert cbor2.loads(out_list[4]) == [hop_limit, hop_count]
 
-    hcb_new = ext_converter.structure(out_list, HopCountExt)
+    hcb_new = bundle_converter.structure(out_list, HopCountExt)
     assert hcb_new.hop_limit == hop_limit
     assert hcb_new.hop_count == hop_count
 
@@ -306,10 +310,10 @@ def test_ct_ext(seq_num: int, seq_id: int, admin_eid: str) -> None:
     cteb.sequence_id = seq_id
     cteb.block_src_admin_eid = expected_admin
 
-    out_list = ext_converter.unstructure(cteb)
+    out_list = bundle_converter.unstructure(cteb)
     assert cbor2.loads(out_list[4]) == [seq_num, seq_id, parse_eid_string(admin_eid)]
 
-    cteb_new = ext_converter.structure(out_list, CustodyTransferExt)
+    cteb_new = bundle_converter.structure(out_list, CustodyTransferExt)
     assert cteb_new.sequence_num == seq_num
     assert cteb_new.sequence_id == seq_id
     assert cteb_new.block_src_admin_eid == expected_admin
@@ -349,10 +353,10 @@ def test_cr_ext(
         key = creb.__slots__[idx]  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
         setattr(creb, key, val)
 
-    out_list = ext_converter.unstructure(creb)
+    out_list = bundle_converter.unstructure(creb)
     assert cbor2.loads(out_list[4]) == inputs
 
-    creb_new = ext_converter.structure(out_list, CompressedReportingExt)
+    creb_new = bundle_converter.structure(out_list, CompressedReportingExt)
     for idx, val in enumerate(inputs):
         key = creb_new.__slots__[idx]  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
         assert getattr(creb_new, key) == val
@@ -390,8 +394,8 @@ def test_cr_ext_eids(admin_eid: str, report_eid: str) -> None:
     creb.sequence_id = seq_id
     creb.status_report_flags = flags
 
-    out_list = ext_converter.unstructure(creb)
-    creb_new = ext_converter.structure(out_list, CompressedReportingExt)
+    out_list = bundle_converter.unstructure(creb)
+    creb_new = bundle_converter.structure(out_list, CompressedReportingExt)
     assert creb_new.block_src_admin_eid == expected_admin
     assert creb_new.report_to_eid == expected_report
 
@@ -431,14 +435,14 @@ def test_bib_roundtrip() -> None:
     bib.parm_present = True
     bib.add_security_result(sha_variant)
 
-    out_list = ext_converter.unstructure(bib)
+    out_list = bundle_converter.unstructure(bib)
     bib_data_bytes = out_list[4]
     bib_data = cbor2.loads(bib_data_bytes)
 
     assert bib_data[1] == 1
     assert len(bib_data) >= len(sha_variant)
 
-    bib_new = ext_converter.structure(out_list, BlockIntegrityBlock)
+    bib_new = bundle_converter.structure(out_list, BlockIntegrityBlock)
     assert len(bib_new.security_parameters) == 1
     assert len(bib_new.security_results) == 1
     assert bib_new.parm_present
@@ -570,31 +574,27 @@ def test_fragmentation_settings() -> None:
 
     """
     errmsg = "Fragmentation error"
-    frag_offet = 1024
+    frag_offset = 1024
     total_adu_len = 5000
-    pb = PrimaryBlock()
+    frag = BundleFragmentation(fragment_offset=frag_offset, total_adu_len=total_adu_len)
+    pb = PrimaryBlock(fragmentation=frag)
     pb.is_fragment = True
-    if pb.fragmentation:
-        pb.fragmentation.fragment_offset = frag_offet
-        pb.fragmentation.total_adu_len = total_adu_len
-    else:
-        raise ValueError(errmsg)
 
     assert pb.flags & BundleFlags.IS_FRAGMENT
 
-    out_list = block_converter.unstructure(pb)
-    assert frag_offet in out_list
+    out_list = bundle_converter.unstructure(pb)
+    assert frag_offset in out_list
     assert total_adu_len in out_list
 
-    pb_new = block_converter.structure(out_list, PrimaryBlock)
+    pb_new = bundle_converter.structure(out_list, PrimaryBlock)
     if not pb_new.fragmentation:
         raise ValueError(errmsg)
     assert pb_new.is_fragment
-    assert pb_new.fragmentation.fragment_offset == frag_offet
+    assert pb_new.fragmentation.fragment_offset == frag_offset
     assert pb_new.fragmentation.total_adu_len == total_adu_len
 
     pb.is_fragment = False
-    out_list_no_frag = block_converter.unstructure(pb)
+    out_list_no_frag = bundle_converter.unstructure(pb)
 
-    assert frag_offet not in out_list_no_frag
+    assert frag_offset not in out_list_no_frag
     assert total_adu_len not in out_list_no_frag
