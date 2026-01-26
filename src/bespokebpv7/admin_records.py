@@ -47,14 +47,16 @@ from bespokebpv7.block_enum import (
     AdminRecordType,
     CustodyAcceptanceCode,
     CustodyRefusalCode,
+    ReportReason,
 )
 from bespokebpv7.blocks import CanonicalBlock
 from bespokebpv7.bundle_params import (
     BaseStatusReport,
     BundleFragmentation,
+    CRBundleSequence,
     CTBundleSequence,
 )
-from bespokebpv7.utils import bundle_converter
+from bespokebpv7.utils import bundle_converter, parse_eid_string
 
 
 @define
@@ -122,23 +124,147 @@ class CompressedCustodySignal(AdminRecord):
     """Compressed Custody Signal adminstrative record."""
 
     custody_signal: dict[
-        CustodyAcceptanceCode | CustodyRefusalCode, CTBundleSequence
-    ] = field(
-        factory=dict[CustodyAcceptanceCode | CustodyRefusalCode, CTBundleSequence]
-    )
+        CustodyAcceptanceCode | CustodyRefusalCode, list[CTBundleSequence]
+    ] = field(factory=dict)
 
-    def set_custody_acceptance(self, seq: CTBundleSequence) -> None:
+    def set_custody_acceptance(
+        self,
+        seq: CTBundleSequence | list[CTBundleSequence],
+        key: CustodyAcceptanceCode = CustodyAcceptanceCode.CT_ACCEPTED,
+    ) -> None:
         """Set custody acceptance for given bundle sequence."""
-        self.custody_signal[CustodyAcceptanceCode.CT_ACCEPTED] = seq
+        if key not in self.custody_signal:
+            self.custody_signal[key] = []
 
-    def set_custody_refusal(self, seq: CTBundleSequence) -> None:
+        if isinstance(seq, list):
+            self.custody_signal[key].extend(seq)
+        else:
+            self.custody_signal[key].append(seq)
+
+    def set_custody_refusal(
+        self,
+        seq: CTBundleSequence | list[CTBundleSequence],
+        key: CustodyRefusalCode = CustodyRefusalCode.CT_REFUSED,
+    ) -> None:
         """Set custody refusal for given bundle sequence."""
-        self.custody_signal[CustodyRefusalCode.CT_REFUSED] = seq
+        if key not in self.custody_signal:
+            self.custody_signal[key] = []
+
+        if isinstance(seq, list):
+            self.custody_signal[key].extend(seq)
+        else:
+            self.custody_signal[key].append(seq)
+
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure a CompressedCustodySignal from a CBOR list.
+
+        Returns:
+            Populated Compressed Custody Signal
+
+        """
+        block = super()._structure(data)
+        admin_data = bundle_converter.loads(block.data, list)
+        block.record_type = admin_data[0]
+        cbor_map = admin_data[1]
+
+        for key, seq_collection_data in cbor_map.items():
+            cs_key = CustodyRefusalCode(key) if key < -1 else CustodyAcceptanceCode(key)
+            sequences = []
+            for seq_data in seq_collection_data:
+                seq = CTBundleSequence(
+                    first_seq_num=seq_data[1],
+                    seq_range=seq_data[2],
+                )
+                seq.dest_seq = seq_data[0]
+                sequences.append(seq)
+            block.custody_signal[cs_key] = sequences  # pylint: disable=E1101
+        return block
+
+    def _unstructure(self) -> list:
+        """Unstructure into [type, map].
+
+        Returns:
+            Converted class as list
+
+        """
+        cbor_map = {}
+        for key, seq_list in self.custody_signal.items():
+            encoded_collection = []
+            for seq in seq_list:
+                encoded_seq = [seq.dest_seq, seq.first_seq_num, seq.seq_range]
+                encoded_collection.append(encoded_seq)
+            cbor_map[int(key)] = encoded_collection
+
+        admin_payload = [self.record_type, cbor_map]
+        self.data = bundle_converter.dumps(admin_payload)
+        return super()._unstructure()
 
 
 @define
 class CompressedReportSignal(AdminRecord):
     """Compressed Reporting Signal adminstrative record."""
+
+    reports: dict[ReportReason, list[CRBundleSequence]] = field(factory=dict)
+
+    def add_report(
+        self, key: ReportReason, seq: CRBundleSequence | list[CRBundleSequence]
+    ) -> None:
+        """Add a report for a given reason and sequence(s)."""
+        if key not in self.reports:
+            self.reports[key] = []
+        if isinstance(seq, list):
+            self.reports[key].extend(seq)
+        else:
+            self.reports[key].append(seq)
+
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure a CompressedReportSignal from a CBOR list [type, content].
+
+        Returns:
+            Populated Compressed Report Signal
+
+        """
+        block = super()._structure(data)
+        admin_data = bundle_converter.loads(block.data, list)
+        block.record_type = admin_data[0]
+        cbor_map = admin_data[1]
+
+        for key, seq_collection_data in cbor_map.items():
+            sequences = []
+            for seq_data in seq_collection_data:
+                seq = CRBundleSequence(
+                    first_seq_num=seq_data[1],
+                    seq_range=seq_data[2],
+                )
+                seq.dest_seq = seq_data[0]
+                if len(seq_data) == seq.max_seq_len:
+                    seq.block_src_admin_eid = seq_data[3]
+                sequences.append(seq)
+            block.reports[ReportReason(key)] = sequences  # pylint: disable=E1101
+        return block
+
+    def _unstructure(self) -> list:
+        """Unstructure into [type, map].
+
+        Returns:
+            Converted class as list
+
+        """
+        cbor_map = {}
+        for key, seq_list in self.reports.items():
+            encoded_collection = []
+            for seq in seq_list:
+                encoded_seq = [seq.dest_seq, seq.first_seq_num, seq.seq_range]
+                if seq.block_src_admin_eid is not None:
+                    encoded_seq.append(parse_eid_string(seq.block_src_admin_eid))
+                encoded_collection.append(encoded_seq)
+            cbor_map[int(key)] = encoded_collection
+
+        admin_payload = [self.record_type, cbor_map]
+        self.data = bundle_converter.dumps(admin_payload)
+        return super()._unstructure()
 
 
 ADMINFUNCTIONS = {

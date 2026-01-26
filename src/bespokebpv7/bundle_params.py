@@ -290,24 +290,45 @@ class BaseStatusReport:
 class CTBundleSequence:
     """Bundle sequence definition for Compressed Custody Signal adminstrative record."""
 
-    dest_seq: int | list = field(default=0)
+    _dest_seq: int | list = field(default=0)
     first_seq_num: int = field(default=0)
     seq_range: int | list[int] = field(default=0)
+
+    @property
+    def dest_seq(self) -> str:
+        """Return source EID"""
+        if isinstance(self._dest_seq, list):
+            return format_eid(self._dest_seq)
+        return str(self._dest_seq)
+
+    @dest_seq.setter
+    def dest_seq(self, value: str | list | int) -> None:
+        if isinstance(value, str):
+            # assume string is an EID
+            self._dest_seq = parse_eid_string(value)
+        else:
+            self._dest_seq = value
 
 
 @define
 class CRBundleSequence(CTBundleSequence):
-    """Bundle sequence definition for Compressed reporting."""
+    """Bundle sequence definition for Compressed Reporting administrative record."""
 
     _block_src_admin_eid: list | None = field(
         factory=lambda: [1, None], converter=optional(list)
     )
+    max_seq_len: int = 4
 
+    @property
+    def block_src_admin_eid(self) -> str:
+        """Return source EID"""
+        if self._block_src_admin_eid is not None:
+            return format_eid(self._block_src_admin_eid)
+        return "Block source admin EID not defined"
 
-@define
-class ReportBundleSequence:
-    """Bundle Sequence Collection for Compressed Reporting Signal adminstrative
-    record.
-    """
-
-    seq_collection: list[CRBundleSequence] = field(factory=list)
+    @block_src_admin_eid.setter
+    def block_src_admin_eid(self, value: str | list) -> None:
+        if isinstance(value, list):
+            self._block_src_admin_eid = value
+        else:
+            self._block_src_admin_eid = parse_eid_string(value)
