@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: BPv7 Admin Record Classes & helper functions
  Author: Nate Richard
- Modified: 01/21/2026
+ Modified: 01/26/2026
  Company: JPL
  Date:   01/20/2026
 
@@ -39,7 +39,8 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-import cbor2
+from typing import Self
+
 from attrs import define, field
 
 from bespokebpv7.block_enum import (
@@ -53,6 +54,7 @@ from bespokebpv7.bundle_params import (
     BundleFragmentation,
     CTBundleSequence,
 )
+from bespokebpv7.utils import bundle_converter
 
 
 @define
@@ -68,34 +70,51 @@ class BundleStatusReport(AdminRecord):
 
     base_status: BaseStatusReport = field(factory=BaseStatusReport)
     fragmentation: BundleFragmentation | None = field(factory=BundleFragmentation)
-    _max_status_report_len: int = 6
+    max_status_report_len: int = 6
 
-    def _proc_out_data(self) -> bytes:
-        """
-        Conversion to convert BundleStatusReport to CBOR encodable data.
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure a BundleStatusReport from a CBOR list (Payload Block fields).
 
         Returns:
-            CBOR Encoded data
+            Populated Bundle Status Report
 
         """
-        status_data = self.base_status.unstructure()
+        block = super()._structure(data)
+
+        admin_record = bundle_converter.loads(block.data, list)
+        block.record_type = admin_record[0]
+        status_report = admin_record[1]
+
+        block.base_status = bundle_converter.structure(status_report, BaseStatusReport)
+
+        if len(status_report) == block.max_status_report_len:  # pylint: disable=E1101
+            block.fragmentation = BundleFragmentation(
+                fragment_offset=status_report[4], total_adu_len=status_report[5]
+            )
+        else:
+            block.fragmentation = None
+
+        return block
+
+    def _unstructure(self) -> list:
+        """Unstructure the BundleStatusReport into a CBOR list (Payload Block fields).
+
+        Returns:
+            Class as list.
+
+        """
+        status_data = bundle_converter.unstructure(self.base_status)
+
         if self.fragmentation is not None:
             status_data.extend(
                 [self.fragmentation.fragment_offset, self.fragmentation.total_adu_len]
             )
-        return cbor2.dumps([self.record_type, status_data])
 
-    def _proc_in_data(self, block_data: bytes) -> None:
-        """Conversion to extract Bundle Status Report from CBOR encoded data."""
-        self.data = block_data
-        admin_record = cbor2.loads(block_data)
-        self.record_type = admin_record[0]
-        status_report = admin_record[1]
-        self.base_status = BaseStatusReport.structure(status_report)
-        if len(status_report) == self._max_status_report_len:
-            self.fragmentation = BundleFragmentation(
-                fragment_offset=status_report[4], total_adu_len=status_report[5]
-            )
+        admin_payload = [self.record_type, status_data]
+        self.data = bundle_converter.dumps(admin_payload)
+
+        return super()._unstructure()
 
 
 @define

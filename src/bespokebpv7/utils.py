@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Utility functions for bundle processing
  Author: Nate Richard
- Modified: 01/21/2026
+ Modified: 01/26/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -44,6 +44,8 @@ import struct
 
 import cbor2
 import fastcrc
+from cattrs.preconf.cbor2 import make_converter
+from cattrs.strategies import use_class_methods
 
 from bespokebpv7.block_enum import CRCType, SchemeCode
 
@@ -123,3 +125,7 @@ def format_eid(eid: list) -> str:
         return f"dtn:{dtnstr}"
 
     return "unknown:none"
+
+
+bundle_converter = make_converter()
+use_class_methods(bundle_converter, "_structure", "_unstructure")
