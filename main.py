@@ -1,5 +1,7 @@
 import binascii
-
+import os
+import timeit
+from contextlib import redirect_stdout
 import cbor2
 
 from bespokebpv7.block_enum import BlockType, CRCType
@@ -63,6 +65,28 @@ def admin_record_test() -> None:
     print(admin)
 
 
+def time() -> None:
+    with redirect_stdout(open(os.devnull, "w")):
+        result = timeit.timeit("test()", globals=globals())
+
+    print(f"Test function perf: {result / 1000000}")
+
+    with redirect_stdout(open(os.devnull, "w")):
+        result = timeit.timeit("create_new()", globals=globals())
+
+    print(f"Create new function perf: {result / 1000000}")
+
+    with redirect_stdout(open(os.devnull, "w")):
+        result = timeit.timeit("modify()", globals=globals())
+
+    print(f"Modify function perf: {result / 1000000}")
+
+    with redirect_stdout(open(os.devnull, "w")):
+        result = timeit.timeit("admin_record_test()", globals=globals())
+
+    print(f"Admin record function perf: {result / 1000000}")
+
+
 if __name__ == "__main__":
     print("Verify functionality:")
     test()
@@ -75,3 +99,6 @@ if __name__ == "__main__":
 
     print("\n\nAdmin record test:")
     admin_record_test()
+
+    print("\n\nPerformance results:")
+    time()
