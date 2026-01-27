@@ -172,7 +172,8 @@ class CustodyTransferExt(CanonicalBlock):
     sequence_num: int = field(default=0)
     sequence_id: int = field(default=0)
     _block_src_admin_eid: list = field(
-        factory=lambda: [1, "none"], converter=Converter(parse_eid_string)  # type: ignore[misc]
+        factory=lambda: [1, "none"],
+        converter=Converter(parse_eid_string),  # type: ignore[misc]
     )
     cteb_array_len = 3
 

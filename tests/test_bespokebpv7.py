@@ -297,6 +297,26 @@ def test_bundle_life() -> None:
     assert life.creation_dt == expected_dt
 
 
+def test_status_assertion_methods() -> None:
+    """Test helper methods in StatusAssertion."""
+    sa = StatusAssertion()
+
+    # Default state
+    assert sa.asserted_time is None
+    assert sa.asserted_dt is None
+
+    # Set explicit time
+    ms = 1000
+    sa.set_asserted_time(ms)
+    assert sa.asserted_time == ms
+    assert sa.asserted_dt == DTN_EPOCH + datetime.timedelta(milliseconds=ms)
+
+    # Set current time (auto)
+    sa.set_asserted_time()
+    assert sa.asserted_time is not None
+    assert sa.asserted_time > ms
+
+
 # ==========================================
 # Tests for bespokebpv7/blocks.py
 # ==========================================
@@ -368,6 +388,79 @@ def test_canonical_block_logic() -> None:
     out_list = bundle_converter.unstructure(cb)
     assert out_list[0] == int(BlockType.UNKNOWN_BLOCK)
     assert out_list[4] == b"some_data"
+
+
+def test_primary_block_additional_flags() -> None:
+    """Verify all PrimaryBlock flag properties toggle correctly."""
+    pb = PrimaryBlock()
+
+    # Test toggling individual flags
+    flags_to_test = [
+        ("adu_is_admin", BundleFlags.ADU_IS_ADMIN_RECORD),
+        ("no_fragment", BundleFlags.DO_NOT_FRAGMENT),
+        ("ack_requested", BundleFlags.ACK_REQUESTED),
+        ("status_time", BundleFlags.STATUS_TIME),
+        ("deliv_report", BundleFlags.STATUS_REPORT_DELIV),
+        ("fwd_report", BundleFlags.STATUS_REPORT_FWD),
+        ("recv_report", BundleFlags.STATUS_REPORT_RECV),
+        ("del_report", BundleFlags.STATUS_REPORT_DEL),
+    ]
+
+    for prop_name, flag_enum in flags_to_test:
+        # Should be False by default
+        assert not getattr(pb, prop_name)
+        assert not pb.flags & flag_enum
+
+        # Set True
+        setattr(pb, prop_name, True)
+        assert getattr(pb, prop_name)
+        assert pb.flags & flag_enum
+
+        # Set False
+        setattr(pb, prop_name, False)
+        assert not getattr(pb, prop_name)
+        assert not pb.flags & flag_enum
+
+
+def test_canonical_block_additional_flags() -> None:
+    """Verify all CanonicalBlock flag properties toggle correctly."""
+    cb = CanonicalBlock()
+
+    flags_to_test = [
+        ("replica_fragment", BlockFlags.REPLICATE_FRAGMENT),
+        ("status_report", BlockFlags.STATUS_BUNDLE),
+        ("delete_bundle", BlockFlags.DELETE_BUNDLE),
+        ("discard_block", BlockFlags.DISCARD_BLOCK),
+    ]
+
+    for prop_name, flag_enum in flags_to_test:
+        assert not getattr(cb, prop_name)
+
+        setattr(cb, prop_name, True)
+        assert getattr(cb, prop_name)
+        assert cb.flags & flag_enum
+
+        setattr(cb, prop_name, False)
+        assert not getattr(cb, prop_name)
+
+
+def test_extension_blocks_ordering() -> None:
+    """Verify that adding a block after Payload block moves Payload to the end."""
+    bundle = BPv7()
+
+    bundle.add_payload_block(b"payload")
+
+    hcb_parms: CanonicalBlockInit = {"block_type": BlockType.HOP_COUNT}
+    bundle.add_canonical_block(hcb_parms, cbor2.dumps([10, 5]))
+
+    keys = list(bundle.blocks.keys())
+    assert keys[-1] == BlockType.PAYLOAD_BLOCK
+    assert BlockType.HOP_COUNT in keys
+
+    raw = bytes(bundle)
+    decoded = cbor2.loads(raw)
+    assert decoded[1][0] == int(BlockType.HOP_COUNT)
+    assert decoded[2][0] == int(BlockType.PAYLOAD_BLOCK)
 
 
 # ==========================================
@@ -535,6 +628,28 @@ def test_cr_ext_eids(admin_eid: str, report_eid: str) -> None:
     assert creb_new.report_to_eid == expected_report
 
 
+def test_creb_additional_flags() -> None:
+    """Verify CompressedReportingExt specific flag properties."""
+    creb = CompressedReportingExt(block_type=BlockType.CREB)
+
+    flags_to_test = [
+        ("report_recv", CREBFlags.RECV_REPORT_REQ),
+        ("fwd_report", CREBFlags.FWD_REPORT_REQ),
+        ("deliv_report", CREBFlags.DELIV_REPORT_REQ),
+        ("del_report", CREBFlags.DEL_REPORT_REQ),
+        ("ct_reject_report", CREBFlags.CT_REJECT_REQ),
+    ]
+
+    for prop_name, flag_enum in flags_to_test:
+        setattr(creb, prop_name, True)
+        assert getattr(creb, prop_name)
+        assert creb.status_report_flags
+        assert creb.status_report_flags & flag_enum
+
+        setattr(creb, prop_name, False)
+        assert not getattr(creb, prop_name)
+
+
 # ==========================================
 # Tests for bespokebpv7/bpsec.py
 # ==========================================
@@ -581,6 +696,28 @@ def test_bib_roundtrip() -> None:
     assert len(bib_new.security_parameters) == 1
     assert len(bib_new.security_results) == 1
     assert bib_new.parm_present
+
+
+def test_bib_additional_flags() -> None:
+    """Verify BlockIntegrityBlock specific flag properties."""
+    bib = BlockIntegrityBlock()
+
+    flags_to_test = [
+        ("include_target_header", IntegrityScopeFlags.INCLUDE_TARGET_HEADER),
+        ("include_security_header", IntegrityScopeFlags.INCLUDE_SECURITY_HEADER),
+    ]
+
+    for prop_name, flag_enum in flags_to_test:
+        # Default for BIB might vary, but we test toggling
+        original_state = getattr(bib, prop_name)
+
+        # Toggle
+        setattr(bib, prop_name, not original_state)
+        assert getattr(bib, prop_name) != original_state
+        if getattr(bib, prop_name):
+            assert bib.integrity_scope_flags & flag_enum
+        else:
+            assert not bib.integrity_scope_flags & flag_enum
 
 
 # ==========================================
@@ -733,6 +870,23 @@ def test_fragmentation_settings() -> None:
 
     assert frag_offset not in out_list_no_frag
     assert total_adu_len not in out_list_no_frag
+
+
+def test_bpv7_debug_mode(capsys: pytest.CaptureFixture[str]) -> None:
+    """Verify that debug mode prints output during parsing."""
+    # Create a simple bundle
+    b_src = BPv7()
+    b_src.add_payload_block(b"test_debug")
+    raw_data = bytes(b_src)
+
+    # Unpack with debug=True
+    BPv7(raw_data, debug=True)
+
+    # Check stdout for debug messages
+    captured = capsys.readouterr()
+    assert "received:  9f" in captured.out
+    assert "processed: 9f" in captured.out
+    assert "header  in" in captured.out
 
 
 # ==========================================

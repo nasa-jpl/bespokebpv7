@@ -54,13 +54,16 @@ class BundleRoute:
     """Routing EIDs for a bundle."""
 
     _dest_eid: list = field(
-        factory=lambda: [1, None], converter=Converter(parse_eid_string)  # type: ignore[misc]
+        factory=lambda: [1, None],
+        converter=Converter(parse_eid_string),  # type: ignore[misc]
     )
     _source_eid: list = field(
-        factory=lambda: [1, None], converter=Converter(parse_eid_string)  # type: ignore[misc]
+        factory=lambda: [1, None],
+        converter=Converter(parse_eid_string),  # type: ignore[misc]
     )
     _report_to_eid: list = field(
-        factory=lambda: [1, None], converter=Converter(parse_eid_string)  # type: ignore[misc]
+        factory=lambda: [1, None],
+        converter=Converter(parse_eid_string),  # type: ignore[misc]
     )
 
     @property
@@ -246,7 +249,8 @@ class BaseStatusReport:
         default=AdminReasonCode(0), converter=AdminReasonCode
     )
     _status_src_eid: list = field(
-        factory=lambda: [1, None], converter=Converter(parse_eid_string)  # type: ignore[misc]
+        factory=lambda: [1, None],
+        converter=Converter(parse_eid_string),  # type: ignore[misc]
     )
     status_creation_time: CreationTime = field(factory=CreationTime)
 
