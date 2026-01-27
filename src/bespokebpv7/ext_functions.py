@@ -40,7 +40,7 @@ software to foreign countries or providing access to foreign persons.
 
 from typing import Self
 
-from attrs import define, field
+from attrs import Converter, define, field
 from attrs.converters import optional
 
 from bespokebpv7.block_enum import BlockType, CREBFlags
@@ -54,6 +54,10 @@ class BundleAgeExt(CanonicalBlock):
     """Class definition for Bundle Age extension block"""
 
     age: int = field(default=0)
+
+    def __attrs_post_init__(self) -> None:
+        """Set block type"""
+        self.block_type = BlockType.BUNDLE_AGE
 
     @classmethod
     def _structure(cls, data: list) -> Self:
@@ -83,6 +87,10 @@ class PreviousNodeExt(CanonicalBlock):
     """Class definition for Previous Node extension block."""
 
     _previous_node: list = field(factory=lambda: [1, "none"])
+
+    def __attrs_post_init__(self) -> None:
+        """Set block type"""
+        self.block_type = BlockType.PREVIOUS_NODE
 
     @property
     def previous_node(self) -> str:
@@ -127,6 +135,10 @@ class HopCountExt(CanonicalBlock):
     hop_count: int = field(default=0)
     hcb_array_len = 2
 
+    def __attrs_post_init__(self) -> None:
+        """Set block type"""
+        self.block_type = BlockType.HOP_COUNT
+
     @classmethod
     def _structure(cls, data: list) -> Self:
         """Structure HopCountExt from CBOR list.
@@ -159,8 +171,14 @@ class CustodyTransferExt(CanonicalBlock):
 
     sequence_num: int = field(default=0)
     sequence_id: int = field(default=0)
-    _block_src_admin_eid: list = field(factory=lambda: [1, "none"])
+    _block_src_admin_eid: list = field(
+        factory=lambda: [1, "none"], converter=Converter(parse_eid_string)  # type: ignore[misc]
+    )
     cteb_array_len = 3
+
+    def __attrs_post_init__(self) -> None:
+        """Set block type"""
+        self.block_type = BlockType.CTEB
 
     @property
     def block_src_admin_eid(self) -> str:
@@ -244,6 +262,10 @@ class CompressedReportingExt(CanonicalBlock):
     del_report = creb_flag_property(CREBFlags.DEL_REPORT_REQ)
     ct_accept_report = creb_flag_property(CREBFlags.CT_ACCEPT_REQ)
     ct_reject_report = creb_flag_property(CREBFlags.CT_REJECT_REQ)
+
+    def __attrs_post_init__(self) -> None:
+        """Set block type"""
+        self.block_type = BlockType.CREB
 
     @property
     def block_src_admin_eid(self) -> str | None:

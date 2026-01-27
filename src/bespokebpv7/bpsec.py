@@ -203,6 +203,7 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
     def __attrs_post_init__(self) -> None:
         """Set security context flags are initiation."""
         self.security_context_flags = SecurityContextFlags(1)
+        self.block_type = BlockType.BIB
 
     def set_sha_variant(self, variant: BIBSHAVariant | None = None) -> None:
         """Set SHA variant security parameter."""

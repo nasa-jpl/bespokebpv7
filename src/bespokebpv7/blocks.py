@@ -144,7 +144,7 @@ class CanonicalBlock(BaseBlock):
     status_report = flag_property(BlockFlags.STATUS_BUNDLE)
     delete_bundle = flag_property(BlockFlags.DELETE_BUNDLE)
     discard_block = flag_property(BlockFlags.DISCARD_BLOCK)
-    _max_array_len = 5
+    max_array_len = 5
 
     @classmethod
     def _structure(cls, data: list) -> Self:
@@ -162,7 +162,7 @@ class CanonicalBlock(BaseBlock):
         block.crc_type = CRCType(data[3])
         block.data = data[4]  # Keep as bytes
 
-        if len(data) > block._max_array_len:
+        if len(data) > block.max_array_len:
             block.crc = data[5]
         else:
             block.crc = block.crc_type.fill_value

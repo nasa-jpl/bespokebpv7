@@ -45,6 +45,7 @@ from attrs import define, field
 
 from bespokebpv7.block_enum import (
     AdminRecordType,
+    BlockType,
     CustodyAcceptanceCode,
     CustodyRefusalCode,
     ReportReason,
@@ -64,6 +65,7 @@ class AdminRecord(CanonicalBlock):
     """Base adminstrative record structure."""
 
     record_type: int = field(default=0)
+    record_len: int = 2
 
 
 @define
@@ -73,6 +75,11 @@ class BundleStatusReport(AdminRecord):
     base_status: BaseStatusReport = field(factory=BaseStatusReport)
     fragmentation: BundleFragmentation | None = field(factory=BundleFragmentation)
     max_status_report_len: int = 6
+
+    def __attrs_post_init__(self) -> None:
+        """Set record type"""
+        self.block_type = BlockType.PAYLOAD_BLOCK
+        self.record_type = AdminRecordType.BUNDLE_STATUS_REPORTS
 
     @classmethod
     def _structure(cls, data: list) -> Self:
@@ -127,6 +134,11 @@ class CompressedCustodySignal(AdminRecord):
         CustodyAcceptanceCode | CustodyRefusalCode, list[CTBundleSequence]
     ] = field(factory=dict)
 
+    def __attrs_post_init__(self) -> None:
+        """Set record type"""
+        self.block_type = BlockType.PAYLOAD_BLOCK
+        self.record_type = AdminRecordType.COMPRESSED_CUSTODY_SIGNAL
+
     def set_custody_acceptance(
         self,
         seq: CTBundleSequence | list[CTBundleSequence],
@@ -169,7 +181,7 @@ class CompressedCustodySignal(AdminRecord):
         cbor_map = admin_data[1]
 
         for key, seq_collection_data in cbor_map.items():
-            cs_key = CustodyRefusalCode(key) if key < -1 else CustodyAcceptanceCode(key)
+            cs_key = CustodyRefusalCode(key) if key < 0 else CustodyAcceptanceCode(key)
             sequences = []
             for seq_data in seq_collection_data:
                 seq = CTBundleSequence(
@@ -206,6 +218,11 @@ class CompressedReportSignal(AdminRecord):
     """Compressed Reporting Signal adminstrative record."""
 
     reports: dict[ReportReason, list[CRBundleSequence]] = field(factory=dict)
+
+    def __attrs_post_init__(self) -> None:
+        """Set record type"""
+        self.block_type = BlockType.PAYLOAD_BLOCK
+        self.record_type = AdminRecordType.COMPRESSED_REPORT_SIGNAL
 
     def add_report(
         self, key: ReportReason, seq: CRBundleSequence | list[CRBundleSequence]
