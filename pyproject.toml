@@ -32,20 +32,65 @@ build-backend = "uv_build"
 select = ["ALL"]
 ignore = ["ANN002", "ANN003", "D203", "D205", "D211", "D212", "D213", "D400", "D415", "COM812", "S101"]
 
+# --- Coverage Configuration ---
+[tool.coverage.run]
+branch = true
+parallel = true
+source = ["bespokebpv7"]
+
+[tool.coverage.paths]
+source = [
+    "src/bespokebpv7",
+    "*/site-packages/bespokebpv7",
+    "*/bespokebpv7",
+]
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+skip_covered = true
+
+# --- Tox Configuration ---
 [tool.tox]
-requires = ["tox>=4.34.1"]
-env_list = ["3.10", "3.11", "3.12", "type", "lint"]
+requires = ["tox>=4.34.1", "tox-uv>=1.29.0"]
+env_list = ["clean", "3.10", "3.11", "3.12", "3.13", "3.14", "type", "lint", "coverage"]
+isolated_build = true
+
+[tool.tox.env.clean]
+description = "Erase previous coverage data"
+deps = ["coverage[toml]"]
+skip_install = true
+allowlist_externals = ["coverage"]
+commands = [["coverage", "erase"]]
+
+[tool.tox.env.coverage]
+description = "Report coverage over all test runs."
+deps = ["coverage[toml]"]
+skip_install = true
+depends = ["3.10", "3.11", "3.12", "3.13", "3.14"]
+allowlist_externals = ["coverage"]
+commands = [
+    ["coverage", "combine"],
+    ["coverage", "report"],
+    ["coverage", "html"]
+]
 
 [tool.tox.env_run_base]
 description = "Run test under {base_python}"
-commands = [["pytest"]]
+dependency_groups = ["dev"]
+commands = [
+    ["coverage", "run", "-m", "pytest"]
+]
 
 [tool.tox.env.type]
 description = "Run type check on code base"
-deps = ["mypy==1.19.1"]
-commands = [["mypy", "src{/}bespokebpv7"]]
+dependency_groups = ["dev"]
+commands = [["mypy", "src/bespokebpv7"]]
 
-[tool.toc.env.lint]
+[tool.tox.env.lint]
 description = "Run Ruff"
-deps = ["ruff==0.14.10"]
-commands = [["ruff", "check", "--fix", "src{/}bespokebpv7"], ["ruff", "format", "src{/}bespokebpv7"]]
+dependency_groups = ["dev"]
+commands = [
+    ["ruff", "check", "--fix", "src/bespokebpv7"],
+    ["ruff", "format", "src/bespokebpv7"]
+]
