@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: BPv7 Block Classes & helper functions
  Author: Nate Richard
- Modified: 01/26/2026
+ Modified: 01/27/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -40,8 +40,9 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import datetime
+import sys
 from collections import OrderedDict
-from typing import Any, NotRequired, Self, TypedDict
+from typing import Any, TypedDict
 
 from attrs import define, field
 
@@ -62,6 +63,11 @@ from bespokebpv7.utils import (
     calculate_crc,
     parse_eid_string,
 )
+
+if sys.version_info >= (3, 11):
+    from typing import NotRequired, Self
+else:
+    from typing_extensions import NotRequired, Self
 
 BPVERSION = 7
 
