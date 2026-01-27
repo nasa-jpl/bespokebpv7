@@ -233,7 +233,9 @@ class CompressedReportingExt(CanonicalBlock):
     status_report_flags: CREBFlags | None = field(
         default=None, converter=optional(CREBFlags)
     )
-    _block_src_admin_eid: list | None = field(default=None)
+    _block_src_admin_eid: list | None = field(
+        default=None, converter=optional(parse_eid_string)
+    )
     _report_to_eid: list | None = field(default=None)
 
     report_recv = creb_flag_property(CREBFlags.RECV_REPORT_REQ)

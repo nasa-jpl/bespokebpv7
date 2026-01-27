@@ -42,7 +42,7 @@ software to foreign countries or providing access to foreign persons.
 import datetime
 from typing import Self
 
-from attrs import define, field
+from attrs import Converter, define, field
 from attrs.converters import optional
 
 from bespokebpv7.block_enum import AdminReasonCode
@@ -53,9 +53,15 @@ from bespokebpv7.utils import DTN_EPOCH, bundle_converter, format_eid, parse_eid
 class BundleRoute:
     """Routing EIDs for a bundle."""
 
-    _dest_eid: list = field(factory=lambda: [1, None])
-    _source_eid: list = field(factory=lambda: [1, None])
-    _report_to_eid: list = field(factory=lambda: [1, None])
+    _dest_eid: list = field(
+        factory=lambda: [1, None], converter=Converter(parse_eid_string)  # type: ignore[misc]
+    )
+    _source_eid: list = field(
+        factory=lambda: [1, None], converter=Converter(parse_eid_string)  # type: ignore[misc]
+    )
+    _report_to_eid: list = field(
+        factory=lambda: [1, None], converter=Converter(parse_eid_string)  # type: ignore[misc]
+    )
 
     @property
     def source_eid(self) -> str:
@@ -239,7 +245,9 @@ class BaseStatusReport:
     reason_code: AdminReasonCode = field(
         default=AdminReasonCode(0), converter=AdminReasonCode
     )
-    _status_src_eid: list = field(factory=lambda: [1, None])
+    _status_src_eid: list = field(
+        factory=lambda: [1, None], converter=Converter(parse_eid_string)  # type: ignore[misc]
+    )
     status_creation_time: CreationTime = field(factory=CreationTime)
 
     @property
@@ -315,16 +323,16 @@ class CRBundleSequence(CTBundleSequence):
     """Bundle sequence definition for Compressed Reporting administrative record."""
 
     _block_src_admin_eid: list | None = field(
-        factory=lambda: [1, None], converter=optional(list)
-    )
+        factory=lambda: [1, None], converter=optional(parse_eid_string)
+    )  # type: ignore[misc]
     max_seq_len: int = 4
 
     @property
-    def block_src_admin_eid(self) -> str:
+    def block_src_admin_eid(self) -> str | None:
         """Return source EID"""
         if self._block_src_admin_eid is not None:
             return format_eid(self._block_src_admin_eid)
-        return "Block source admin EID not defined"
+        return None
 
     @block_src_admin_eid.setter
     def block_src_admin_eid(self, value: str | list) -> None:

@@ -87,6 +87,9 @@ def parse_eid_string(eid_str: str) -> list[int | list[int] | str]:
         IPN scheme or a string for a DTN scheme
 
     """
+    # attrs converter maybe sending lists, so just return them
+    if isinstance(eid_str, list):
+        return eid_str
     if ":" not in eid_str:
         return [int(SchemeCode.DTN), eid_str]
     scheme, ssp = eid_str.split(":")
