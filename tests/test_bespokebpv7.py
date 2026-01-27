@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bespoke BPv7 test suite
  Author: Nate Richard
- Modified: 01/26/2026
+ Modified: 01/27/2026
  Company: JPL
  Date:   01/14/2026
 
@@ -47,10 +47,12 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from bespokebpv7.admin_records import (  # type: ignore[import-untyped]
+    BundleStatusReport,
     CompressedCustodySignal,
     CompressedReportSignal,
 )
 from bespokebpv7.block_enum import (  # type: ignore[import-untyped]
+    AdminReasonCode,
     AdminRecordType,
     BIBParmEnum,
     BIBResultEnum,
@@ -73,11 +75,15 @@ from bespokebpv7.blocks import (  # type: ignore[import-untyped]
 from bespokebpv7.bpsec import BlockIntegrityBlock  # type: ignore[import-untyped]
 from bespokebpv7.bpv7 import BPv7  # type: ignore[import-untyped]
 from bespokebpv7.bundle_params import (  # type: ignore[import-untyped]
+    BaseStatusReport,
     BundleFragmentation,
     BundleLife,
     BundleRoute,
+    BundleStatusInformation,
     CRBundleSequence,
+    CreationTime,
     CTBundleSequence,
+    StatusAssertion,
 )
 from bespokebpv7.ext_functions import (  # type: ignore[import-untyped]
     BundleAgeExt,
@@ -138,6 +144,80 @@ def cr_sequence_strategy() -> st.SearchStrategy:
             st.integers(min_value=0), st.lists(st.integers(min_value=0), min_size=1)
         ),
         block_src_admin_eid=st.one_of(st.none(), st_eid),
+    )
+
+
+def creation_time_strategy() -> st.SearchStrategy:
+    """Generate CreationTime objects.
+
+    Returns:
+        Custom creationtime
+
+    """
+    return st.builds(
+        CreationTime,
+        timestamp_ms=st.integers(min_value=0),
+        sequence=st.integers(min_value=0),
+    )
+
+
+def status_assertion_strategy() -> st.SearchStrategy:
+    """Generate StatusAssertion objects.
+
+    Returns:
+        Custom statusassertion
+
+    """
+    return st.builds(
+        StatusAssertion,
+        status_indicator=st.booleans(),
+        asserted_time=st.one_of(st.none(), st.integers(min_value=0)),
+    )
+
+
+def bundle_status_info_strategy() -> st.SearchStrategy:
+    """Generate BundleStatusInformation objects.
+
+    Returns:
+        Custom BundleStatusInformation
+
+    """
+    return st.builds(
+        BundleStatusInformation,
+        recv_bundle=status_assertion_strategy(),
+        fwd_bundle=status_assertion_strategy(),
+        deliv_bundle=status_assertion_strategy(),
+        del_bundle=status_assertion_strategy(),
+    )
+
+
+def base_status_report_strategy() -> st.SearchStrategy:
+    """Generate BaseStatusReport objects.
+
+    Returns:
+        Custom basestatusreport
+
+    """
+    return st.builds(
+        BaseStatusReport,
+        status_info=bundle_status_info_strategy(),
+        reason_code=st.sampled_from(AdminReasonCode),
+        status_src_eid=st_eid,
+        status_creation_time=creation_time_strategy(),
+    )
+
+
+def fragmentation_strategy() -> st.SearchStrategy:
+    """Generate BundleFragmentation objects.
+
+    Returns:
+        Custom bundlefragementation
+
+    """
+    return st.builds(
+        BundleFragmentation,
+        fragment_offset=st.integers(min_value=0),
+        total_adu_len=st.integers(min_value=0),
     )
 
 
@@ -790,3 +870,65 @@ def test_crs_roundtrip(
         key = ReportReason.FWD_REPORT
         assert key in reconstructed.reports
         assert len(reconstructed.reports[key]) == len(fwd_seqs)
+
+
+@given(
+    base_status_report_strategy(),
+    st.one_of(st.none(), fragmentation_strategy()),
+)
+def test_bundle_status_report_roundtrip(
+    base_status: BaseStatusReport, fragmentation: BundleFragmentation
+) -> None:
+    """Test serialization and deserialization of BundleStatusReport.
+
+    Verifies:
+    1. Correct handling of the fragmentation field (present vs None).
+    2. Correct length of the status report list (6 elements with frag, 4 without).
+    3. Data integrity after roundtrip.
+    """
+    report = BundleStatusReport(
+        base_status=base_status,
+        fragmentation=fragmentation,
+        record_type=AdminRecordType.BUNDLE_STATUS_REPORT,
+    )
+
+    cbor_list = bundle_converter.unstructure(report)
+
+    assert isinstance(cbor_list, list)
+    assert len(cbor_list) == report.max_array_len
+
+    admin_record = cbor2.loads(cbor_list[-1])
+    assert admin_record[0] == int(AdminRecordType.BUNDLE_STATUS_REPORT)
+    status_report = admin_record[1]
+
+    if fragmentation is not None:
+        assert len(status_report) == report.max_status_report_len
+        assert status_report[4] == fragmentation.fragment_offset
+        assert status_report[5] == fragmentation.total_adu_len
+    else:
+        assert len(status_report) == report.max_status_report_len - 2
+
+    reconstructed = bundle_converter.structure(cbor_list, BundleStatusReport)
+
+    assert reconstructed.record_type == report.record_type
+
+    assert reconstructed.base_status.reason_code == base_status.reason_code
+    assert reconstructed.base_status.status_src_eid == base_status.status_src_eid
+    assert (
+        reconstructed.base_status.status_creation_time.timestamp_ms
+        == base_status.status_creation_time.timestamp_ms
+    )
+
+    assert (
+        reconstructed.base_status.status_info.recv_bundle.status_indicator
+        == base_status.status_info.recv_bundle.status_indicator
+    )
+
+    if fragmentation is not None:
+        assert reconstructed.fragmentation is not None
+        assert (
+            reconstructed.fragmentation.fragment_offset == fragmentation.fragment_offset
+        )
+        assert reconstructed.fragmentation.total_adu_len == fragmentation.total_adu_len
+    else:
+        assert reconstructed.fragmentation is None

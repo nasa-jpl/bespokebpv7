@@ -172,7 +172,7 @@ class AdminRecordType(IntEnum):
     """Enumeration of Adminstrative Record type codes."""
 
     __str__ = Enum.__str__
-    BUNDLE_STATUS_REPORTS = 1
+    BUNDLE_STATUS_REPORT = 1
     COMPRESSED_CUSTODY_SIGNAL = 13  # Placeholder
     COMPRESSED_REPORT_SIGNAL = 14  # Placeholder
 

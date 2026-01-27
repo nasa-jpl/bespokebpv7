@@ -79,7 +79,7 @@ class BundleStatusReport(AdminRecord):
     def __attrs_post_init__(self) -> None:
         """Set record type"""
         self.block_type = BlockType.PAYLOAD_BLOCK
-        self.record_type = AdminRecordType.BUNDLE_STATUS_REPORTS
+        self.record_type = AdminRecordType.BUNDLE_STATUS_REPORT
 
     @classmethod
     def _structure(cls, data: list) -> Self:
@@ -285,7 +285,7 @@ class CompressedReportSignal(AdminRecord):
 
 
 ADMINFUNCTIONS = {
-    AdminRecordType.BUNDLE_STATUS_REPORTS: BundleStatusReport,
+    AdminRecordType.BUNDLE_STATUS_REPORT: BundleStatusReport,
     AdminRecordType.COMPRESSED_CUSTODY_SIGNAL: CompressedCustodySignal,
     AdminRecordType.COMPRESSED_REPORT_SIGNAL: CompressedReportSignal,
 }
