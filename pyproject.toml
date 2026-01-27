@@ -32,7 +32,6 @@ build-backend = "uv_build"
 select = ["ALL"]
 ignore = ["ANN002", "ANN003", "D203", "D205", "D211", "D212", "D213", "D400", "D415", "COM812", "S101"]
 
-# --- Coverage Configuration ---
 [tool.coverage.run]
 branch = true
 parallel = true
@@ -50,7 +49,6 @@ fail_under = 95
 show_missing = true
 skip_covered = true
 
-# --- Tox Configuration ---
 [tool.tox]
 requires = ["tox>=4.34.1", "tox-uv>=1.29.0"]
 env_list = ["clean", "3.10", "3.11", "3.12", "3.13", "3.14", "type", "lint", "coverage"]
