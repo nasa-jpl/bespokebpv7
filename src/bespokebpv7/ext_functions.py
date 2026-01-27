@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Extension Block functions
  Author: Nate Richard
- Modified: 01/26/2026
+ Modified: 01/27/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -38,7 +38,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-from typing import Self
+import sys
 
 from attrs import Converter, define, field
 from attrs.converters import optional
@@ -47,6 +47,11 @@ from bespokebpv7.block_enum import BlockType, CREBFlags
 from bespokebpv7.blocks import CanonicalBlock
 from bespokebpv7.bpsec import BlockIntegrityBlock
 from bespokebpv7.utils import bundle_converter, format_eid, parse_eid_string
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 
 @define

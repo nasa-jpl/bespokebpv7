@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: BPv7 Admin Record Classes & helper functions
  Author: Nate Richard
- Modified: 01/26/2026
+ Modified: 01/27/2026
  Company: JPL
  Date:   01/20/2026
 
@@ -39,7 +39,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-from typing import Self
+import sys
 
 from attrs import define, field
 
@@ -58,6 +58,11 @@ from bespokebpv7.bundle_params import (
     CTBundleSequence,
 )
 from bespokebpv7.utils import bundle_converter, parse_eid_string
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 
 @define

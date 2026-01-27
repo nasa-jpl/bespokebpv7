@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: BPv7 Primary Block Parameters
  Author: Nate Richard
- Modified: 01/26/2026
+ Modified: 01/27/2026
  Company: JPL
  Date:   01/07/2026
 
@@ -40,13 +40,18 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import datetime
-from typing import Self
+import sys
 
 from attrs import Converter, define, field
 from attrs.converters import optional
 
 from bespokebpv7.block_enum import AdminReasonCode
 from bespokebpv7.utils import DTN_EPOCH, bundle_converter, format_eid, parse_eid_string
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 
 @define

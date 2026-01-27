@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Protocol Security Classes
  Author: Nate Richard
- Modified: 01/26/2026
+ Modified: 01/27/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -38,7 +38,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-from typing import Self
+import sys
 
 from attrs import define, field
 
@@ -52,6 +52,11 @@ from bespokebpv7.block_enum import (
 )
 from bespokebpv7.blocks import CanonicalBlock
 from bespokebpv7.utils import bundle_converter
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 
 def asb_flag_property(flag_bit: SecurityContextFlags) -> property:
