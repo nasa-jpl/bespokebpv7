@@ -298,24 +298,9 @@ class BaseStatusReport:
 class CTBundleSequence:
     """Bundle sequence definition for Compressed Custody Signal adminstrative record."""
 
-    _dest_seq: int | list = field(default=0)
+    dest_seq: int | list = field(default=0)
     first_seq_num: int = field(default=0)
     seq_range: int | list[int] = field(default=0)
-
-    @property
-    def dest_seq(self) -> str:
-        """Return source EID"""
-        if isinstance(self._dest_seq, list):
-            return format_eid(self._dest_seq)
-        return str(self._dest_seq)
-
-    @dest_seq.setter
-    def dest_seq(self, value: str | list | int) -> None:
-        if isinstance(value, str):
-            # assume string is an EID
-            self._dest_seq = parse_eid_string(value)
-        else:
-            self._dest_seq = value
 
 
 @define
