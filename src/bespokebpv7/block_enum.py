@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Block enumerations
  Author: Nate Richard
- Modified: 01/16/2026
+ Modified: 01/21/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -86,6 +86,8 @@ class BlockType(IntEnum):
     HOP_COUNT = 10
     BIB = 11
     BCB = 12
+    CTEB = 13  # Placeholder
+    CREB = 14  # Placeholder
     DATA_LABEL = 192
     QOS = 193
     IMC = 195
@@ -152,3 +154,69 @@ class BIBResultEnum(IntEnum):
 
     __str__ = Enum.__str__
     EXPECTED_HMAC = 1
+
+
+class CREBFlags(IntFlag):
+    """Enumeration for Custody Reporting extension block flags."""
+
+    __str__ = Enum.__str__
+    RECV_REPORT_REQ = 1 << 0
+    FWD_REPORT_REQ = 1 << 1
+    DELIV_REPORT_REQ = 1 << 2
+    DEL_REPORT_REQ = 1 << 3
+    CT_ACCEPT_REQ = 1 << 4
+    CT_REJECT_REQ = 1 << 5
+
+
+class AdminRecordType(IntEnum):
+    """Enumeration of Adminstrative Record type codes."""
+
+    __str__ = Enum.__str__
+    BUNDLE_STATUS_REPORT = 1
+    COMPRESSED_CUSTODY_SIGNAL = 13  # Placeholder
+    COMPRESSED_REPORT_SIGNAL = 14  # Placeholder
+
+
+class AdminReasonCode(IntEnum):
+    """Enumeration of Bundle Status Report reason codes."""
+
+    __str__ = Enum.__str__
+    NO_INFO = 0
+    LIFETIME_EXPIRED = 1
+    FWD_UNIDIRECTIONAL = 2
+    TRANSMIT_CANCEL = 3
+    DEPLETED_STORE = 4
+    DEST_EID_UNAVAIL = 5
+    NO_ROUTE = 6
+    NO_TIMELY_CONTACT = 7
+    UNINTELLIGIBLE = 8
+    HOP_LIMIT_EXCEED = 9
+    TRAFFIC_PARED = 10
+    UNSUPPORTED = 11
+    RESERVED = 255
+
+
+class CustodyAcceptanceCode(IntEnum):
+    """Disposition codes for custody acceptance."""
+
+    __str__ = Enum.__str__
+    CT_ACCEPTED = 1
+
+
+class CustodyRefusalCode(IntEnum):
+    """Disposition codes for custody refusal."""
+
+    __str__ = Enum.__str__
+    CT_REFUSED = -1
+
+
+class ReportReason(IntEnum):
+    """Status Report Reason Codes."""
+
+    __str__ = Enum.__str__
+    RECV_REPORT = 0
+    FWD_REPORT = 1
+    DELIV_REPORT = 2
+    DEL_REPORT = 3
+    CT_ACCEPT_REPORT = 4
+    CT_REJECT_REPORT = 5

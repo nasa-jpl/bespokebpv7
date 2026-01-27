@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Utility functions for bundle processing
  Author: Nate Richard
- Modified: 01/16/2026
+ Modified: 01/26/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -44,6 +44,8 @@ import struct
 
 import cbor2
 import fastcrc
+from cattrs.preconf.cbor2 import make_converter
+from cattrs.strategies import use_class_methods
 
 from bespokebpv7.block_enum import CRCType, SchemeCode
 
@@ -85,6 +87,9 @@ def parse_eid_string(eid_str: str) -> list[int | list[int] | str]:
         IPN scheme or a string for a DTN scheme
 
     """
+    # attrs converter maybe sending lists, so just return them
+    if isinstance(eid_str, list):
+        return eid_str
     if ":" not in eid_str:
         return [int(SchemeCode.DTN), eid_str]
     scheme, ssp = eid_str.split(":")
@@ -118,8 +123,12 @@ def format_eid(eid: list) -> str:
     if scheme == SchemeCode.DTN:
         # dtn format: [1, "string-name"] -> dtn:string-name
         dtnstr = eid[1]
-        if dtnstr == 0:
+        if dtnstr == 0 or dtnstr is None:
             dtnstr = "none"
         return f"dtn:{dtnstr}"
 
     return "unknown:none"
+
+
+bundle_converter = make_converter()
+use_class_methods(bundle_converter, "_structure", "_unstructure")

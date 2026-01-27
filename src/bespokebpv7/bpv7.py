@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Protocol v7 Class
  Author: Nate Richard
- Modified: 01/20/2026
+ Modified: 01/26/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -44,16 +44,19 @@ from itertools import count
 import cbor2
 import dpkt  # type: ignore[import-untyped]
 
-from bespokebpv7.block_enum import BlockFlags, BlockType, CRCType
+from bespokebpv7.admin_records import (
+    ADMINFUNCTIONS,
+    BundleStatusReport,
+)
+from bespokebpv7.block_enum import AdminRecordType, BlockFlags, BlockType, CRCType
 from bespokebpv7.blocks import (
     CanonicalBlock,
     CanonicalBlockInit,
     ExtensionBlocks,
     PrimaryBlock,
-    block_converter,
 )
-from bespokebpv7.ext_functions import BLOCKFUNCTIONS, ext_converter
-from bespokebpv7.utils import calculate_crc
+from bespokebpv7.ext_functions import BLOCKFUNCTIONS
+from bespokebpv7.utils import bundle_converter, calculate_crc
 
 
 class BPv7(dpkt.Packet):
@@ -112,14 +115,14 @@ class BPv7(dpkt.Packet):
             bundle as byte string
 
         """
-        pb_list = block_converter.unstructure(self.primary_block)
+        pb_list = bundle_converter.unstructure(self.primary_block)
 
         ext_lists = [
-            ext_converter.unstructure(extblock) for extblock in self.blocks.values()
+            bundle_converter.unstructure(extblock) for extblock in self.blocks.values()
         ]
 
         all_blocks = [pb_list, *ext_lists]
-        body = b"".join(cbor2.dumps(b) for b in all_blocks)
+        body = b"".join(bundle_converter.dumps(b) for b in all_blocks)
         return b"\x9f" + body + b"\xff"
 
     def add_canonical_block(self, block_parms: CanonicalBlockInit, data: bytes) -> None:
@@ -147,8 +150,8 @@ class BPv7(dpkt.Packet):
             crc = calculate_crc([*block_inputs, crc_type.fill_value], crc_type)
             block_inputs.append(crc)
 
-        block = BLOCKFUNCTIONS.get(type_code, CanonicalBlock)
-        self.blocks[type_code] = ext_converter.structure(block_inputs, block)
+        block_class = BLOCKFUNCTIONS.get(type_code, CanonicalBlock)
+        self.blocks[type_code] = bundle_converter.structure(block_inputs, block_class)
 
     def add_payload_block(
         self,
@@ -164,7 +167,7 @@ class BPv7(dpkt.Packet):
         if crc_type != CRCType.NONE:
             crc = calculate_crc([*block_inputs, crc_type.fill_value], crc_type)
             block_inputs.append(crc)
-        self.blocks[BlockType.PAYLOAD_BLOCK] = block_converter.structure(
+        self.blocks[BlockType.PAYLOAD_BLOCK] = bundle_converter.structure(
             block_inputs,
             CanonicalBlock,
         )
@@ -189,18 +192,27 @@ class BPv7(dpkt.Packet):
 
         """
         try:
-            bundle_data = cbor2.loads(buf)
+            bundle_data = bundle_converter.loads(buf, list)
         except cbor2.CBORDecodeError as err:
             errmsg = "CBOR decoding issue"
             raise ValueError(errmsg) from err
 
-        self.primary_block = block_converter.structure(bundle_data[0], PrimaryBlock)
+        self.primary_block = bundle_converter.structure(bundle_data[0], PrimaryBlock)
 
         ext: CanonicalBlock
         for exts in bundle_data[1:]:
             block_type = BlockType(exts[0])
-            block = BLOCKFUNCTIONS.get(block_type, CanonicalBlock)
-            ext = ext_converter.structure(exts, block)
+            if (
+                self.primary_block.adu_is_admin
+                and block_type == BlockType.PAYLOAD_BLOCK
+            ):
+                admin_record = bundle_converter.loads(exts[4], list)
+                block = ADMINFUNCTIONS.get(
+                    AdminRecordType(admin_record[0]), BundleStatusReport
+                )
+            else:
+                block = BLOCKFUNCTIONS.get(block_type, CanonicalBlock)
+            ext = bundle_converter.structure(exts, block)
 
             self.blocks[block_type] = ext
             if self.debug:
@@ -211,7 +223,7 @@ class BPv7(dpkt.Packet):
 
         if self.primary_block.crc_type != CRCType.NONE:
             actual_crc = self.primary_block.crc
-            primary_list = block_converter.unstructure(self.primary_block)
+            primary_list = bundle_converter.unstructure(self.primary_block)
 
             primary_check = [*primary_list[:-1], self.primary_block.crc_type.fill_value]
 
@@ -226,16 +238,18 @@ class BPv7(dpkt.Packet):
         typestr: str = "header",
     ) -> None:
         """Display debugging parsing."""
-        type_str_in = f"{typestr} in"
+        type_str_in = f"{typestr}  in"
         type_str_out = f"{typestr} out"
         if typestr == "block":
             out_num = self.blocks[block_type].block_type
             type_str_in = f"{typestr} {block_type:>3}"
             type_str_out = f"{typestr} {int(out_num):>3}"
 
-        hexstr = cbor2.dumps(in_data).hex()
+        hexstr = bundle_converter.dumps(in_data).hex()
         if typestr == "block":
-            out_data = bytes(self.blocks[block_type]).hex()
+            blk = self.blocks[block_type]
+            out_data = bundle_converter.dumps(blk).hex()
+
             self.recv_exts += hexstr
             self.proc_exts += out_data
         else:

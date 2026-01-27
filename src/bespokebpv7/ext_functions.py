@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Extension Block functions
  Author: Nate Richard
- Modified: 01/16/2025
+ Modified: 01/26/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -38,15 +38,15 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-import cbor2
-from attrs import define, field
-from cattrs.preconf.cbor2 import make_converter
-from cattrs.strategies import use_class_methods
+from typing import Self
 
-from bespokebpv7.block_enum import BlockType
+from attrs import Converter, define, field
+from attrs.converters import optional
+
+from bespokebpv7.block_enum import BlockType, CREBFlags
 from bespokebpv7.blocks import CanonicalBlock
 from bespokebpv7.bpsec import BlockIntegrityBlock
-from bespokebpv7.utils import format_eid, parse_eid_string
+from bespokebpv7.utils import bundle_converter, format_eid, parse_eid_string
 
 
 @define
@@ -55,26 +55,42 @@ class BundleAgeExt(CanonicalBlock):
 
     age: int = field(default=0)
 
-    def _proc_out_data(self) -> bytes:
-        """Convert age to a CBOR unsigned int
+    def __attrs_post_init__(self) -> None:
+        """Set block type"""
+        self.block_type = BlockType.BUNDLE_AGE
+
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure BundleAgeExt from CBOR list.
 
         Returns:
-            age as cbor bytes
+            Populated Bundle Age extension
 
         """
-        return cbor2.dumps(self.age)
+        block = super()._structure(data)
+        block.age = bundle_converter.loads(block.data, int)
+        return block
 
-    def _proc_in_data(self, block_data: bytes) -> None:
-        """Load CBOR data into age."""
-        self.data = block_data
-        self.age = cbor2.loads(block_data)
+    def _unstructure(self) -> list:
+        """Unstructure BundleAgeExt to CBOR list.
+
+        Returns:
+            COnverted class as list
+
+        """
+        self.data = bundle_converter.dumps(self.age)
+        return super()._unstructure()
 
 
 @define
 class PreviousNodeExt(CanonicalBlock):
-    """Class definition for Previous Node extension block"""
+    """Class definition for Previous Node extension block."""
 
     _previous_node: list = field(factory=lambda: [1, "none"])
+
+    def __attrs_post_init__(self) -> None:
+        """Set block type"""
+        self.block_type = BlockType.PREVIOUS_NODE
 
     @property
     def previous_node(self) -> str:
@@ -88,54 +104,260 @@ class PreviousNodeExt(CanonicalBlock):
         else:
             self._previous_node = parse_eid_string(value)
 
-    def _proc_out_data(self) -> bytes:
-        """Convert previous node into CBOR string.
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure PreviousNodeExt from CBOR list.
 
         Returns:
-            cbor string as bytes
+            Populated Previous Node Extension
 
         """
-        return cbor2.dumps(self._previous_node)
+        block = super()._structure(data)
+        block.previous_node = bundle_converter.loads(block.data, list)
+        return block
 
-    def _proc_in_data(self, block_data: bytes) -> None:
-        """Any conversions required to meet RFC 9171 requirements for block data."""
-        self.data = block_data
-        self.previous_node = cbor2.loads(block_data)
+    def _unstructure(self) -> list:
+        """Unstructure PreviousNodeExt to CBOR list.
+
+        Returns:
+            Converted class as list
+
+        """
+        self.data = bundle_converter.dumps(self._previous_node)
+        return super()._unstructure()
 
 
 @define
 class HopCountExt(CanonicalBlock):
-    """Class definition for Hop Count extension block"""
+    """Class definition for Hop Count extension block (HCB)."""
 
     hop_limit: int = field(default=0)
     hop_count: int = field(default=0)
-    _hcb_array_len = 2
+    hcb_array_len = 2
 
-    def _proc_out_data(self) -> bytes:
-        """Dump Hop Cout parameters as CBOR definite array.
+    def __attrs_post_init__(self) -> None:
+        """Set block type"""
+        self.block_type = BlockType.HOP_COUNT
+
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure HopCountExt from CBOR list.
 
         Returns:
-            hop count cbor array as bytes
+            Populated Hop Count Extension
 
         """
-        return cbor2.dumps([self.hop_limit, self.hop_count])
+        block = super()._structure(data)
+        hcb_data = bundle_converter.loads(block.data, list)
+        if len(hcb_data) == block.hcb_array_len:  # pylint: disable=E1101
+            block.hop_limit = hcb_data[0]
+            block.hop_count = hcb_data[1]
+        return block
 
-    def _proc_in_data(self, block_data: bytes) -> None:
-        """Convert CBOR data into hop count parameters."""
-        self.data = block_data
-        hcb_data = cbor2.loads(block_data)
-        if len(hcb_data) == self._hcb_array_len:
-            self.hop_limit = hcb_data[0]
-            self.hop_count = hcb_data[1]
+    def _unstructure(self) -> list:
+        """Unstructure HopCountExt to CBOR list.
+
+        Returns:
+            Converted class as list
+
+        """
+        self.data = bundle_converter.dumps([self.hop_limit, self.hop_count])
+        return super()._unstructure()
 
 
-ext_converter = make_converter()
-use_class_methods(ext_converter, "_structure", "_unstructure")
+@define
+class CustodyTransferExt(CanonicalBlock):
+    """Class definition for Custody Transfer extension block (CTEB)."""
+
+    sequence_num: int = field(default=0)
+    sequence_id: int = field(default=0)
+    _block_src_admin_eid: list = field(
+        factory=lambda: [1, "none"],
+        converter=Converter(parse_eid_string),  # type: ignore[misc]
+    )
+    cteb_array_len = 3
+
+    def __attrs_post_init__(self) -> None:
+        """Set block type"""
+        self.block_type = BlockType.CTEB
+
+    @property
+    def block_src_admin_eid(self) -> str:
+        """Return source EID"""
+        return format_eid(self._block_src_admin_eid)
+
+    @block_src_admin_eid.setter
+    def block_src_admin_eid(self, value: str | list) -> None:
+        if isinstance(value, list):
+            self._block_src_admin_eid = value
+        else:
+            self._block_src_admin_eid = parse_eid_string(value)
+
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure CustodyTransferExt from CBOR list.
+
+        Returns:
+            Populated Custody Transfer Extension
+
+        """
+        block = super()._structure(data)
+        cteb_data = bundle_converter.loads(block.data, list)
+        if len(cteb_data) == block.cteb_array_len:  # pylint: disable=E1101
+            block.sequence_num = cteb_data[0]
+            block.sequence_id = cteb_data[1]
+            block.block_src_admin_eid = cteb_data[2]
+        return block
+
+    def _unstructure(self) -> list:
+        """Unstructure CustodyTransferExt to CBOR list.
+
+        Returns:
+            Converted class to list
+
+        """
+        self.data = bundle_converter.dumps(
+            [self.sequence_num, self.sequence_id, self._block_src_admin_eid]
+        )
+        return super()._unstructure()
+
+
+def creb_flag_property(flag_bit: CREBFlags) -> property:
+    """Generate a property that gets/sets a bit in the instance's CREB status
+    report flags attribute.
+
+    Returns:
+        Property to get/set flag
+
+    """
+
+    def getter(self) -> bool:  # noqa: ANN001
+        return bool(self.status_report_flags & flag_bit)
+
+    def setter(self, value: bool) -> None:  # noqa: ANN001, FBT001
+        if value:
+            self.set_status_flag(flag_bit)
+        else:
+            self.clear_status_flag(flag_bit)
+
+    return property(getter, setter)
+
+
+@define
+class CompressedReportingExt(CanonicalBlock):
+    """Class definition for Compressed Reporting extension block (CREB)."""
+
+    sequence_num: int = field(default=0)
+    sequence_id: int | None = field(default=None)
+    status_report_flags: CREBFlags | None = field(
+        default=None, converter=optional(CREBFlags)
+    )
+    _block_src_admin_eid: list | None = field(
+        default=None, converter=optional(parse_eid_string)
+    )
+    _report_to_eid: list | None = field(default=None)
+
+    report_recv = creb_flag_property(CREBFlags.RECV_REPORT_REQ)
+    fwd_report = creb_flag_property(CREBFlags.FWD_REPORT_REQ)
+    deliv_report = creb_flag_property(CREBFlags.DELIV_REPORT_REQ)
+    del_report = creb_flag_property(CREBFlags.DEL_REPORT_REQ)
+    ct_accept_report = creb_flag_property(CREBFlags.CT_ACCEPT_REQ)
+    ct_reject_report = creb_flag_property(CREBFlags.CT_REJECT_REQ)
+
+    def __attrs_post_init__(self) -> None:
+        """Set block type"""
+        self.block_type = BlockType.CREB
+
+    @property
+    def block_src_admin_eid(self) -> str | None:
+        """Return source EID
+
+        Returns:
+            Block source admin EID as string if exists
+
+        """
+        if self._block_src_admin_eid:
+            return format_eid(self._block_src_admin_eid)
+        return None
+
+    @block_src_admin_eid.setter
+    def block_src_admin_eid(self, value: str | list) -> None:
+        if isinstance(value, list):
+            self._block_src_admin_eid = value
+        else:
+            self._block_src_admin_eid = parse_eid_string(value)
+
+    @property
+    def report_to_eid(self) -> str | None:
+        """Return report to EID
+
+        Returns:
+            Report to EID as string if exists
+
+        """
+        if self._report_to_eid:
+            return format_eid(self._report_to_eid)
+        return None
+
+    @report_to_eid.setter
+    def report_to_eid(self, value: str | list) -> None:
+        if isinstance(value, list):
+            self._report_to_eid = value
+        else:
+            self._report_to_eid = parse_eid_string(value)
+
+    def set_status_flag(self, status_flag: CREBFlags) -> None:
+        """Set an individual security context flag."""
+        if not self.status_report_flags:
+            self.status_report_flags = CREBFlags(0)
+        self.status_report_flags |= int(status_flag)
+
+    def clear_status_flag(self, status_flag: CREBFlags) -> None:
+        """Clear an individual security context flag."""
+        if not self.status_report_flags:
+            self.status_report_flags = CREBFlags(0)
+        self.status_report_flags &= ~int(status_flag)
+
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure CompressedReportingExt from CBOR list.
+
+        Returns:
+            Populated Compressed Reporting Extension
+
+        """
+        block = super()._structure(data)
+        creb_data = bundle_converter.loads(block.data, list)
+        # NOTE: linting tools do not recognize attrs __slots__ so disabling warnings
+        for idx, value in enumerate(creb_data):
+            key = cls.__slots__[idx]  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
+            setattr(block, key, value)
+        return block
+
+    def _unstructure(self) -> list:
+        """Unstructure CompressedReportingExt to CBOR list.
+
+        Returns:
+            Converted class to list
+
+        """
+        # NOTE: linting tools do not recognize attrs __slots__ so disabling warnings
+        block_data = []
+        for key in self.__slots__:  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
+            val = getattr(self, key)
+            if val is not None:
+                block_data.append(val)
+        self.data = bundle_converter.dumps(block_data)
+        return super()._unstructure()
+
+
 BLOCKFUNCTIONS = {
     BlockType.BIB: BlockIntegrityBlock,
     BlockType.PAYLOAD_BLOCK: CanonicalBlock,
     BlockType.PREVIOUS_NODE: PreviousNodeExt,
     BlockType.BUNDLE_AGE: BundleAgeExt,
     BlockType.HOP_COUNT: HopCountExt,
+    BlockType.CTEB: CustodyTransferExt,
+    BlockType.CREB: CompressedReportingExt,
     BlockType.UNKNOWN_BLOCK: CanonicalBlock,
 }
