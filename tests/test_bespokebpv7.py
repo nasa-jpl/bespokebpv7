@@ -46,7 +46,12 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from bespokebpv7.block_enum import (
+from bespokebpv7.admin_records import (  # type: ignore[import-untyped]
+    CompressedCustodySignal,
+    CompressedReportSignal,
+)
+from bespokebpv7.block_enum import (  # type: ignore[import-untyped]
+    AdminRecordType,
     BIBParmEnum,
     BIBResultEnum,
     BIBSHAVariant,
@@ -55,24 +60,33 @@ from bespokebpv7.block_enum import (
     BundleFlags,
     CRCType,
     CREBFlags,
+    CustodyAcceptanceCode,
+    CustodyRefusalCode,
     IntegrityScopeFlags,
+    ReportReason,
 )
-from bespokebpv7.blocks import (
+from bespokebpv7.blocks import (  # type: ignore[import-untyped]
     CanonicalBlock,
     CanonicalBlockInit,
     PrimaryBlock,
 )
-from bespokebpv7.bpsec import BlockIntegrityBlock
-from bespokebpv7.bpv7 import BPv7
-from bespokebpv7.bundle_params import BundleFragmentation, BundleLife, BundleRoute
-from bespokebpv7.ext_functions import (
+from bespokebpv7.bpsec import BlockIntegrityBlock  # type: ignore[import-untyped]
+from bespokebpv7.bpv7 import BPv7  # type: ignore[import-untyped]
+from bespokebpv7.bundle_params import (  # type: ignore[import-untyped]
+    BundleFragmentation,
+    BundleLife,
+    BundleRoute,
+    CRBundleSequence,
+    CTBundleSequence,
+)
+from bespokebpv7.ext_functions import (  # type: ignore[import-untyped]
     BundleAgeExt,
     CompressedReportingExt,
     CustodyTransferExt,
     HopCountExt,
     PreviousNodeExt,
 )
-from bespokebpv7.utils import (
+from bespokebpv7.utils import (  # type: ignore[import-untyped]
     DTN_EPOCH,
     bundle_converter,
     calculate_crc,
@@ -90,6 +104,41 @@ st_dtn_eid = st.from_regex(r"^dtn:[a-zA-Z0-9]+$", fullmatch=True)
 st_eid = st.one_of(st_ipn_eid, st_dtn_eid)
 
 st_data = st.binary(max_size=1024)
+
+
+def ct_sequence_strategy() -> st.SearchStrategy:
+    """Generate CTBundleSequence objects.
+
+    Returns:
+        Custom Custody Transfer sequence
+
+    """
+    return st.builds(
+        CTBundleSequence,
+        dest_seq=st.integers(min_value=0),
+        first_seq_num=st.integers(min_value=0),
+        seq_range=st.one_of(
+            st.integers(min_value=0), st.lists(st.integers(min_value=0), min_size=1)
+        ),
+    )
+
+
+def cr_sequence_strategy() -> st.SearchStrategy:
+    """Generate CRBundleSequence objects.
+
+    Returns:
+        Custom Compressed Reporting sequence
+
+    """
+    return st.builds(
+        CRBundleSequence,
+        dest_seq=st.integers(min_value=0),
+        first_seq_num=st.integers(min_value=0),
+        seq_range=st.one_of(
+            st.integers(min_value=0), st.lists(st.integers(min_value=0), min_size=1)
+        ),
+        block_src_admin_eid=st.one_of(st.none(), st_eid),
+    )
 
 
 # ==========================================
@@ -345,7 +394,13 @@ def test_cr_ext(
         expected_report = "dtn:none"
 
     # since length can vary we'll truncate after the fact based on array_len value
-    inputs_total = [seq_num, seq_id, int_flag, expected_admin, expected_report]
+    inputs_total = [
+        seq_num,
+        seq_id,
+        int_flag,
+        parse_eid_string(expected_admin),
+        parse_eid_string(expected_report),
+    ]
     inputs = inputs_total[:array_len]
 
     creb = CompressedReportingExt(block_type=BlockType.CREB)
@@ -598,3 +653,140 @@ def test_fragmentation_settings() -> None:
 
     assert frag_offset not in out_list_no_frag
     assert total_adu_len not in out_list_no_frag
+
+
+# ==========================================
+# Tests for bespokebpv7/admin_record.py
+# ==========================================
+@given(st.lists(ct_sequence_strategy(), min_size=1))
+def test_ccs_acceptance_api(sequences: list[CTBundleSequence]) -> None:
+    """Test the set_custody_acceptance helper method."""
+    ccs = CompressedCustodySignal()
+
+    ccs.set_custody_acceptance(sequences[0])
+    key = CustodyAcceptanceCode.CT_ACCEPTED
+    assert key in ccs.custody_signal
+    assert len(ccs.custody_signal[key]) == 1
+    assert ccs.custody_signal[key][0] == sequences[0]
+
+    if len(sequences) > 1:
+        ccs.set_custody_acceptance(sequences[1:])
+        assert len(ccs.custody_signal[key]) == len(sequences)
+
+
+@given(st.lists(ct_sequence_strategy(), min_size=1))
+def test_ccs_refusal_api(sequences: list[CTBundleSequence]) -> None:
+    """Test the set_custody_refusal helper method."""
+    ccs = CompressedCustodySignal()
+
+    ccs.set_custody_refusal(sequences[0])
+    key = CustodyRefusalCode.CT_REFUSED
+    assert key in ccs.custody_signal
+    assert len(ccs.custody_signal[key]) == 1
+
+    if len(sequences) > 1:
+        ccs.set_custody_refusal(sequences[1:])
+        assert len(ccs.custody_signal[key]) == len(sequences)
+
+
+@given(
+    st.lists(ct_sequence_strategy(), min_size=0),
+    st.lists(ct_sequence_strategy(), min_size=0),
+)
+def test_ccs_roundtrip(
+    accept_seqs: list[CTBundleSequence], refuse_seqs: list[CTBundleSequence]
+) -> None:
+    """Test serialization and deserialization of CompressedCustodySignal."""
+    ccs = CompressedCustodySignal()
+    if accept_seqs:
+        ccs.set_custody_acceptance(accept_seqs)
+    if refuse_seqs:
+        ccs.set_custody_refusal(refuse_seqs)
+
+    ccs.record_type = AdminRecordType.COMPRESSED_CUSTODY_SIGNAL
+
+    cbor_list = bundle_converter.unstructure(ccs)
+    cc_cbor_list = cbor2.loads(cbor_list[-1])
+
+    assert isinstance(cbor_list, list)
+    assert len(cbor_list) == ccs.max_array_len
+    assert cc_cbor_list[0] == int(AdminRecordType.COMPRESSED_CUSTODY_SIGNAL)
+    assert isinstance(cc_cbor_list[1], dict)
+
+    reconstructed = bundle_converter.structure(cbor_list, CompressedCustodySignal)
+
+    assert reconstructed.record_type == ccs.record_type
+
+    if accept_seqs:
+        key = CustodyAcceptanceCode.CT_ACCEPTED
+        assert key in reconstructed.custody_signal
+        assert len(reconstructed.custody_signal[key]) == len(accept_seqs)
+        assert reconstructed.custody_signal[key][0].dest_seq == accept_seqs[0].dest_seq
+
+    if refuse_seqs:
+        key = CustodyRefusalCode.CT_REFUSED
+        assert key in reconstructed.custody_signal
+        assert len(reconstructed.custody_signal[key]) == len(refuse_seqs)
+
+
+@given(st.lists(cr_sequence_strategy(), min_size=1))
+def test_crs_add_report_api(sequences: list[CRBundleSequence]) -> None:
+    """Test adding reports to CompressedReportSignal."""
+    crs = CompressedReportSignal()
+
+    crs.add_report(ReportReason.RECV_REPORT, sequences[0])
+    key = ReportReason.RECV_REPORT
+    assert key in crs.reports
+    assert len(crs.reports[key]) == 1
+    assert crs.reports[key][0] == sequences[0]
+
+    if len(sequences) > 1:
+        crs.add_report(ReportReason.DELIV_REPORT, sequences[1:])
+        key_del = ReportReason.DELIV_REPORT
+        assert key_del in crs.reports
+        assert len(crs.reports[key_del]) == len(sequences) - 1
+
+
+@given(
+    st.lists(cr_sequence_strategy(), min_size=0),
+    st.lists(cr_sequence_strategy(), min_size=0),
+)
+def test_crs_roundtrip(
+    recv_seqs: list[CRBundleSequence], fwd_seqs: list[CRBundleSequence]
+) -> None:
+    """Test serialization and deserialization of CompressedReportSignal."""
+    crs = CompressedReportSignal()
+    if recv_seqs:
+        crs.add_report(ReportReason.RECV_REPORT, recv_seqs)
+    if fwd_seqs:
+        crs.add_report(ReportReason.FWD_REPORT, fwd_seqs)
+
+    crs.record_type = AdminRecordType.COMPRESSED_REPORT_SIGNAL
+
+    cbor_list = bundle_converter.unstructure(crs)
+    cr_cbor_list = cbor2.loads(cbor_list[-1])
+
+    assert isinstance(cbor_list, list)
+    assert len(cbor_list) == crs.max_array_len
+    assert cr_cbor_list[0] == int(AdminRecordType.COMPRESSED_REPORT_SIGNAL)
+    assert isinstance(cr_cbor_list[1], dict)
+
+    reconstructed = bundle_converter.structure(cbor_list, CompressedReportSignal)
+    assert reconstructed.record_type == crs.record_type
+
+    if recv_seqs:
+        key = ReportReason.RECV_REPORT
+        assert key in reconstructed.reports
+        assert len(reconstructed.reports[key]) == len(recv_seqs)
+        assert reconstructed.reports[key][0].dest_seq == recv_seqs[0].dest_seq
+
+        # Check Optional field (block_src_admin_eid) logic
+        recon_src_eid = reconstructed.reports[key][0].block_src_admin_eid
+        if recv_seqs[0].block_src_admin_eid is not None and recon_src_eid is not None:
+            orig_eid = recv_seqs[0].block_src_admin_eid
+            assert orig_eid == recon_src_eid
+
+    if fwd_seqs:
+        key = ReportReason.FWD_REPORT
+        assert key in reconstructed.reports
+        assert len(reconstructed.reports[key]) == len(fwd_seqs)
