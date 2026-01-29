@@ -26,6 +26,16 @@ Some unit tests may just require sending a bundle to verify functionality. Setti
  and creating a bash function to parse it, *bespokebpv7* can receive a bundle and look
  at is assorted parameters directly.
 
+*issue-265-bpdriver-ttl-option* is regression test within ION, but it is not run
+ currently as it is reliant on finding bytes within captured bundles specific to BPv6.
+ This example restores it to the test suite and updates it, so it can easily parse the
+ bundle without a bunch of bash commands processing binary data. In limited testing
+ with ION 3.7.4 (last full BPv6) version, this test took ~25 seconds and with the new
+ updated test it takes ~11 seconds. Some of this can be attributed to improvements in
+ ION cleanup, but using *bespokebpv7* halves the test time. If other tests can be
+ improved with *bespokebpv7*, this could drastically cut down the regression suite
+ execution time.
+
 ## Support Verification and Validation
 
 Most unit and regression tests look for positive success, will the code do what the

@@ -179,3 +179,5 @@ pyrightconfig.json
 
 # ION files
 ion_nodes
+*.stdout
+bpdriverAduFile

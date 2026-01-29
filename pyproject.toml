@@ -34,7 +34,7 @@ ignore = ["ANN002", "ANN003", "D203", "D205", "D211", "D212", "D213", "D400", "D
 
 [tool.ruff.lint.per-file-ignores]
 "main.py" = ["T201", "ERA001"]
-"examples/*" = ["INP001", "T201", "FBT001", "FBT002"]
+"examples/*" = ["INP001", "T201", "FBT001", "FBT002", "S404", "S603"]
 "tests/*" = ["INP001"]
 
 [tool.coverage.run]
