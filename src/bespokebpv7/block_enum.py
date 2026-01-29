@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Block enumerations
  Author: Nate Richard
- Modified: 01/21/2026
+ Modified: 01/29/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -50,9 +50,9 @@ class BundleFlags(IntFlag):
     DO_NOT_FRAGMENT = 1 << 2
     ACK_REQUESTED = 1 << 5
     STATUS_TIME = 1 << 6
-    STATUS_REPORT_DELIV = 1 << 14
+    STATUS_REPORT_RECV = 1 << 14
     STATUS_REPORT_FWD = 1 << 16
-    STATUS_REPORT_RECV = 1 << 17
+    STATUS_REPORT_DELIV = 1 << 17
     STATUS_REPORT_DEL = 1 << 18
 
 
