@@ -41,3 +41,13 @@ Most unit and regression tests look for positive success, will the code do what 
 BPSec offers a method to prevent man-in-the-middle (MITM) attacks, but at least in ION,
  there is no test to verify this is handled properly. *bespokebpv7* allows taking in a
  bundle, modifying it, and sending on to its destination, simulating a MITM attack.
+
+*mitm_test.py* provides a server that help simulate a MITM attack between two nodes by
+ modifiy intransit bundles. Only modification that happens is setting the deliv_report
+ flag to true and updating the primary block CRC to ensure that the BIB fails. This has
+ been tested with *bping/bpecho*, but should work with other bi-directional bundle
+ flows. The *modify_bundle* function can be update have different modification logic.
+ For the purpose of modification bundle flow if the *--bidirectional* flag is not
+ passed, the *--src-node* argument determines which direction to apply the
+ modification. Make sure to update the port numbers to reflect what is in the
+ configuration files.

@@ -14,15 +14,16 @@
 ------------------------------------
 
 *****************************************************************************
- Title: Bundle Protocol Security Classes
+ Title: PCAP Parsing example
  Author: Nate Richard
  Modified: 01/28/2026
  Company: JPL
  Date:   01/27/2026
 
- File: bpsec
+ File: pcap_parse
  Description:
-           Classes that help create and process BPSec extension blocks
+           Functions to demonstrate extracting and parsing bundles from a PCAP
+           file
            Python 3.12.11
 
 Copyright 2025, by the California Institute of Technology. United States
