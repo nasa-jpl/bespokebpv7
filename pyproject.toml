@@ -81,8 +81,14 @@ commands = [
 [tool.tox.env_run_base]
 description = "Run test under {base_python}"
 dependency_groups = ["dev"]
+allowlist_externals = ["bash"]
 commands = [
-    ["coverage", "run", "-m", "pytest"]
+    ["coverage", "run", "-m", "pytest"],
+    ["bash", "-c", "cd examples/pcap_parse && ./dotest"],
+    ["bash", "-c", "cd examples/unittest_ion/status-rpts && ./dotest"],
+    ["bash", "-c", "cd examples/unittest_ion/issue-265-bpdriver-ttl-option && ./dotest"],
+    ["bash", "-c", "cd examples/vnv_ion && ./dotest"],
+    ["bash", "-c", "cd examples/mitm_test && ./dotest"]
 ]
 
 [tool.tox.env.type]
