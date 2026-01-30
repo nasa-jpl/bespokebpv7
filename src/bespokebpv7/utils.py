@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Utility functions for bundle processing
  Author: Nate Richard
- Modified: 01/26/2026
+ Modified: 01/27/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -40,6 +40,7 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import datetime
+import io
 import struct
 
 import cbor2
@@ -128,6 +129,48 @@ def format_eid(eid: list) -> str:
         return f"dtn:{dtnstr}"
 
     return "unknown:none"
+
+
+def decode_cbor_sequence(data: bytes) -> list:
+    """
+    Decode a sequence of CBOR objects from bytes.
+
+    Args:
+        data: Raw bytes containing CBOR-encoded data
+
+    Returns:
+        A list of decoded CBOR objects
+
+    """
+    stream = io.BytesIO(data)
+    decoder = cbor2.CBORDecoder(stream)
+    results = []
+
+    while stream.tell() < len(data):
+        obj = decoder.decode()
+        results.append(obj)
+
+    return results
+
+
+def encode_cbor_sequence(objects: list) -> bytes:
+    """
+    Encode a sequence of objects into CBOR bytes.
+
+    Args:
+        objects: A list of objects to encode as CBOR
+
+    Returns:
+        Raw bytes containing the CBOR-encoded sequence
+
+    """
+    stream = io.BytesIO()
+    encoder = cbor2.CBOREncoder(stream)
+
+    for obj in objects:
+        encoder.encode(obj)
+
+    return stream.getvalue()
 
 
 bundle_converter = make_converter()

@@ -39,8 +39,6 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-import cbor2
-
 from bespokebpv7.block_enum import (  # type: ignore[import-untyped]
     BIBParmEnum,
     BIBResultEnum,
@@ -48,7 +46,10 @@ from bespokebpv7.block_enum import (  # type: ignore[import-untyped]
     IntegrityScopeFlags,
 )
 from bespokebpv7.bpsec import BlockIntegrityBlock  # type: ignore[import-untyped]
-from bespokebpv7.utils import bundle_converter  # type: ignore[import-untyped]
+from bespokebpv7.utils import (  # type: ignore[import-untyped]
+    bundle_converter,
+    decode_cbor_sequence,
+)
 
 
 # ==========================================
@@ -88,7 +89,7 @@ def test_bib_roundtrip() -> None:
 
     out_list = bundle_converter.unstructure(bib)
     bib_data_bytes = out_list[4]
-    bib_data = cbor2.loads(bib_data_bytes)
+    bib_data = decode_cbor_sequence(bib_data_bytes)
 
     assert bib_data[1] == 1
     assert len(bib_data) >= len(sha_variant)

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+#
+# Nate Richard
+# JPL
+# Janurary 29, 2026
+
+echo "########################################"
+echo
+pwd | sed "s/\/.*\///" | xargs echo "NAME: "
+echo
+echo "PURPOSE: Verify PCAP parsing using bespokebpv7."
+echo
+echo "OUTPUT: Terminal messages will relay results."
+echo
+echo "########################################"
+
+# Check if python3 is available
+if ! command -v python3 &> /dev/null; then
+    echo "SKIP: python3 is required but not found. Please install Python 3."
+    exit 2
+fi
+
+PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+PYTHON_MAJOR=$(python3 -c 'import sys; print(sys.version_info[0])')
+PYTHON_MINOR=$(python3 -c 'import sys; print(sys.version_info[1])')
+if [ "$PYTHON_MAJOR" -lt 3 ] || { [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 10 ]; }; then
+    echo "SKIP: Python 3.10 or higher is required. Found version $PYTHON_VERSION"
+    exit 2
+fi
+echo "Using Python $PYTHON_VERSION"
+echo
+
+RETVAL=1
+
+python3 pcap_parse.py test.pcap
+TEST_RESULT=$?
+
+if [ $TEST_RESULT -eq 0 ]; then
+    echo "SUCCESS: PCAP parsed."
+    RETVAL=0
+else
+    echo "ERROR: Issue parsing PCAP."
+    RETVAL=1
+fi
+
+echo "Parsing completed."
+exit $RETVAL

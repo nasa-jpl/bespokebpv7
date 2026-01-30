@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+#
+# Nate Richard
+# JPL
+# Janurary 30, 2026
+
+CONFIGFILES=" \
+./global.ionrc \
+./3.ipn.udp/ipn.bprc \
+./3.ipn.udp/ipn.ionconfig \
+./3.ipn.udp/ipn.ionrc \
+./3.ipn.udp/ipn.ionsecrc \
+./3.ipn.udp/ipn.ipnrc \
+./3.ipn.udp/ipn.bpsecrc \
+"
+
+echo "########################################"
+echo
+pwd | sed "s/\/.*\///" | xargs echo "NAME: "
+echo
+echo "PURPOSE: Demonstrate V&V with ION."
+echo
+echo "CONFIG: 2 node custom configuration (only node 3 is an ION node):"
+echo
+for N in $CONFIGFILES
+do
+    echo "$N:"
+    cat $N
+    echo "# EOF"
+    echo
+done
+echo "OUTPUT: Terminal messages will relay results."
+echo
+echo "########################################"
+
+# Check if python3 is available
+if ! command -v python3 &> /dev/null; then
+    echo "SKIP: python3 is required but not found. Please install Python 3."
+    exit 2
+fi
+
+PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+PYTHON_MAJOR=$(python3 -c 'import sys; print(sys.version_info[0])')
+PYTHON_MINOR=$(python3 -c 'import sys; print(sys.version_info[1])')
+if [ "$PYTHON_MAJOR" -lt 3 ] || { [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 10 ]; }; then
+    echo "SKIP: Python 3.10 or higher is required. Found version $PYTHON_VERSION"
+    exit 2
+fi
+echo "Using Python $PYTHON_VERSION"
+echo
+
+./cleanup
+RETVAL=1
+
+echo "Starting ION..."
+export ION_NODE_LIST_DIR=$PWD
+cd 3.ipn.udp
+./ionstart > node.stdout
+
+echo "Starting bpecho on ipn:3.1 ..."
+sleep 1
+bpecho ipn:3.1 >/dev/null &
+
+cd ..
+echo "Running V&V..."
+python3 vnv_test.py
+TEST_RESULT=$?
+
+if [ $TEST_RESULT -eq 0 ]; then
+    echo "SUCCESS: All bundle scenarios passed."
+    RETVAL=0
+else
+    echo "ERROR: One or more bundle scenarios failed."
+    RETVAL=1
+fi
+
+echo
+echo "Stopping ION..."
+killm
+echo "V&V completed."
+exit $RETVAL

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#
+# Nate Richard
+# JPL
+# Janurary 29, 2026
+
+echo "Cleaning up old ION..."
+killm
+rm -f ion_nodes 3.ipn.udp/ion.log 3.ipn.udp/node.stdout
