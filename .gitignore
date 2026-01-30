@@ -181,3 +181,6 @@ pyrightconfig.json
 ion_nodes
 *.stdout
 bpdriverAduFile
+
+# ignore vscode settings for now
+.vscode/

@@ -97,3 +97,8 @@ commands = [
     ["ruff", "check", "--fix", "src/bespokebpv7"],
     ["ruff", "format", "src/bespokebpv7"]
 ]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
