@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] 2026-01-30
+
+Repo now has examples of *bespokebpv7* in action
+
+### Changed
+
+- Fix de/serialization of BIB security results
+- Fix deliv & recv status bits being flipped
+
 ## [0.3.0] 2026-01-27
 
 ### Added
