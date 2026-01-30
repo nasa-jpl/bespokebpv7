@@ -40,6 +40,7 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import socket
+import sys
 import threading
 import time
 from unittest.mock import patch
@@ -190,5 +191,7 @@ if __name__ == "__main__":
 
     if len(received_responses) == 1:
         print("SUCCESS: Only the conformant bundle triggered an echo response!")
+        sys.exit(0)
     else:
         print(f"FAILED: Expected 1 response, but got {len(received_responses)}.")
+        sys.exit(1)

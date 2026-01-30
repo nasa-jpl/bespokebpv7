@@ -2,24 +2,25 @@
 #
 # Nate Richard
 # JPL
-# Janurary 29, 2026
+# Janurary 30, 2026
 
 CONFIGFILES=" \
 ./global.ionrc \
-./3.ipn.udp/amroc.bprc \
-./3.ipn.udp/amroc.ionconfig \
-./3.ipn.udp/amroc.ionrc \
-./3.ipn.udp/amroc.ionsecrc \
-./3.ipn.udp/amroc.ipnrc \
+./3.ipn.udp/ipn.bprc \
+./3.ipn.udp/ipn.ionconfig \
+./3.ipn.udp/ipn.ionrc \
+./3.ipn.udp/ipn.ionsecrc \
+./3.ipn.udp/ipn.ipnrc \
+./3.ipn.udp/ipn.bpsecrc \
 "
 
 echo "########################################"
 echo
 pwd | sed "s/\/.*\///" | xargs echo "NAME: "
 echo
-echo "PURPOSE: To determine if bundle status reports are generated."
+echo "PURPOSE: Demonstrate V&V with ION."
 echo
-echo "CONFIG: 3 node custom configuration (only node 3 is an ION node):"
+echo "CONFIG: 2 node custom configuration (only node 3 is an ION node):"
 echo
 for N in $CONFIGFILES
 do
@@ -56,28 +57,25 @@ export ION_NODE_LIST_DIR=$PWD
 cd 3.ipn.udp
 ./ionstart > node.stdout
 
-echo "Starting bpsink on ipn:3.1 ..."
+echo "Starting bpecho on ipn:3.1 ..."
 sleep 1
-bpsink ipn:3.1 >/dev/null &
+bpecho ipn:3.1 >/dev/null &
 
-cd ../
-echo "Running bespokebpv7 status report test..."
-# First Bundle: Sent to ipn:3.1 (should be delivered)
-# Second Bundle: Sent to ipn:5.1 (should be forwarded)
-# Third Bundle: Sent to ipn:3.3 (should be deleted)
-python3 runtest.py -p parms.json
+cd ..
+echo "Running V&V..."
+python3 vnv_test.py
 TEST_RESULT=$?
 
 if [ $TEST_RESULT -eq 0 ]; then
-    echo "SUCCESS: All status report scenarios passed."
+    echo "SUCCESS: All bundle scenarios passed."
     RETVAL=0
 else
-    echo "ERROR: One or more status report scenarios failed."
+    echo "ERROR: One or more bundle scenarios failed."
     RETVAL=1
 fi
 
 echo
 echo "Stopping ION..."
 killm
-echo "Status reports test completed."
+echo "V&V completed."
 exit $RETVAL

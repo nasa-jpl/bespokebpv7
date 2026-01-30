@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: PCAP Parsing example
  Author: Nate Richard
- Modified: 01/28/2026
+ Modified: 01/30/2026
  Company: JPL
  Date:   01/27/2026
 
@@ -40,6 +40,7 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import argparse
+import sys
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -101,10 +102,13 @@ if __name__ == "__main__":
 
     bundled = pcap_extract(args.pcap)
 
-    if bundled:
+    # expect 4 bundles with 2 with duplicate timestamps
+    if bundled and len(bundled) == 3:  # noqa: PLR2004
         for tstamp, bundles in bundled.items():
             timestamp = datetime.fromtimestamp(tstamp, tz=timezone.utc).strftime(FSTR)
             for bundle in bundles:
                 print(f"Bundle Received: {timestamp}\n{bundle}\n")
+        sys.exit(0)
     else:
         print("No bundles in PCAP.")
+        sys.exit(1)
