@@ -59,6 +59,19 @@ Most unit and regression tests look for positive success, will the code do what 
  conformant to RFC 9171 or are even malformed, so the implementation can be tested to
  fail gracefully in off-nominal scenarios.
 
+*vnv_test.py* demonstrates how to send both good and bad bundles to a DTN
+ implementation ensuring they are handled properly. Running this test script with
+ *bpecho* or some other echo utility adds a feedback mechanism, which speeds up the
+ test aslog files do not need to be parsed during the test. In a real V&V setup, assert
+ statements and some sort of test harness, like *pytest*, are recommended to eliminate
+ manual verification of success/failure. Sending uncompliant CBOR data is more
+ difficult than sending uncompliant bundle data with *bespokepv7*, but the malformed
+ Hop Count Extension test shows how one could do it. *bundle_converter* what handles
+ the final conversion to bytes so patching in-place is going to be the best method of
+ modifiying data. Another method would be, assuming the byte location is know, insert
+ or modify the bundle string directly. This is more difficult because it requires
+ knowledge of the byte structure and is fragile to changes in other bundle parameters.
+
 ## Simulate Man in the Middle Attack
 
 BPSec offers a method to prevent man-in-the-middle (MITM) attacks, but at least in ION,
