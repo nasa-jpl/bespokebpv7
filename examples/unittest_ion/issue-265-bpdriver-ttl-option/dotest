@@ -64,7 +64,6 @@ RETVAL=1
 #Start ION
 echo "Starting ion node..."
 export ION_NODE_LIST_DIR=$PWD
-rm -f ./ion_nodes
 cd 1.ipn.bp.udp
 ./ionstart > node.stdout
 echo

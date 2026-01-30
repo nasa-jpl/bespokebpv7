@@ -1,6 +1,6 @@
 # Examples
 
-This folder contains example scenarios to demostrate bespokebpv7 in use.
+This folder contains example scenarios to demostrate *bespokebpv7* in use.
 
 ## Process a PCAP file
 
@@ -30,11 +30,24 @@ Some unit tests may just require sending a bundle to verify functionality. Setti
  currently as it is reliant on finding bytes within captured bundles specific to BPv6.
  This example restores it to the test suite and updates it, so it can easily parse the
  bundle without a bunch of bash commands processing binary data. In limited testing
- with ION 3.7.4 (last full BPv6) version, this test took ~25 seconds and with the new
- updated test it takes ~11 seconds. Some of this can be attributed to improvements in
+ with ION 3.7.4 version (last full BPv6), this test took ~25 seconds and with the new
+ updated test it took ~11 seconds. Some of this can be attributed to improvements in
  ION cleanup, but using *bespokebpv7* halves the test time. If other tests can be
  improved with *bespokebpv7*, this could drastically cut down the regression suite
  execution time.
+
+*status-rpts* is a regression test within ION that requires a three node setup. This
+ example demonstrates reducing the number of ION nodes down to one and having
+ *bespokebpv7* send and receive bundles. In limited testing with ION 4.1.4-b.3, this
+ test took ~29 seconds and with the updated test it took ~15 seconds. By cutting down
+ the number of nodes and eliminating the need for most of the ION receiver utilities,
+ the test time has been halved. A note on the test setup, the different status flag
+ tests needed to be combined into one for loop due issue with Python networking. If
+ each test was run one at a time, it is possible the Python receiver would miss one of
+ the status reports because the receive socket had be torn down and created again. One
+ loop for all the tests eliminated the issue. Using a JSON file was deemed as the
+ simplest method to pass a Python dict to the Python script, though hardcoding it in
+ the Python script is another possibility.
 
 ## Support Verification and Validation
 

@@ -1,0 +1,251 @@
+"""------------------------------------
+     JET PROPULSION LABORATORY
+------------------------------------
+         ___  _______  ___
+        |   ||       ||   |
+        |   ||    _  ||   |
+        |   ||   |_| ||   |
+     ___|   ||    ___||   |___
+    |       ||   |    |       |
+    |_______||___|    |_______|
+
+------------------------------------
+ CALIFORNIA INSTITUTE OF TECHNOLOGY
+------------------------------------
+
+*****************************************************************************
+ Title: Status Report Test
+ Author: Nate Richard
+ Modified: 01/29/2026
+ Company: JPL
+ Date:   01/29/2026
+
+ File: runtest
+ Description:
+           Script to verify status reports are generated
+           Python 3.12.11
+
+Copyright 2025, by the California Institute of Technology. United States
+Government sponsorship acknowledged. Any rights or license to commercial use
+must be negotiated with the Office of Technology Transfer at the California
+Institute of Technology.
+
+This software may be subject to U.S. export control laws and regulations. By
+accepting this software, the user agrees to comply with all applicable U.S.
+export laws and regulations. The user has the responsibility to obtain export
+licenses, or other export authority as may be required before exporting the
+software to foreign countries or providing access to foreign persons.
+*****************************************************************************
+"""
+
+import argparse
+import json
+import socket
+import sys
+import threading
+import time
+from pathlib import Path
+from queue import Empty, Queue
+
+from bespokebpv7.admin_records import BundleStatusReport  # type: ignore[import-untyped]
+from bespokebpv7.block_enum import BlockType, CRCType  # type: ignore[import-untyped]
+from bespokebpv7.bpv7 import BPv7  # type: ignore[import-untyped]
+
+report_queue: Queue[bytes] = Queue()
+
+
+def packet_receiver(
+    listen_addr: tuple[str, int], stop_event: threading.Event, active: threading.Lock
+) -> None:
+    """
+    Background thread to catch all incoming UDP bundles and put
+    valid Status Reports into the queue.
+
+    Args:
+        listen_addr: UDP address to tuple listen for reports
+        stop_event: threading Event to stop thread once finished
+        active: Release to let main thread know it's ok to send
+
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+    sock.bind(listen_addr)
+    sock.settimeout(1)
+
+    print(f"[*] Receiver thread started on {listen_addr}")
+    active.release()
+    while not stop_event.is_set():
+        try:
+            data = sock.recv(4096)
+        except (TimeoutError, ValueError):
+            continue
+        except OSError as e:
+            print(f"[!] Receiver error: {e}")
+            break
+
+        report_queue.put(data)
+
+    sock.close()
+    print("[*] Receiver thread shut down.")
+
+
+def create_test_bundle(dest_eid: str, requested_reports: list[str]) -> BPv7:
+    """Configure a BPv7 bundle with requested status report flags.
+
+    Args:
+        dest_eid: Destination for bundles
+        requested_reports: list of requested status flags
+
+    Returns:
+        Bundle with requested status report flags set
+
+    """
+    bundle = BPv7()
+    bundle.primary_block.route.source_eid = "ipn:2.1"
+    bundle.primary_block.route.dest_eid = dest_eid
+    bundle.primary_block.route.report_to = "ipn:5.0"
+    bundle.primary_block.status_time = True
+    bundle.primary_block.crc_type = CRCType.CRC16
+    bundle.primary_block.life.lifetime = 8 * 1000  # time in ms
+
+    # Map string args to BPv7 Primary Block flag properties
+    report_map = {
+        "rcv": "recv_report",
+        "fwd": "fwd_report",
+        "dlv": "deliv_report",
+        "del": "del_report",
+    }
+
+    for report in requested_reports:
+        # Familarizing myself with walrus operator
+        # Combines if not None with default value of None
+        if attr := report_map.get(report):
+            setattr(bundle.primary_block, attr, True)
+
+    bundle.add_payload_block(b"Simplified multi-threaded status report test.")
+    bundle.primary_block.set_creation()
+    bundle.primary_block.update_crc()
+    return bundle
+
+
+def check_status(data: bytes) -> BundleStatusReport | None:
+    """Parse bundles for status reports.
+
+    Args:
+        data: potential bundle as bytes
+
+    Returns:
+        Status report if found
+
+    """
+    bundle = BPv7(data)
+    if bundle.primary_block.adu_is_admin:
+        payload = bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK)
+        if isinstance(payload, BundleStatusReport):
+            return payload
+    return None
+
+
+def collect_reports(requested_count: int) -> set[str]:
+    """Poll the queue and extracts verified status types from incoming reports.
+
+    Args:
+        requested_count: number of status report flags to expect
+
+    Returns:
+        Set of received status reports
+
+    """
+    timeout = time.time() + 30
+    received_types: set[str] = set()
+
+    while len(received_types) < requested_count and time.time() < timeout:
+        try:
+            data = report_queue.get(timeout=1.0)
+        except Empty:
+            continue
+
+        if report_payload := check_status(data):
+            status = report_payload.base_status.status_info
+
+            if status.recv_bundle.status_indicator:
+                received_types.add("rcv")
+            if status.fwd_bundle.status_indicator:
+                received_types.add("fwd")
+            if status.deliv_bundle.status_indicator:
+                received_types.add("dlv")
+            if status.del_bundle.status_indicator:
+                received_types.add("del")
+
+            print(f"[+] Found report! Progress: {received_types}")
+    return received_types
+
+
+def run_status_report_test(parameter_dict: dict[str, list[str]]) -> int:
+    """Run the status report test.
+
+    Args:
+        parameter_dict: Dictionary of status flag parameters to test
+
+    Returns:
+        0 on success and 1 on failure
+
+    """
+    node3_addr = ("127.0.0.1", 3113)
+    listen_addr = ("127.0.0.1", 5115)
+    stop_event = threading.Event()
+    active = threading.Lock()
+    active.acquire()
+
+    receiver_thread = threading.Thread(
+        target=packet_receiver, args=(listen_addr, stop_event, active)
+    )
+    receiver_thread.start()
+
+    # Wait until receiver thread is ready
+    while not active.locked():
+        continue
+
+    successes = []
+    for dnode, reprots in parameter_dict.items():
+        bundle = create_test_bundle(dnode, reprots)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as send_sock:
+            send_sock.sendto(bytes(bundle), node3_addr)
+        print(f"[+] Sent bundle. Waiting for: {reprots}")
+
+        try:
+            received = collect_reports(len(reprots))
+        except KeyboardInterrupt:
+            print("Caught keyboard interrupt.")
+            stop_event.set()
+            receiver_thread.join()
+            return 1
+        successes.append(set(reprots).issubset(received))
+
+    if all(successes):
+        print("SUCCESS: All requested reports verified.")
+        stop_event.set()
+        receiver_thread.join()
+        return 0
+
+    print("FAILURE: Missing reports")
+    stop_event.set()
+    receiver_thread.join()
+    return 1
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="bespokebpv7 Status Report Tester.")
+    parser.add_argument(
+        "--parm-dict",
+        "-p",
+        type=str,
+        required=True,
+        help="JSON file defining destination EID and their status report flags.",
+    )
+
+    args = parser.parse_args()
+    with Path(args.parm_dict).open(encoding="utf-8") as file:
+        parm_dict = json.load(file)
+    sys.exit(run_status_report_test(parm_dict))
