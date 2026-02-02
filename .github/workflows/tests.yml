@@ -73,8 +73,7 @@ jobs:
       - name: Download coverage data
         uses: actions/download-artifact@v3
         with:
-          pattern: coverage-data-*
-          merge-multiple: true
+          path: .
 
       - name: Combine and Report
         run: uvx tox -e coverage
