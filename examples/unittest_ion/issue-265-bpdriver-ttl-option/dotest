@@ -12,7 +12,7 @@
 function end(){
     echo
     echo "Stopping ION..."
-    cd 3.ipn.udp
+    cd 1.ipn.bp.udp
     ionexit
     echo "bpdriver TTL test completed."
     exit $RETVAL
@@ -119,10 +119,3 @@ else
 fi
 
 end
-
-echo
-echo "Stopping ION..."
-cd 1.ipn.bp.udp
-ionexit
-echo "bpdriver TTL test completed."
-exit $RETVAL
