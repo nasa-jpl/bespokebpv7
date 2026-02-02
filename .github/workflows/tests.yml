@@ -42,7 +42,9 @@ jobs:
         run: uv tool install tox --with tox-uv
 
       - name: Run Tests via Tox
-        run: uvx tox -e ${{ matrix.python-version }}
+        run: |
+          export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+          uvx tox -e ${{ matrix.python-version }}
 
       - name: Upload coverage data
         uses: actions/upload-artifact@v4
