@@ -77,7 +77,7 @@ fi
 
 echo
 echo "Stopping ION..."
-kill -9 $ECHOPID
+kill $ECHOPID
 sleep 1
 cd 3.ipn.udp
 ionexit
