@@ -47,6 +47,16 @@ jobs:
           export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
           uvx tox -e ${{ matrix.python-version }}
 
+      - name: Upload ION logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: ion-logs-${{ matrix.python-version }}
+          path: |
+            **/ion.log
+            **/*.stdout
+          retention-days: 1
+
       - name: Upload coverage data
         uses: actions/upload-artifact@v3
         with:
