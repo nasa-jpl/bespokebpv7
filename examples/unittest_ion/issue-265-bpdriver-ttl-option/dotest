@@ -112,3 +112,10 @@ else
 fi
 
 end
+
+echo
+echo "Stopping ION..."
+cd 3.ipn.udp
+ionexit
+echo "bpdriver TTL test completed."
+exit $RETVAL

@@ -77,6 +77,7 @@ echo
 echo "Starting bpecho on ipn:3.1 ..."
 sleep 1
 bpecho ipn:3.1 >/dev/null &
+ECHOPID=$!
 
 cd ../2.ipn.udp
 echo "Sending bping..."
@@ -99,6 +100,11 @@ echo "Stopping MITM server..."
 kill $MITMPID
 echo
 echo "Stopping ION..."
-killm
+kill $ECHOPID
+sleep 1
+ionexit
+sleep 1
+cd ../3.ipn.udp
+ionexit
 echo "Status reports test completed."
 exit $RETVAL

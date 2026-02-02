@@ -60,6 +60,7 @@ cd 3.ipn.udp
 echo "Starting bpecho on ipn:3.1 ..."
 sleep 1
 bpecho ipn:3.1 >/dev/null &
+ECHOPID=$!
 
 cd ..
 echo "Running V&V..."
@@ -76,6 +77,9 @@ fi
 
 echo
 echo "Stopping ION..."
-killm
+kill $ECHOPID
+sleep 1
+cd 3.ipn.udp
+ionexit
 echo "V&V completed."
 exit $RETVAL
