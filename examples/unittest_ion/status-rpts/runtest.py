@@ -182,18 +182,22 @@ def collect_reports(requested_count: int) -> set[str]:
     return received_types
 
 
-def run_status_report_test(parameter_dict: dict[str, list[str]]) -> int:
+def run_status_report_test(
+    parameter_dict: dict[str, list[str]], rport: int = 5115, sport: int = 3113
+) -> int:
     """Run the status report test.
 
     Args:
         parameter_dict: Dictionary of status flag parameters to test
+        rport: Port to receive status reports
+        sport: Port to send bundles
 
     Returns:
         0 on success and 1 on failure
 
     """
-    node3_addr = ("127.0.0.1", 3113)
-    listen_addr = ("127.0.0.1", 5115)
+    node3_addr = ("127.0.0.1", sport)
+    listen_addr = ("127.0.0.1", rport)
     stop_event = threading.Event()
     active = threading.Lock()
     active.acquire()
@@ -244,8 +248,20 @@ if __name__ == "__main__":
         required=True,
         help="JSON file defining destination EID and their status report flags.",
     )
+    parser.add_argument(
+        "--recv-port",
+        "-r",
+        type=int,
+        help="Port to receive bundle status reports.",
+    )
+    parser.add_argument(
+        "--src-port",
+        "-s",
+        type=int,
+        help="Port to send bundle to, generating status reports.",
+    )
 
     args = parser.parse_args()
     with Path(args.parm_dict).open(encoding="utf-8") as file:
         parm_dict = json.load(file)
-    sys.exit(run_status_report_test(parm_dict))
+    sys.exit(run_status_report_test(parm_dict, args.recv_port, args.src_port))

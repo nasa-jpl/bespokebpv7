@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Verification and Validation Test
  Author: Nate Richard
- Modified: 01/30/2026
+ Modified: 02/02/2026
  Company: JPL
  Date:   01/29/2026
 
@@ -39,6 +39,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+import argparse
 import socket
 import sys
 import threading
@@ -54,10 +55,10 @@ from bespokebpv7.utils import bundle_converter  # type: ignore[import-untyped]
 received_responses: list[bytes] = []
 
 
-def udp_receiver(stop: threading.Event) -> None:
+def udp_receiver(stop: threading.Event, rport: int = 2113) -> None:
     """Listen for incoming UDP packets and parses them as BPv7 bundles."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        s.bind(("127.0.0.1", 2113))
+        s.bind(("127.0.0.1", rport))
         s.settimeout(1)
         while not stop.is_set():
             try:
@@ -86,10 +87,10 @@ def udp_receiver(stop: threading.Event) -> None:
                 print("[RECEIVER] Warning: Parsed bundle but found no payload block.")
 
 
-def send_bundle(raw_bundle: bytes) -> None:
+def send_bundle(raw_bundle: bytes, sport: int = 3113) -> None:
     """Send the raw bundle bytes via UDP."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        s.sendto(raw_bundle, ("127.0.0.1", 3113))
+        s.sendto(raw_bundle, ("127.0.0.1", sport))
 
 
 def create_bundle(
@@ -157,9 +158,31 @@ def generate_malformed_bytes(
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="bespokebpv7 V&V Test.")
+    parser.add_argument(
+        "--recv-port",
+        "-r",
+        type=int,
+        help="Port to receive bundle status reports.",
+    )
+    parser.add_argument(
+        "--src-port",
+        "-s",
+        type=int,
+        help="Port to send bundle to, generating status reports.",
+    )
+
+    vargs = parser.parse_args()
+
     print("--- Starting Bespoke BPv7 Verification Suite ---")
     stop_event = threading.Event()
-    receiver_thread = threading.Thread(target=udp_receiver, args=(stop_event,))
+    receiver_thread = threading.Thread(
+        target=udp_receiver,
+        args=(
+            stop_event,
+            vargs.recv_port,
+        ),
+    )
     receiver_thread.start()
 
     test_cases: list[tuple[str, bytes]] = [
@@ -174,12 +197,12 @@ if __name__ == "__main__":
 
     for desc, test_bundle in test_cases:
         print(f"\n[Test] Sending: {desc}")
-        send_bundle(test_bundle)
+        send_bundle(test_bundle, vargs.src_port)
         time.sleep(3)
 
     print("\n[Test] Sending conformant bundle (expecting echo)...")
     b_good = create_bundle(crc=True, creation=True)
-    send_bundle(bytes(b_good))
+    send_bundle(bytes(b_good), vargs.src_port)
     time.sleep(3)
 
     stop_event.set()

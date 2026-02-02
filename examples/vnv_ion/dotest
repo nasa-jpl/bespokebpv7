@@ -14,6 +14,14 @@ CONFIGFILES=" \
 ./3.ipn.udp/ipn.bpsecrc \
 "
 
+# Randomize Port numbers so runners do not overlap
+readarray -t port_nums < <(shuf -i 2000-3000 -n 2)
+# Node 2 modification
+sed -i "s/2113/${port_nums[0]}/g" 3.ipn.udp/ipn.ipnrc
+sed -i "s/2113/${port_nums[0]}/g" 3.ipn.udp/ipn.bprc
+# Node 3 Modification
+sed -i "s/3113/${port_nums[1]}/g" 3.ipn.udp/ipn.bprc
+
 echo "########################################"
 echo
 pwd | sed "s/\/.*\///" | xargs echo "NAME: "
@@ -64,7 +72,7 @@ ECHOPID=$!
 
 cd ..
 echo "Running V&V..."
-python3 vnv_test.py
+python3 vnv_test.py -s ${port_nums[0]} -r ${port_nums[1]}
 TEST_RESULT=$?
 
 if [ $TEST_RESULT -eq 0 ]; then
