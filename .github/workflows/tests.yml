@@ -1,80 +1,81 @@
 name: Tests
 
 on:
-    pull_request:
-        branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
 
 jobs:
-    tests:
-        name: Test ${{ matrix.python-version }}
-        runs-on: ubuntu-latest
-        strategy:
-            fail-fast: false
-            matrix:
-                python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+  tests:
+    name: Test ${{ matrix.python-version }}
+    runs-on: arc-runner-set
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
-        steps:
-            - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Install uv
-              uses: astral-sh/setup-uv@v5
-              with:
-                  enable-cache: true
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
-            - name: Set up Python ${{ matrix.python-version }}
-              run: uv python install ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
 
-            - name: Install tox
-              run: uv tool install tox --with tox-uv
+      - name: Install tox
+        run: uv tool install tox --with tox-uv
 
-            - name: Run Tests via Tox
-              run: |
-                  ENV_NAME=$(echo "${{ matrix.python-version }}")
-                  uvx tox -e $ENV_NAME
+      - name: Run Tests via Tox
+        run: uvx tox -e ${{ matrix.python-version }}
 
-            - name: Upload coverage data
-              uses: actions/upload-artifact@v4
-              with:
-                  name: coverage-data-${{ matrix.python-version }}
-                  path: .coverage.*
-                  include-hidden-files: true
-                  retention-days: 1
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data-${{ matrix.python-version }}
+          path: .coverage.*
+          include-hidden-files: true
+          retention-days: 1
 
-    coverage:
-        name: Combine Coverage & Check Threshold
-        needs: tests
-        runs-on: ubuntu-latest
+  coverage:
+    name: Combine Coverage & Check Threshold
+    needs: tests
+    runs-on: arc-runner-set
 
-        steps:
-            - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Install uv
-              uses: astral-sh/setup-uv@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
 
-            - name: Install tox
-              run: uv tool install tox --with tox-uv
+      - name: Install tox
+        run: uv tool install tox --with tox-uv
 
-            - name: Download coverage data
-              uses: actions/download-artifact@v4
-              with:
-                  pattern: coverage-data-*
-                  merge-multiple: true
+      - name: Download coverage data
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-data-*
+          merge-multiple: true
 
-            - name: Combine and Report
-              run: uvx tox -e coverage
+      - name: Combine and Report
+        run: uvx tox -e coverage
 
-    lint:
-        name: Lint & Type Check
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-            - name: Install uv
-              uses: astral-sh/setup-uv@v5
-            - name: Install tox
-              run: uv tool install tox --with tox-uv
+  lint:
+    name: Lint & Type Check
+    runs-on: arc-runner-set
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Run Lint
-              run: uvx tox -e lint
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
 
-            - name: Run Type Check
-              run: uvx tox -e type
+      - name: Install tox
+        run: uv tool install tox --with tox-uv
+
+      - name: Run Lint
+        run: uvx tox -e lint
+
+      - name: Run Type Check
+        run: uvx tox -e type
