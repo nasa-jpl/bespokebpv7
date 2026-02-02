@@ -75,6 +75,12 @@ jobs:
         with:
           path: .
 
+      # Moves files from coverage-data-* subdirectories to the root so 'coverage combine' can find them
+      - name: Flatten coverage files
+        run: |
+          find coverage-data-* -name ".coverage*" -type f -exec mv {} . \;
+          rm -rf coverage-data-*
+
       - name: Combine and Report
         run: uvx tox -e coverage
 
