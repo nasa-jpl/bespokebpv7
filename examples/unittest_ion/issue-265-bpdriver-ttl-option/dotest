@@ -10,9 +10,11 @@
 
 
 function end(){
+    echo
     echo "Stopping ION..."
-    killm
-    echo "bpdriver ttl option test complete."
+    cd 3.ipn.udp
+    ionexit
+    echo "bpdriver TTL test completed."
     exit $RETVAL
 }
 
