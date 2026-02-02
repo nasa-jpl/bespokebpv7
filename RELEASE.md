@@ -1,17 +1,8 @@
-# Version 0.3.0
+# Version 0.3.1
 
-## Added
-
-- Add support for Adminstrative Records
-- Add Bundle Status Report admin record
-- Add Custody Transfer Extension Block & its associated admin record
-- Add Compressed Reporting Extension Block & its associated admin record
+Repo now has examples of *bespokebpv7* in action
 
 ## Changed
 
-- Move CreationTime to separate class to support reuse
-- Fix issue populating primary block fragmentation fields
-- Change de/serialization to single converter
-- Improve endpoint fields handling
-- Block & Admin type values now set post init
-- Fix typing support under Python 3.10
+- Fix de/serialization of BIB security results
+- Fix deliv & recv status bits being flipped

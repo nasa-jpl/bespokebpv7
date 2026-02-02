@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Protocol v7 Class
  Author: Nate Richard
- Modified: 01/26/2026
+ Modified: 01/28/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -82,7 +82,8 @@ class BPv7(dpkt.Packet):
             String of bundle information
 
         """
-        created_str = self.primary_block.life.creation_dt.strftime("%Y-%m-%d %H:%M:%S")
+        frmtstr = "%Y-%m-%d %H:%M:%S.%f"
+        created_str = self.primary_block.life.creation_dt.strftime(frmtstr)
         block_str = f"(Primary + {len(self.blocks)} Canonical)"
         lines = [
             f"{'=' * 40}",

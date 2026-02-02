@@ -2,7 +2,7 @@ attrs==25.4.0
 bandit==1.9.2
 cachetools==6.2.4
 cattrs==25.3.0
-cbor2==5.8.0
+cbor2==5.7.1
 chardet==5.2.0
 colorama==0.4.6
 coverage==7.13.1

@@ -1,13 +1,13 @@
 [project]
 name = "bespokebpv7"
-version = "0.3.0"
+version = "0.3.1"
 description = "Generate whatever format of BPv7 bundles"
 readme = "README.md"
 requires-python = ">=3.10.19"
 dependencies = [
     "attrs>=25.4.0",
     "cattrs>=25.3.0",
-    "cbor2>=5.8.0",
+    "cbor2<=5.7.1",
     "dpkt>=1.9.8",
     "fastcrc>=0.3.5",
 ]
@@ -34,6 +34,8 @@ ignore = ["ANN002", "ANN003", "D203", "D205", "D211", "D212", "D213", "D400", "D
 
 [tool.ruff.lint.per-file-ignores]
 "main.py" = ["T201", "ERA001"]
+"examples/*" = ["INP001", "T201", "FBT001", "FBT002", "S404", "S603"]
+"tests/*" = ["INP001"]
 
 [tool.coverage.run]
 branch = true
@@ -79,8 +81,14 @@ commands = [
 [tool.tox.env_run_base]
 description = "Run test under {base_python}"
 dependency_groups = ["dev"]
+allowlist_externals = ["bash"]
 commands = [
-    ["coverage", "run", "-m", "pytest"]
+    ["coverage", "run", "-m", "pytest"],
+    ["bash", "-c", "cd examples/pcap_parse && ./dotest"],
+    ["bash", "-c", "cd examples/unittest_ion/status-rpts && ./dotest"],
+    ["bash", "-c", "cd examples/unittest_ion/issue-265-bpdriver-ttl-option && ./dotest"],
+    ["bash", "-c", "cd examples/vnv_ion && ./dotest"],
+    ["bash", "-c", "cd examples/mitm_test && ./dotest"]
 ]
 
 [tool.tox.env.type]
@@ -94,4 +102,9 @@ dependency_groups = ["dev"]
 commands = [
     ["ruff", "check", "--fix", "src/bespokebpv7"],
     ["ruff", "format", "src/bespokebpv7"]
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
 ]

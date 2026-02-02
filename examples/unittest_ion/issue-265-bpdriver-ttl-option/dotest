@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+#
+# Nate Richard
+# JPL
+# Janurary 29, 2026
+#
+# This test pertains to issue #265 "Create Bpdriver commandline option for ttl".
+# This test confirms that bpdriver can now send bundles with varying ttl values.
+# The test uses netcat to receive BP bundles.
+
+
+function end(){
+    echo "Stopping ION..."
+    killm
+    echo "bpdriver ttl option test complete."
+    exit $RETVAL
+}
+
+CONFIGFILES=" \
+./1.ipn.bp.udp/config.ionrc \
+./1.ipn.bp.udp/config.bprc \
+./1.ipn.bp.udp/config.ipnrc"
+
+echo "########################################"
+echo
+pwd | sed "s/\/.*\///" | xargs echo "NAME: "
+echo
+echo "PURPOSE: Testing the functionality of issue 265.
+        Confirms that bpdriver can now send bundles with varying ttl values.
+        This test uses netcat to receive BP bundles."
+echo
+echo "CONFIG: 1 node custom:"
+echo
+for N in $CONFIGFILES
+do
+    echo "$N:"
+    cat $N
+    echo "# EOF"
+    echo
+done
+echo "OUTPUT: Terminal messages will relay results."
+echo
+echo "########################################"
+
+# Check if python3 is available
+if ! command -v python3 &> /dev/null; then
+    echo "SKIP: python3 is required but not found. Please install Python 3."
+    exit 2
+fi
+
+PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+PYTHON_MAJOR=$(python3 -c 'import sys; print(sys.version_info[0])')
+PYTHON_MINOR=$(python3 -c 'import sys; print(sys.version_info[1])')
+if [ "$PYTHON_MAJOR" -lt 3 ] || { [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 10 ]; }; then
+    echo "SKIP: Python 3.10 or higher is required. Found version $PYTHON_VERSION"
+    exit 2
+fi
+echo "Using Python $PYTHON_VERSION"
+echo
+
+./cleanup
+RETVAL=1
+
+#Start ION
+echo "Starting ion node..."
+export ION_NODE_LIST_DIR=$PWD
+cd 1.ipn.bp.udp
+./ionstart > node.stdout
+echo
+
+cd ../
+
+# Test 1 --- Default TTL (300sec)
+echo "Test 1 --- Check bpdriver default TTL (300 sec)"
+python3 runtest.py 300
+if [ $? -eq 0 ]; then
+    echo "Test 1 SUCCESS"
+    echo
+    RETVAL=0
+else
+    echo "Test 1 FAILURE"
+    echo
+    RETVAL=1
+    end
+fi
+
+# Test 2 --- Larger TTL (3000sec)
+echo "Test 2 --- Try Increasing bpdriver TTL (3000sec)"
+python3 runtest.py 3000
+if [ $? -eq 0 ]; then
+    echo "Test 2 SUCCESS"
+    echo
+    RETVAL=0
+else
+    echo "Test 2 FAILURE"
+    echo
+    RETVAL=1
+    end
+fi
+
+# Test 3 --- Smaller TTL (30sec)
+echo "Test 3 --- Try Decreasing bpdriver TTL (30sec)"
+python3 runtest.py 30
+if [ $? -eq 0 ]; then
+    echo "Test 3 SUCCESS"
+    echo
+    RETVAL=0
+else
+    echo "Test 3 FAILURE"
+    echo
+    RETVAL=1
+fi
+
+end

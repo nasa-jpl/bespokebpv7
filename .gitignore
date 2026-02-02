@@ -176,3 +176,11 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/python
 
 .python-version
+
+# ION files
+ion_nodes
+*.stdout
+bpdriverAduFile
+
+# ignore vscode settings for now
+.vscode/

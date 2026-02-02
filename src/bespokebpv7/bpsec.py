@@ -51,7 +51,11 @@ from bespokebpv7.block_enum import (
     SecurityContextFlags,
 )
 from bespokebpv7.blocks import CanonicalBlock
-from bespokebpv7.utils import bundle_converter
+from bespokebpv7.utils import (
+    bundle_converter,
+    decode_cbor_sequence,
+    encode_cbor_sequence,
+)
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -259,12 +263,13 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
         block = super()._structure(data)
 
         # Parse the inner security specific fields from the data bytes
-        bib_data = bundle_converter.loads(block.data, list)
+        bib_data = decode_cbor_sequence(block.data)
 
         block.security_targets = bib_data[0]
         block.security_context_id = bib_data[1]
         block.security_context_flags = SecurityContextFlags(bib_data[2])
-        next_idx = 3
+        block.security_source = bib_data[3]
+        next_idx = 4
 
         if block.parm_present:  # pylint: disable=E1101
             for parm in bib_data[next_idx]:
@@ -273,7 +278,7 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
                 )
             next_idx += 1
 
-        for result in bib_data[next_idx]:
+        for result in bib_data[next_idx][0]:
             block.security_results.append(  # pylint: disable=E1101
                 bundle_converter.structure(result, SecurityResult)
             )
@@ -292,6 +297,7 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
             self.security_targets,
             self.security_context_id,
             int(self.security_context_flags),
+            self.security_source,
         ]
         if self.parm_present:
             parm_list = [
@@ -302,10 +308,10 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
         result_list = [
             bundle_converter.unstructure(result) for result in self.security_results
         ]
-        data.append(result_list)
+        data.append([result_list])
 
         # Pack into the data field of the CanonicalBlock
-        self.data = bundle_converter.dumps(data)
+        self.data = encode_cbor_sequence(data)
 
         # Return the outer block structure
         return super()._unstructure()
