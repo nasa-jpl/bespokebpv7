@@ -24,7 +24,7 @@ CONFIGFILES=" \
 ./1.ipn.bp.udp/config.ipnrc"
 
 # Randomize Port numbers so runners do not overlap
-RECVPORT=$(shuf -i 2000-3000 -n 1 -z)
+RECVPORT=$(shuf -i 2000-3000 -n 1)
 sed -i "s/4556/${RECVPORT}/g" 1.ipn.bp.udp/config.bprc
 sed -i "s/4556/${RECVPORT}/g" 1.ipn.bp.udp/config.ipnrc
 

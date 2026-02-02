@@ -72,7 +72,7 @@ ECHOPID=$!
 
 cd ..
 echo "Running V&V..."
-python3 vnv_test.py -s ${port_nums[0]} -r ${port_nums[1]}
+python3 vnv_test.py -r ${port_nums[0]} -s ${port_nums[1]}
 TEST_RESULT=$?
 
 if [ $TEST_RESULT -eq 0 ]; then
