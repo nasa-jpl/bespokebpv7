@@ -59,6 +59,7 @@ cd 3.ipn.udp
 echo "Starting bpsink on ipn:3.1 ..."
 sleep 1
 bpsink ipn:3.1 >/dev/null &
+ECHOPID=$!
 
 cd ../
 echo "Running bespokebpv7 status report test..."
@@ -78,6 +79,9 @@ fi
 
 echo
 echo "Stopping ION..."
-killm
+kill $ECHOPID
+sleep 1
+cd 3.ipn.udp
+ionexit
 echo "Status reports test completed."
 exit $RETVAL
