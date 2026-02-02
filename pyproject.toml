@@ -88,7 +88,7 @@ commands = [
     ["bash", "-c", "cd examples/unittest_ion/status-rpts && ./dotest"],
     ["bash", "-c", "cd examples/unittest_ion/issue-265-bpdriver-ttl-option && ./dotest"],
     ["bash", "-c", "cd examples/vnv_ion && ./dotest"],
-    # ["bash", "-c", "cd examples/mitm_test && ./dotest"]
+    ["bash", "-c", "cd examples/mitm_test && ./dotest"]
 ]
 
 [tool.tox.env.type]
