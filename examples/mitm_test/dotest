@@ -97,10 +97,10 @@ fi
 
 echo
 echo "Stopping MITM server..."
-kill $MITMPID
+kill -9 $MITMPID
 echo
 echo "Stopping ION..."
-kill $ECHOPID
+kill -9 $ECHOPID
 sleep 1
 ionexit
 sleep 1
