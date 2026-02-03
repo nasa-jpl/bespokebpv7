@@ -75,7 +75,7 @@ echo "Running bespokebpv7 status report test..."
 # First Bundle: Sent to ipn:3.1 (should be delivered)
 # Second Bundle: Sent to ipn:5.1 (should be forwarded)
 # Third Bundle: Sent to ipn:3.3 (should be deleted)
-python3 runtest.py -p parms.json -r ${port_nums[0]} -s ${port_nums[1]}
+python3 runtest.py -r ${port_nums[0]} -s ${port_nums[1]}
 TEST_RESULT=$?
 
 if [ $TEST_RESULT -eq 0 ]; then

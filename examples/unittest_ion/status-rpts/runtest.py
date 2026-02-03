@@ -39,12 +39,14 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import argparse
-import json
+
+# import json
 import socket
 import sys
 import threading
 import time
-from pathlib import Path
+
+# from pathlib import Path
 from queue import Empty, Queue
 
 from bespokebpv7.admin_records import BundleStatusReport  # type: ignore[import-untyped]
@@ -247,7 +249,7 @@ if __name__ == "__main__":
         "--parm-dict",
         "-p",
         type=str,
-        required=True,
+        # required=True,
         help="JSON file defining destination EID and their status report flags.",
     )
     parser.add_argument(
@@ -264,8 +266,13 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    print("Reading parameter file...")
-    with Path(args.parm_dict).open(encoding="utf-8") as file:
-        parm_dict = json.load(file)
+    parm_dict = {
+        "ipn:3.1": ["rcv", "dlv"],
+        "ipn:5.1": ["rcv", "fwd"],
+        "ipn:3.3": ["rcv", "del"],
+    }
+    # print("Reading parameter file...")
+    # with Path(args.parm_dict).open(encoding="utf-8") as file:
+    #     parm_dict = json.load(file)
     print("Setting up test..")
     sys.exit(run_status_report_test(parm_dict, args.recv_port, args.src_port))
