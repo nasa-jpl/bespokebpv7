@@ -264,6 +264,7 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+    print("Reading parameter file...")
     with Path(args.parm_dict).open(encoding="utf-8") as file:
         parm_dict = json.load(file)
     print("Setting up test..")
