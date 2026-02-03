@@ -163,6 +163,7 @@ def collect_reports(requested_count: int) -> set[str]:
     while len(received_types) < requested_count and time.time() < timeout:
         try:
             data = report_queue.get(timeout=1.0)
+            print("Got status report, processing...")
         except Empty:
             continue
 
@@ -212,20 +213,21 @@ def run_status_report_test(
         continue
 
     successes = []
-    for dnode, reprots in parameter_dict.items():
-        bundle = create_test_bundle(dnode, reprots)
+    print("Setup complete, sending bundles and waiting for reports...")
+    for dnode, reports in parameter_dict.items():
+        bundle = create_test_bundle(dnode, reports)
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as send_sock:
             send_sock.sendto(bytes(bundle), node3_addr)
-        print(f"[+] Sent bundle. Waiting for: {reprots}")
+        print(f"[+] Sent bundle. Waiting for: {reports}")
 
         try:
-            received = collect_reports(len(reprots))
+            received = collect_reports(len(reports))
         except KeyboardInterrupt:
             print("Caught keyboard interrupt.")
             stop_event.set()
             receiver_thread.join()
             return 1
-        successes.append(set(reprots).issubset(received))
+        successes.append(set(reports).issubset(received))
 
     if all(successes):
         print("SUCCESS: All requested reports verified.")
@@ -264,4 +266,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     with Path(args.parm_dict).open(encoding="utf-8") as file:
         parm_dict = json.load(file)
+    print("Setting up test..")
     sys.exit(run_status_report_test(parm_dict, args.recv_port, args.src_port))
