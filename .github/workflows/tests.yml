@@ -38,7 +38,7 @@ jobs:
       - name: Install ION DTN
         # Build dependencies and official installation steps for Linux
         run: |
-          git clone https://github.com/nasa-jpl/ION-DTN.git
+          git clone --single-branch https://github.com/nasa-jpl/ION-DTN.git
           cd ION-DTN
           autoreconf -fi
           ./configure --enable-crypto-mbedtls
