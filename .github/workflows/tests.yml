@@ -45,6 +45,7 @@ jobs:
         timeout-minutes: 10
         run: |
           export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+          export GITHUB_PATH=/usr/local/bin:$GITHUB_PATH
           uvx tox -e ${{ matrix.python-version }}
 
       - name: Upload ION logs
