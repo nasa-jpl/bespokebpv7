@@ -15,7 +15,7 @@ CONFIGFILES=" \
 
 # Randomize Port numbers so runners do not overlap
 # Leaving node 2 inplace as no traffic should go to its port
-readarray -t port_nums < <(shuf -i 2000-3000 -n 2)
+readarray -t port_nums < <(shuf -i 4001-5000 -n 2)
 # Node 5 modification
 sed -i "s/5115/${port_nums[0]}/g" 3.ipn.udp/amroc.ipnrc
 sed -i "s/5115/${port_nums[0]}/g" 3.ipn.udp/amroc.bprc

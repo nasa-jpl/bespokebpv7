@@ -89,6 +89,7 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
             print(f"[!] Failed to decode bundle: {e}")
             return
 
+        print(bundle)
         dest_node_list = parse_eid_string(bundle.primary_block.route.dest_eid)
 
         # Assumes IPN scheme [scheme_code, [node, service]]
