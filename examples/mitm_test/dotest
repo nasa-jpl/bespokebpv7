@@ -108,15 +108,9 @@ else
 fi
 
 echo
-echo "Stopping MITM server..."
-kill -9 $MITMPID
-echo
 echo "Stopping ION..."
-kill -9 $ECHOPID
+kill $ECHOPID
 sleep 1
-ionexit
-sleep 1
-cd ../3.ipn.udp
-ionexit
+killm
 echo "Status reports test completed."
 exit $RETVAL

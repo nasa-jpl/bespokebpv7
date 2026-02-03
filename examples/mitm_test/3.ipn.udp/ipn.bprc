@@ -9,4 +9,5 @@ a protocol udp 1400 100
 a induct udp 127.0.0.1:3113 udpcli
 a outduct udp 127.0.0.1:5115 udpclo
 r 'ipnadmin ipn.ipnrc'
+w 1
 s
