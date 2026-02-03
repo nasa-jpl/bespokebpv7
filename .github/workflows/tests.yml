@@ -25,7 +25,7 @@ jobs:
       - name: Install mbedtls
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc automake make autoconf libtool automake git wget tar
+          sudo apt-get install -y gcc automake make autoconf libtool automake git wget tar bzip2
           wget https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-2.28.10/mbedtls-2.28.10.tar.bz2
           tar -xvjf mbedtls-2.28.10.tar.bz2
           cd mbedtls-2.28.10
