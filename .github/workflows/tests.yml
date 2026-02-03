@@ -66,13 +66,6 @@ jobs:
           include-hidden-files: true
           retention-days: 1
 
-      - name: Upload HTML Coverage Report
-        uses: actions/upload-artifact@v3
-        with:
-          name: coverage-report
-          path: htmlcov
-          retention-days: 1
-
   coverage:
     name: Combine Coverage & Check Threshold
     needs: tests
