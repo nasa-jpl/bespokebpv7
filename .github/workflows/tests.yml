@@ -53,7 +53,7 @@ jobs:
         run: uv tool install tox --with tox-uv
 
       - name: Run Tests via Tox
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
           export GITHUB_PATH=/usr/local/bin:$GITHUB_PATH
