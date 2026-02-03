@@ -110,7 +110,10 @@ fi
 echo
 echo "Stopping ION..."
 kill $ECHOPID
+ionexit
 sleep 1
-killm
+cd ../
+# will produce errors as previous ionexit will kill somethings
+cd ../3.ipn.udp
 echo "Status reports test completed."
 exit $RETVAL
