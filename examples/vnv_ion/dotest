@@ -14,6 +14,14 @@ CONFIGFILES=" \
 ./3.ipn.udp/ipn.bpsecrc \
 "
 
+# Randomize Port numbers so runners do not overlap
+readarray -t port_nums < <(shuf -i 5001-6000 -n 2)
+# Node 2 modification
+sed -i "s/2113/${port_nums[0]}/g" 3.ipn.udp/ipn.ipnrc
+sed -i "s/2113/${port_nums[0]}/g" 3.ipn.udp/ipn.bprc
+# Node 3 Modification
+sed -i "s/3113/${port_nums[1]}/g" 3.ipn.udp/ipn.bprc
+
 echo "########################################"
 echo
 pwd | sed "s/\/.*\///" | xargs echo "NAME: "
@@ -60,10 +68,11 @@ cd 3.ipn.udp
 echo "Starting bpecho on ipn:3.1 ..."
 sleep 1
 bpecho ipn:3.1 >/dev/null &
+ECHOPID=$!
 
 cd ..
 echo "Running V&V..."
-python3 vnv_test.py
+python3 vnv_test.py -r ${port_nums[0]} -s ${port_nums[1]}
 TEST_RESULT=$?
 
 if [ $TEST_RESULT -eq 0 ]; then
@@ -76,6 +85,9 @@ fi
 
 echo
 echo "Stopping ION..."
-killm
+kill $ECHOPID
+sleep 1
+cd 3.ipn.udp
+ionexit
 echo "V&V completed."
 exit $RETVAL

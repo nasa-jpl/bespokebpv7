@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Man-In-The-Middle Attack Example
  Author: Nate Richard
- Modified: 01/28/2026
+ Modified: 02/02/2026
  Company: JPL
  Date:   01/28/2026
 
@@ -40,6 +40,7 @@ software to foreign countries or providing access to foreign persons.
 
 import argparse
 import socketserver
+import threading
 from collections.abc import Callable
 from typing import cast
 
@@ -65,6 +66,11 @@ class BPv7ProxyServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
         self.modify_enabled = config_map["modify"]
         self.bidirectional = config_map["bidirectional"]
         self.src_node = config_map["src_node"]
+        self.expected_mods = config_map["expected"]
+
+        self.mods = 0
+        # Lock to ensure thread-safe incrementing of the counter
+        self.count_lock = threading.Lock()
 
 
 class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
@@ -130,13 +136,23 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
         # --- Forwarding ---
         current_socket.sendto(final_data, ("127.0.0.1", dest_port))
 
+        if should_modify:
+            with server.count_lock:
+                server.mods += 1
+                print(f"   [COUNT] Mod {server.mods}/{server.expected_mods} completed.")
+
+                if server.mods >= server.expected_mods:
+                    print("   [!] Mod limit reached. Triggering server shutdown...")
+                    # We use a separate thread for shutdown to avoid deadlocking the
+                    # current request
+                    threading.Thread(target=server.shutdown).start()
+
     @staticmethod
     def modify_bundle(bundle: BPv7) -> BPv7:
         """Apply modifications to the bundle object in place.
 
         Args:
             bundle: Original received bundle
-
 
         Returns:
             Modified bundle
@@ -205,6 +221,7 @@ if __name__ == "__main__":
         "modify": args.modify,
         "bidirectional": args.bidirectional,
         "src_node": args.src_node,
+        "expected": 3,
     }
 
     print("--- BespokeBPv7 Threaded UDP Proxy ---")

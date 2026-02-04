@@ -86,18 +86,19 @@ def call_bpdriver(ttl_sec: int | None = None) -> bool:
     return True
 
 
-def run_test(expected_ttl_sec: int) -> int:
+def run_test(expected_ttl_sec: int, listen_port: int = 4556) -> int:
     """Send bpdriver bundle and verify TTL.
 
     Args:
         expected_ttl_sec: Expected TTL
+        listen_port: UDP Port to receive bundles
 
     Returns:
         0 for success and 1 for failure
 
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(("127.0.0.1", 4556))
+    sock.bind(("127.0.0.1", listen_port))
     sock.settimeout(5.0)
 
     bpdriver_ttl = None
@@ -137,7 +138,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "ttl", type=int, help="The expected Time To Live (TTL) in seconds."
     )
+    parser.add_argument("--port", "-p", type=int, help="Bundle receive port.")
 
     args = parser.parse_args()
 
-    sys.exit(run_test(args.ttl))
+    sys.exit(run_test(args.ttl, args.port))

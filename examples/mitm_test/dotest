@@ -20,6 +20,18 @@ CONFIGFILES=" \
 ./3.ipn.udp/ipn.bpsecrc \
 "
 
+# Randomize Port numbers so runners do not overlap
+readarray -t port_nums < <(shuf -i 2000-3000 -n 3)
+# Proxy port modification ipnrc
+sed -i "s/5115/${port_nums[0]}/g" 2.ipn.udp/ipn.ipnrc
+sed -i "s/5115/${port_nums[0]}/g" 3.ipn.udp/ipn.ipnrc
+# Proxy Port modification bprc
+sed -i "s/5115/${port_nums[0]}/g" 2.ipn.udp/ipn.bprc
+sed -i "s/5115/${port_nums[0]}/g" 3.ipn.udp/ipn.bprc
+# Induct Port modification
+sed -i "s/2112/${port_nums[2]}/g" 2.ipn.udp/ipn.bprc
+sed -i "s/3113/${port_nums[1]}/g" 3.ipn.udp/ipn.bprc
+
 echo "########################################"
 echo
 pwd | sed "s/\/.*\///" | xargs echo "NAME: "
@@ -61,7 +73,7 @@ RETVAL=1
 echo
 echo "Starting MITM server..."
 echo
-python3 mitm_test.py --src-node 3 --dst-node 2 --src-port 3113 --dst-port 2112 --modify &
+python3 mitm_test.py --proxy-port ${port_nums[0]} --src-node 3 --dst-node 2 --src-port ${port_nums[1]} --dst-port ${port_nums[2]} --modify &
 MITMPID=$!
 
 echo "Starting ION..."
@@ -77,6 +89,7 @@ echo
 echo "Starting bpecho on ipn:3.1 ..."
 sleep 1
 bpecho ipn:3.1 >/dev/null &
+ECHOPID=$!
 
 cd ../2.ipn.udp
 echo "Sending bping..."
@@ -95,10 +108,12 @@ else
 fi
 
 echo
-echo "Stopping MITM server..."
-kill $MITMPID
-echo
 echo "Stopping ION..."
-killm
+kill $ECHOPID
+ionexit
+sleep 1
+cd ../
+# will produce errors as previous ionexit will kill somethings
+cd ../3.ipn.udp
 echo "Status reports test completed."
 exit $RETVAL

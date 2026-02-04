@@ -13,6 +13,17 @@ CONFIGFILES=" \
 ./3.ipn.udp/amroc.ipnrc \
 "
 
+# Randomize Port numbers so runners do not overlap
+# Leaving node 2 inplace as no traffic should go to its port
+readarray -t port_nums < <(shuf -i 4001-5000 -n 2)
+node5port=${port_nums[0]}
+node3port=${port_nums[1]}
+# Node 5 modification
+sed -i "s/5115/$node5port/g" 3.ipn.udp/amroc.ipnrc
+sed -i "s/5115/$node5port/g" 3.ipn.udp/amroc.bprc
+# Node 3 Modification
+sed -i "s/3113/$node3port/g" 3.ipn.udp/amroc.bprc
+
 echo "########################################"
 echo
 pwd | sed "s/\/.*\///" | xargs echo "NAME: "
@@ -59,13 +70,14 @@ cd 3.ipn.udp
 echo "Starting bpsink on ipn:3.1 ..."
 sleep 1
 bpsink ipn:3.1 >/dev/null &
+SINKPID=$!
 
 cd ../
 echo "Running bespokebpv7 status report test..."
 # First Bundle: Sent to ipn:3.1 (should be delivered)
 # Second Bundle: Sent to ipn:5.1 (should be forwarded)
 # Third Bundle: Sent to ipn:3.3 (should be deleted)
-python3 runtest.py -p parms.json
+python3 runtest.py -p parms.json -r $node5port -s $node3port
 TEST_RESULT=$?
 
 if [ $TEST_RESULT -eq 0 ]; then
@@ -78,6 +90,9 @@ fi
 
 echo
 echo "Stopping ION..."
-killm
+kill $SINKPID
+sleep 1
+cd 3.ipn.udp
+ionexit
 echo "Status reports test completed."
 exit $RETVAL

@@ -17,10 +17,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
+      - name: Install uv manually
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install mbedtls
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc automake make autoconf libtool automake git wget tar bzip2
+          wget https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-2.28.10/mbedtls-2.28.10.tar.bz2
+          tar -xvjf mbedtls-2.28.10.tar.bz2
+          cd mbedtls-2.28.10
+          sed -i 's|//#define MBEDTLS_NIST_KW_C|#define MBEDTLS_NIST_KW_C|' include/mbedtls/config.h
+          make SHARED=1
+          sudo make install
+          cd ..
+          rm -rf mbedtls-2.28.10 mbedtls-2.28.10.tar.bz2
+
+      - name: Install ION DTN
+        # Build dependencies and official installation steps for Linux
+        run: |
+          git clone --single-branch https://github.com/nasa-jpl/ION-DTN.git
+          cd ION-DTN
+          autoreconf -fi
+          ./configure --enable-crypto-mbedtls
+          make
+          sudo make install
+          sudo ldconfig
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
@@ -29,10 +53,24 @@ jobs:
         run: uv tool install tox --with tox-uv
 
       - name: Run Tests via Tox
-        run: uvx tox -e ${{ matrix.python-version }}
+        timeout-minutes: 15
+        run: |
+          export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+          export GITHUB_PATH=/usr/local/bin:$GITHUB_PATH
+          uvx tox -e ${{ matrix.python-version }}
+
+      - name: Upload ION logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: ion-logs-${{ matrix.python-version }}
+          path: |
+            **/ion.log
+            **/*.stdout
+          retention-days: 1
 
       - name: Upload coverage data
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: coverage-data-${{ matrix.python-version }}
           path: .coverage.*
@@ -47,20 +85,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - name: Install uv manually
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install tox
         run: uv tool install tox --with tox-uv
 
       - name: Download coverage data
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
-          pattern: coverage-data-*
-          merge-multiple: true
+          path: .
+
+      # Moves files from coverage-data-* subdirectories to the root so 'coverage combine' can find them
+      - name: Flatten coverage files
+        run: |
+          find coverage-data-* -name ".coverage*" -type f -exec mv {} . \;
+          rm -rf coverage-data-*
 
       - name: Combine and Report
         run: uvx tox -e coverage
+
+      - name: Upload HTML Coverage Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: htmlcov
+          retention-days: 1
 
   lint:
     name: Lint & Type Check
@@ -68,8 +120,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - name: Install uv manually
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install tox
         run: uv tool install tox --with tox-uv

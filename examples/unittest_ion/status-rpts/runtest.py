@@ -90,7 +90,9 @@ def packet_receiver(
     print("[*] Receiver thread shut down.")
 
 
-def create_test_bundle(dest_eid: str, requested_reports: list[str]) -> BPv7:
+def create_test_bundle(
+    dest_eid: str, requested_reports: list[str] | None = None
+) -> BPv7:
     """Configure a BPv7 bundle with requested status report flags.
 
     Args:
@@ -117,11 +119,12 @@ def create_test_bundle(dest_eid: str, requested_reports: list[str]) -> BPv7:
         "del": "del_report",
     }
 
-    for report in requested_reports:
-        # Familarizing myself with walrus operator
-        # Combines if not None with default value of None
-        if attr := report_map.get(report):
-            setattr(bundle.primary_block, attr, True)
+    if requested_reports:
+        for report in requested_reports:
+            # Familarizing myself with walrus operator
+            # Combines if not None with default value of None
+            if attr := report_map.get(report):
+                setattr(bundle.primary_block, attr, True)
 
     bundle.add_payload_block(b"Simplified multi-threaded status report test.")
     bundle.primary_block.set_creation()
@@ -163,6 +166,7 @@ def collect_reports(requested_count: int) -> set[str]:
     while len(received_types) < requested_count and time.time() < timeout:
         try:
             data = report_queue.get(timeout=1.0)
+            print("Got status report, processing...")
         except Empty:
             continue
 
@@ -182,18 +186,49 @@ def collect_reports(requested_count: int) -> set[str]:
     return received_types
 
 
-def run_status_report_test(parameter_dict: dict[str, list[str]]) -> int:
+def verify_network_aliveness(node_addr: tuple[str, int], dest_eid: str) -> bool:
+    """Send a bundle and waits for a response from bpecho.
+
+    Returns:
+        success or failure of network aliveness
+
+    """
+    print(f"[*] Verifying network aliveness via {dest_eid}...")
+    ping = create_test_bundle(dest_eid)
+
+    timeout = time.time() + 5.0
+    while time.time() < timeout:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.sendto(bytes(ping), node_addr)
+        try:
+            data = report_queue.get(timeout=1.0)
+        except Empty:
+            continue
+        bundle = BPv7(data)
+        # Check if we got our payload back
+        payload = bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK)
+        if payload and b"Simplified multi-threaded status report test." in payload.data:
+            print("[+] Network alive! Bundle received.")
+            return True
+    return False
+
+
+def run_status_report_test(
+    parameter_dict: dict[str, list[str]], rport: int = 5115, sport: int = 3113
+) -> int:
     """Run the status report test.
 
     Args:
         parameter_dict: Dictionary of status flag parameters to test
+        rport: Port to receive status reports
+        sport: Port to send bundles
 
     Returns:
         0 on success and 1 on failure
 
     """
-    node3_addr = ("127.0.0.1", 3113)
-    listen_addr = ("127.0.0.1", 5115)
+    node3_addr = ("127.0.0.1", sport)
+    listen_addr = ("127.0.0.1", rport)
     stop_event = threading.Event()
     active = threading.Lock()
     active.acquire()
@@ -207,21 +242,28 @@ def run_status_report_test(parameter_dict: dict[str, list[str]]) -> int:
     while not active.locked():
         continue
 
+    if not verify_network_aliveness(node3_addr, "ipn:5.1"):
+        print("FAILURE: Network check failed. Is network up?")
+        stop_event.set()
+        receiver_thread.join()
+        return 1
+
     successes = []
-    for dnode, reprots in parameter_dict.items():
-        bundle = create_test_bundle(dnode, reprots)
+    print("Setup complete, sending bundles and waiting for reports...")
+    for dnode, reports in parameter_dict.items():
+        bundle = create_test_bundle(dnode, reports)
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as send_sock:
             send_sock.sendto(bytes(bundle), node3_addr)
-        print(f"[+] Sent bundle. Waiting for: {reprots}")
+        print(f"[+] Sent bundle. Waiting for: {reports}")
 
         try:
-            received = collect_reports(len(reprots))
+            received = collect_reports(len(reports))
         except KeyboardInterrupt:
             print("Caught keyboard interrupt.")
             stop_event.set()
             receiver_thread.join()
             return 1
-        successes.append(set(reprots).issubset(received))
+        successes.append(set(reports).issubset(received))
 
     if all(successes):
         print("SUCCESS: All requested reports verified.")
@@ -236,6 +278,7 @@ def run_status_report_test(parameter_dict: dict[str, list[str]]) -> int:
 
 
 if __name__ == "__main__":
+    print("\nTest parameter setup.")
     parser = argparse.ArgumentParser(description="bespokebpv7 Status Report Tester.")
     parser.add_argument(
         "--parm-dict",
@@ -244,8 +287,23 @@ if __name__ == "__main__":
         required=True,
         help="JSON file defining destination EID and their status report flags.",
     )
+    parser.add_argument(
+        "--recv-port",
+        "-r",
+        type=int,
+        help="Port to receive bundle status reports.",
+    )
+    parser.add_argument(
+        "--src-port",
+        "-s",
+        type=int,
+        help="Port to send bundle to, generating status reports.",
+    )
 
     args = parser.parse_args()
+
+    print("\nReading parameter file...")
     with Path(args.parm_dict).open(encoding="utf-8") as file:
         parm_dict = json.load(file)
-    sys.exit(run_status_report_test(parm_dict))
+    print("\nSetting up test..")
+    sys.exit(run_status_report_test(parm_dict, args.recv_port, args.src_port))
