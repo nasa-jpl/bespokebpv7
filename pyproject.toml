@@ -85,8 +85,8 @@ allowlist_externals = ["bash"]
 commands = [
     ["coverage", "run", "-m", "pytest"],
     ["bash", "-c", "cd examples/pcap_parse && time ./dotest"],
-    ["bash", "-c", "cd examples/unittest_ion/status-rpts && time ./dotest"],
     ["bash", "-c", "cd examples/unittest_ion/issue-265-bpdriver-ttl-option && time ./dotest"],
+    ["bash", "-c", "cd examples/unittest_ion/status-rpts && time ./dotest"],
     ["bash", "-c", "cd examples/vnv_ion && time ./dotest"],
     ["bash", "-c", "cd examples/mitm_test && time ./dotest"]
 ]
