@@ -107,6 +107,13 @@ jobs:
       - name: Combine and Report
         run: uvx tox -e coverage
 
+      - name: Upload HTML Coverage Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: htmlcov
+          retention-days: 1
+
   lint:
     name: Lint & Type Check
     runs-on: arc-runner-set
