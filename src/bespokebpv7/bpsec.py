@@ -43,6 +43,10 @@ import sys
 from attrs import define, field
 
 from bespokebpv7.block_enum import (
+    AADScopeFlags,
+    BCBAESVariant,
+    BCBParmEnum,
+    BCBResultEnum,
     BIBParmEnum,
     BIBResultEnum,
     BIBSHAVariant,
@@ -95,6 +99,27 @@ def integrity_flag_property(flag_bit: IntegrityScopeFlags) -> property:
 
     def getter(self) -> bool:  # noqa: ANN001
         return bool(self.integrity_scope_flags & flag_bit)
+
+    def setter(self, value: bool) -> None:  # noqa: ANN001, FBT001
+        if value:
+            self.set_scope_flag(flag_bit)
+        else:
+            self.clear_scope_flag(flag_bit)
+
+    return property(getter, setter)
+
+
+def aad_flag_property(flag_bit: AADScopeFlags) -> property:
+    """Generate a property that gets/sets a bit in the instance's AAD scope
+    flags attribute.
+
+    Returns:
+        Property to get/set flag
+
+    """
+
+    def getter(self) -> bool:  # noqa: ANN001
+        return bool(self.aad_scope_flags & flag_bit)
 
     def setter(self, value: bool) -> None:  # noqa: ANN001, FBT001
         if value:
@@ -230,7 +255,7 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
 
     def add_integrity_scope(self, val: int | None = None) -> None:
         """Store Integrity scope flags as a security parameter."""
-        if not val:
+        if val is None:
             val = self.integrity_scope_flags
         self.security_parameters.append(
             SecurityParameter(BIBParmEnum.INTEGRITY_SCOPE_FLAGS, val),
@@ -293,6 +318,136 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
 
         """
         # Convert internal fields to the structure expected by RFC 9171
+        data = [
+            self.security_targets,
+            self.security_context_id,
+            int(self.security_context_flags),
+            self.security_source,
+        ]
+        if self.parm_present:
+            parm_list = [
+                bundle_converter.unstructure(parm) for parm in self.security_parameters
+            ]
+            data.append(parm_list)
+
+        result_list = [
+            bundle_converter.unstructure(result) for result in self.security_results
+        ]
+        data.append([result_list])
+
+        # Pack into the data field of the CanonicalBlock
+        self.data = encode_cbor_sequence(data)
+
+        # Return the outer block structure
+        return super()._unstructure()
+
+
+@define
+class BlockConfidentialityBlock(AbstractSecurityBlock):
+    """Block Confidentiality Block (BCB)."""
+
+    block_type: BlockType = field(default=BlockType.BCB, converter=BlockType)
+    security_context_id: int = field(default=2)
+    aad_scope_flags: AADScopeFlags = field(
+        default=AADScopeFlags(7),
+        converter=AADScopeFlags,
+    )
+
+    include_primary_block = aad_flag_property(
+        AADScopeFlags.INCLUDE_PRIMARY_BLOCK,
+    )
+    include_target_header = aad_flag_property(
+        AADScopeFlags.INCLUDE_TARGET_HEADER,
+    )
+    include_security_header = aad_flag_property(
+        AADScopeFlags.INCLUDE_SECURITY_HEADER,
+    )
+
+    def __attrs_post_init__(self) -> None:
+        """Set security context flags and AAD scope flags at initialization."""
+        self.security_context_flags = SecurityContextFlags(1)
+        self.aad_scope_flags = AADScopeFlags(7)
+        self.block_type = BlockType.BCB
+
+    def set_aes_variant(self, variant: BCBAESVariant | None = None) -> None:
+        """Set AES-GCM variant security parameter."""
+        if not variant:
+            variant = BCBAESVariant.AES_GCM_256
+        self.security_parameters.append(
+            SecurityParameter(BCBParmEnum.AES_VARIANT, variant),
+        )
+        self.parm_present = True
+
+    def add_wrapped_key(self, key: bytes) -> None:
+        """Set wrapped key security parameter."""
+        self.security_parameters.append(SecurityParameter(BCBParmEnum.WRAPPED_KEY, key))
+        self.parm_present = True
+
+    def add_aad_scope(self, val: int | None = None) -> None:
+        """Store AAD scope flags as a security parameter."""
+        if val is None:
+            val = self.aad_scope_flags
+        self.security_parameters.append(
+            SecurityParameter(BCBParmEnum.AAD_SCOPE_FLAGS, val),
+        )
+        self.parm_present = True
+
+    def add_security_result(self, result: bytes) -> None:
+        """Add authentication tag result"""
+        self.security_results.append(
+            SecurityResult(BCBResultEnum.AUTH_TAG, result),
+        )
+
+    def set_scope_flag(self, security_flag: AADScopeFlags) -> None:
+        """Set an individual AAD scope flag."""
+        self.aad_scope_flags |= int(security_flag)
+
+    def clear_scope_flag(self, security_flag: AADScopeFlags) -> None:
+        """Clear an individual AAD scope flag."""
+        self.aad_scope_flags &= ~int(security_flag)
+
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure a BCB from a CBOR list (extension block fields).
+
+        Returns:
+            Populated Block Confidentiality Block
+
+        """
+        # Parse the outer CanonicalBlock fields
+        block = super()._structure(data)
+
+        # Parse the inner security specific fields from the data bytes
+        bcb_data = decode_cbor_sequence(block.data)
+
+        block.security_targets = bcb_data[0]
+        block.security_context_id = bcb_data[1]
+        block.security_context_flags = SecurityContextFlags(bcb_data[2])
+        block.security_source = bcb_data[3]
+        next_idx = 4
+
+        if block.parm_present:  # pylint: disable=E1101
+            for parm in bcb_data[next_idx]:
+                block.security_parameters.append(  # pylint: disable=E1101
+                    bundle_converter.structure(parm, SecurityParameter)
+                )
+            next_idx += 1
+
+        for result in bcb_data[next_idx][0]:
+            block.security_results.append(  # pylint: disable=E1101
+                bundle_converter.structure(result, SecurityResult)
+            )
+
+        return block
+
+    def _unstructure(self) -> list:
+        """Unstructure the BCB into a CBOR list.
+
+        Returns:
+            Class as list
+
+        """
+        # Convert internal fields to the structure expected by RFC 9173
         data = [
             self.security_targets,
             self.security_context_id,

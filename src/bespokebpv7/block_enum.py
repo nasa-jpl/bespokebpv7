@@ -130,6 +130,10 @@ class AADScopeFlags(IntFlag):
     RFC 9173
     """
 
+    INCLUDE_PRIMARY_BLOCK = 1 << 0
+    INCLUDE_TARGET_HEADER = 1 << 1
+    INCLUDE_SECURITY_HEADER = 1 << 2
+
 
 class BIBSHAVariant(IntEnum):
     """Enumeration of BIB SHA Variants"""
@@ -138,6 +142,14 @@ class BIBSHAVariant(IntEnum):
     HMAC_256_256 = 5
     HMAC_384_384 = 6
     HMAC_512_512 = 7
+
+
+class BCBAESVariant(IntEnum):
+    """Enumeration of BCB AES-GCM Variants per RFC 9173"""
+
+    __str__ = Enum.__str__
+    AES_GCM_128 = 1
+    AES_GCM_256 = 3
 
 
 class BIBParmEnum(IntEnum):
@@ -149,11 +161,28 @@ class BIBParmEnum(IntEnum):
     INTEGRITY_SCOPE_FLAGS = 3
 
 
+class BCBParmEnum(IntEnum):
+    """Enumeration of parameter IDs for BCB in RFC 9173"""
+
+    __str__ = Enum.__str__
+    IV = 1
+    AES_VARIANT = 2
+    WRAPPED_KEY = 3
+    AAD_SCOPE_FLAGS = 4
+
+
 class BIBResultEnum(IntEnum):
     """Enumeration of parameter IDs for BIB in RFC 9173"""
 
     __str__ = Enum.__str__
     EXPECTED_HMAC = 1
+
+
+class BCBResultEnum(IntEnum):
+    """Enumeration of result IDs for BCB in RFC 9173"""
+
+    __str__ = Enum.__str__
+    AUTH_TAG = 1
 
 
 class CREBFlags(IntFlag):

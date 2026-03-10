@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Extension Block functions
  Author: Nate Richard
- Modified: 01/27/2026
+ Modified: 03/04/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -45,7 +45,7 @@ from attrs.converters import optional
 
 from bespokebpv7.block_enum import BlockType, CREBFlags
 from bespokebpv7.blocks import CanonicalBlock
-from bespokebpv7.bpsec import BlockIntegrityBlock
+from bespokebpv7.bpsec import BlockConfidentialityBlock, BlockIntegrityBlock
 from bespokebpv7.utils import bundle_converter, format_eid, parse_eid_string
 
 if sys.version_info >= (3, 11):
@@ -222,7 +222,11 @@ class CustodyTransferExt(CanonicalBlock):
 
         """
         self.data = bundle_converter.dumps(
-            [self.sequence_num, self.sequence_id, self._block_src_admin_eid]
+            [
+                self.sequence_num,
+                self.sequence_id,
+                self._block_src_admin_eid,
+            ]
         )
         return super()._unstructure()
 
@@ -358,6 +362,7 @@ class CompressedReportingExt(CanonicalBlock):
 
 BLOCKFUNCTIONS = {
     BlockType.BIB: BlockIntegrityBlock,
+    BlockType.BCB: BlockConfidentialityBlock,
     BlockType.PAYLOAD_BLOCK: CanonicalBlock,
     BlockType.PREVIOUS_NODE: PreviousNodeExt,
     BlockType.BUNDLE_AGE: BundleAgeExt,

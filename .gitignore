@@ -184,3 +184,8 @@ bpdriverAduFile
 
 # ignore vscode settings for now
 .vscode/
+.worktrees/
+
+# Claude stuff
+docs/design-plans/
+docs/implementation-plans/

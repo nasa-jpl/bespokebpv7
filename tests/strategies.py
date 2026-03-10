@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Hypothesis custom strategies
  Author: Nate Richard
- Modified: 01/27/2026
+ Modified: 03/04/2026
  Company: JPL
  Date:   01/27/2026
 
@@ -43,6 +43,8 @@ from hypothesis import strategies as st
 
 from bespokebpv7.block_enum import (  # type: ignore[import-untyped]
     AdminReasonCode,
+    BCBAESVariant,
+    BIBSHAVariant,
 )
 from bespokebpv7.bundle_params import (  # type: ignore[import-untyped]
     BaseStatusReport,
@@ -181,3 +183,28 @@ def fragmentation_strategy() -> st.SearchStrategy:
         fragment_offset=st.integers(min_value=0),
         total_adu_len=st.integers(min_value=0),
     )
+
+
+st_crypto_key = st.one_of(
+    st.binary(min_size=16, max_size=16),  # AES-128
+    st.binary(min_size=32, max_size=32),  # AES-256
+    st.binary(min_size=64, max_size=64),  # Extended keys
+)
+
+st_auth_tag = st.one_of(
+    st.binary(min_size=16, max_size=16),  # 128-bit tags
+    st.binary(min_size=32, max_size=32),  # 256-bit tags
+    st.binary(min_size=64, max_size=64),  # 512-bit tags
+)
+
+st_bcb_aes_variant = st.sampled_from(BCBAESVariant)
+st_bib_sha_variant = st.sampled_from(BIBSHAVariant)
+
+st_aad_scope_flags = st.integers(min_value=0, max_value=7)
+st_integrity_scope_flags = st.integers(min_value=0, max_value=7)
+
+st_security_targets = st.lists(
+    st.integers(min_value=1, max_value=10),
+    min_size=1,
+    max_size=5,
+)
