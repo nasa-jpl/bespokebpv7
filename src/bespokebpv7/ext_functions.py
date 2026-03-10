@@ -221,11 +221,13 @@ class CustodyTransferExt(CanonicalBlock):
             Converted class to list
 
         """
-        self.data = bundle_converter.dumps([
-            self.sequence_num,
-            self.sequence_id,
-            self._block_src_admin_eid,
-        ])
+        self.data = bundle_converter.dumps(
+            [
+                self.sequence_num,
+                self.sequence_id,
+                self._block_src_admin_eid,
+            ]
+        )
         return super()._unstructure()
 
 
