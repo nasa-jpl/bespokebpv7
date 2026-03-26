@@ -1,8 +1,7 @@
-# Version 0.3.1
+# Version 0.4.0
 
-Repo now has examples of *bespokebpv7* in action
+## Added
 
-## Changed
-
-- Fix de/serialization of BIB security results
-- Fix deliv & recv status bits being flipped
+- Minimal BCB support, all security operations are up to user
+- Minimal LTP support, report, cancel, and their respective ACKs
+- Documents for Claude and ed3d-plugins

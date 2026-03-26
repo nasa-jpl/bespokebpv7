@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] 2026-03-26
+
+### Added
+
+- Minimal BCB support, all security operations are up to user
+- Minimal LTP support, report, cancel, and their respective ACKs
+- Documents for Claude and ed3d-plugins
+
 ## [0.3.1] 2026-01-30
 
 Repo now has examples of *bespokebpv7* in action
