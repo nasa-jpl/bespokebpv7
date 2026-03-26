@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: LTP Segment Definitions
  Author: Nate Richard
- Modified: 03/24/2026
+ Modified: 03/26/2026
  Company: JPL
  Date:   03/24/2026
 
@@ -112,9 +112,22 @@ class LTPSegment:
         offset += consumed
 
         # Store offset so the subclass knows where to pick up parsing
-        block._offset = offset
+        block.increment_offset(offset)
 
         return block
+
+    def increment_offset(self, num_bytes: int) -> None:
+        """Update SDNV offset tracking."""
+        self._offset += num_bytes
+
+    def get_offset(self) -> int:
+        """Use offset to help with decoding.
+
+        Returns:
+            Latest offset value
+
+        """
+        return self._offset
 
 
 @define
@@ -153,8 +166,9 @@ class ReportAckSegment(LTPSegment):
             msg = f"Expected REPORT_ACK (0x9), got {block.segment_type}"
             raise ValueError(msg)
 
-        block.report_serial_number, consumed = decode_sdnv(data[block._offset :])
-        block._offset += consumed
+        offset = block.get_offset()
+        block.report_serial_number, consumed = decode_sdnv(data[offset:])
+        block.increment_offset(consumed)
 
         return block
 
@@ -194,8 +208,9 @@ class CancelSegment(LTPSegment):
             msg = f"Expected CANCEL (0xC), got {block.segment_type}"
             raise ValueError(msg)
 
-        reason_val, consumed = decode_sdnv(data[block._offset :])
-        block._offset += consumed
+        offset = block.get_offset()
+        reason_val, consumed = decode_sdnv(data[offset:])
+        block.increment_offset(consumed)
         block.reason_code = CancelReasonCode(reason_val)
 
         return block
