@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Utility functions for bundle processing
  Author: Nate Richard
- Modified: 01/27/2026
+ Modified: 03/24/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -171,6 +171,77 @@ def encode_cbor_sequence(objects: list) -> bytes:
         encoder.encode(obj)
 
     return stream.getvalue()
+
+
+def encode_sdnv(value: int) -> bytes:
+    """Encode a non-negative integer into a Self-Delimiting Numeric Value (SDNV).
+
+    Args:
+        value: The integer to encode.
+
+    Returns:
+        The SDNV encoded byte string.
+
+    Raises:
+        ValueError: If the integer is negative.
+
+    """
+    if value < 0:
+        msg = "SDNVs cannot encode negative integers."
+        raise ValueError(msg)
+
+    if value == 0:
+        return b"\x00"
+
+    result = bytearray()
+
+    # Extract 7-bit chunks from the value
+    flag = 0
+    while value > 0:
+        new_bits = value & 0x7F
+        value >>= 7
+        result.append(new_bits + flag)
+        if flag == 0:
+            flag = 0x80
+
+    # The chunks were extracted from least-significant to most-significant.
+    # We need them in big-endian order, so we reverse the bytearray.
+    result.reverse()
+    return bytes(result)
+
+
+def decode_sdnv(data: bytes) -> tuple[int, int]:
+    """Decode an SDNV from a byte string.
+
+    Args:
+        data: A byte string starting with an SDNV.
+
+    Returns:
+        A tuple containing:
+            - The decoded integer value.
+            - The number of bytes consumed from the byte string.
+
+    Raises:
+        ValueError: If the byte string ends before the SDNV is fully terminated.
+
+    """
+    value = 0
+    bytes_consumed = 0
+
+    for byte in data:
+        value <<= 7
+        value += byte & 0x7F
+
+        bytes_consumed += 1
+
+        if (byte & 0x80) == 0:
+            break
+    else:
+        # We exhausted the bytes without finding a terminal byte (MSB == 0)
+        msg = "Incomplete SDNV data: missing terminal byte."
+        raise ValueError(msg)
+
+    return value, bytes_consumed
 
 
 bundle_converter = make_converter()

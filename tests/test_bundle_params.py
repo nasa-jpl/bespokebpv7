@@ -21,7 +21,7 @@
  Company: JPL
  Date:   01/27/2026
 
- File: test_utils
+ File: test_bundle_params
  Description:
            Tests to verify functionality of bundle_params classes & functions
            Python 3.12.11

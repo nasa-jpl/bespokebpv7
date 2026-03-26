@@ -21,7 +21,7 @@
  Company: JPL
  Date:   01/27/2026
 
- File: test_utils
+ File: test_bpsec
  Description:
            Tests to verify functionality of bpsec classes & functions
            Python 3.12.11

@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bespoke BPv7 test suite for utils.py
  Author: Nate Richard
- Modified: 01/27/2026
+ Modified: 03/25/2026
  Company: JPL
  Date:   01/27/2026
 
@@ -39,12 +39,16 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+import pytest
 from hypothesis import given
+from hypothesis import strategies as st
 from strategies import st_eid
 
 from bespokebpv7.block_enum import CRCType  # type: ignore[import-untyped]
 from bespokebpv7.utils import (  # type: ignore[import-untyped]
     calculate_crc,
+    decode_sdnv,
+    encode_sdnv,
     format_eid,
     parse_eid_string,
 )
@@ -90,3 +94,37 @@ def test_calculate_crc() -> None:
     assert len(crc32) == len(CRCType.CRC32.fill_value)
 
     assert calculate_crc(data, CRCType.NONE) is None
+
+
+# ==========================================
+# Tests for SDNV Utilities
+# ==========================================
+@given(st.integers(min_value=0, max_value=2**64 - 1))
+def test_sdnv_roundtrip(value: int) -> None:
+    """Verify that an integer can be encoded to and decoded from an SDNV."""
+    encoded_bytes = encode_sdnv(value)
+
+    assert isinstance(encoded_bytes, bytes)
+    assert len(encoded_bytes) > 0
+
+    assert (encoded_bytes[-1] & 0x80) == 0
+
+    decoded_value, bytes_consumed = decode_sdnv(encoded_bytes)
+
+    assert decoded_value == value
+    assert bytes_consumed == len(encoded_bytes)
+
+
+def test_sdnv_negative_value() -> None:
+    """Verify that negative values raise a ValueError during encoding."""
+    with pytest.raises(ValueError, match=r"SDNVs cannot encode negative integers."):
+        encode_sdnv(-1)
+
+
+def test_sdnv_incomplete_buffer() -> None:
+    """Verify that a truncated SDNV buffer raises a ValueError."""
+    bad_data = b"\x81\x82\x83"
+    with pytest.raises(
+        ValueError, match=r"Incomplete SDNV data: missing terminal byte."
+    ):
+        decode_sdnv(bad_data)
