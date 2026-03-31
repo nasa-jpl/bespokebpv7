@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Licklider Transmission Protocol Class
  Author: Nate Richard
- Modified: 03/25/2026
+ Modified: 03/31/2026
  Company: JPL
  Date:   03/25/2026
 
@@ -38,11 +38,15 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+import contextlib
+
 import dpkt  # type: ignore[import-untyped]
 
+from bespokebpv7.bpv7 import BPv7
 from bespokebpv7.segment_enum import LTPSegmentType
 from bespokebpv7.segments import (
     SEGMENTFUNCTIONS,
+    DataSegment,
     LTPSegment,
 )
 from bespokebpv7.utils import bundle_converter
@@ -57,6 +61,7 @@ class LTP(dpkt.Packet):
     def __init__(self, *args, **kwargs) -> None:
         """Initialize segment parameters."""
         self.segment = LTPSegment()
+        self.bpv7: BPv7 | None = None
         super().__init__(*args, **kwargs)
 
     def unpack(self, buf: bytes) -> None:
@@ -73,8 +78,15 @@ class LTP(dpkt.Packet):
         ctrl_byte = buf[0]
         seg_type_val = ctrl_byte >> 0
 
-        segment = SEGMENTFUNCTIONS.get(LTPSegmentType(seg_type_val), LTPSegment)
-        self.segment = bundle_converter.structure(buf, segment)
+        segment_cls = SEGMENTFUNCTIONS.get(LTPSegmentType(seg_type_val), LTPSegment)
+        self.segment = bundle_converter.structure(buf, segment_cls)
+
+        if (
+            isinstance(self.segment, DataSegment)
+            and self.segment.client_service_id == 1
+        ):
+            with contextlib.suppress(ValueError):
+                self.bpv7 = BPv7(self.segment.data)
 
     def __bytes__(self) -> bytes:
         """Serialize the LTP packet back into bytes.
@@ -85,6 +97,12 @@ class LTP(dpkt.Packet):
         """
         if self.segment is None:
             return b""
+
+        if isinstance(self.segment, DataSegment) and self.bpv7 is not None:
+            updated_bundle_bytes = bytes(self.bpv7)
+
+            self.segment.data = updated_bundle_bytes
+            self.segment.client_length = len(updated_bundle_bytes)
 
         return bundle_converter.unstructure(self.segment)
 
@@ -102,7 +120,12 @@ class LTP(dpkt.Packet):
         orig = self.segment.session_originator
         num = self.segment.session_number
 
-        return f"LTP Packet - Type: {seg_name}, Session: {orig}:{num}"
+        base_str = f"LTP Packet - Type: {seg_name}, Session: {orig}:{num}"
+
+        if self.bpv7:
+            base_str += f"\n  -> Contains {self.bpv7!r}"
+
+        return base_str
 
     def __repr__(self) -> str:
         """Output for Python REPR.

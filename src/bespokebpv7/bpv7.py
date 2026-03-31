@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Protocol v7 Class
  Author: Nate Richard
- Modified: 01/28/2026
+ Modified: 03/31/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -125,6 +125,26 @@ class BPv7(dpkt.Packet):
         all_blocks = [pb_list, *ext_lists]
         body = b"".join(bundle_converter.dumps(b) for b in all_blocks)
         return b"\x9f" + body + b"\xff"
+
+    def __bool__(self) -> bool:
+        """Ensure truthiness checks (like `if bundle:`) don't fall back
+        to dpkt.Packet's __len__, which expects a fixed __hdr_len__.
+
+        Returns:
+            True always
+
+        """
+        return True
+
+    def __len__(self) -> int:
+        """Override dpkt's __len__ to return the actual serialized size
+        since we dynamically parse CBOR instead of using fixed headers.
+
+        Returns:
+            Length of bundle
+
+        """
+        return len(bytes(self))
 
     def add_canonical_block(self, block_parms: CanonicalBlockInit, data: bytes) -> None:
         """Add an extension block."""

@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bespoke BPv7 test suite for ltp.py
  Author: Nate Richard
- Modified: 03/25/2026
+ Modified: 03/31/2026
  Company: JPL
  Date:   03/25/2026
 
@@ -42,11 +42,14 @@ software to foreign countries or providing access to foreign persons.
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
+from strategies import st_data, st_eid
 
+from bespokebpv7.bpv7 import BPv7  # type: ignore[import-untyped]
 from bespokebpv7.ltp import LTP  # type: ignore[import-untyped]
 from bespokebpv7.segments import (  # type: ignore[import-untyped]
     CancelReasonCode,
     CancelSegment,
+    DataSegment,
     LTPSegmentType,
     ReportAckSegment,
 )
@@ -106,3 +109,61 @@ def test_ltp_wrapper_empty_buffer() -> None:
     """Verify that unpacking an empty buffer raises an appropriate error."""
     with pytest.raises(ValueError, match=r"Empty buffer provided for LTP unpacking."):
         LTP(b"")
+
+
+@given(
+    src_eid=st_eid,
+    dst_eid=st_eid,
+    payload=st_data,
+    session_orig=st.integers(min_value=0, max_value=10000),
+    session_num=st.integers(min_value=0, max_value=10000),
+)
+def test_ltp_bpv7_integration(
+    src_eid: str, dst_eid: str, payload: bytes, session_orig: int, session_num: int
+) -> None:
+    """Verify that LTP automatically parses embedded BPv7 bundles."""
+    expected_src = src_eid if src_eid != "dtn:0" else "dtn:none"
+    expected_dst = dst_eid if dst_eid != "dtn:0" else "dtn:none"
+
+    bundle = BPv7()
+    bundle.primary_block.route.source_eid = src_eid
+    bundle.primary_block.route.dest_eid = dst_eid
+    bundle.add_payload_block(payload)
+
+    bundle_bytes = bytes(bundle)
+
+    data_seg = DataSegment()
+    data_seg.segment_type = LTPSegmentType.DATA_RED_CP_EORP_EOB
+    data_seg.session_originator = session_orig
+    data_seg.session_number = session_num
+    data_seg.client_service_id = 1  # 1 == Bundle Protocol
+    data_seg.client_length = len(bundle_bytes)
+    data_seg.data = bundle_bytes
+
+    ltp_packet = LTP()
+    ltp_packet.segment = data_seg
+    ltp_packet.data = bundle  # Link the bundle object
+    ltp_packet.bpv7 = bundle
+
+    raw_udp_payload = bytes(ltp_packet)
+
+    received_packet = LTP(raw_udp_payload)
+
+    assert isinstance(received_packet.segment, DataSegment)
+    assert received_packet.segment.session_originator == session_orig
+    assert received_packet.segment.session_number == session_num
+    assert received_packet.segment.is_checkpoint is True
+    assert received_packet.segment.is_eorp is True
+    assert received_packet.segment.is_eob is True
+
+    assert received_packet.bpv7 is not None
+    assert isinstance(received_packet.bpv7, BPv7)
+    assert received_packet.bpv7.primary_block.route.source_eid == expected_src
+    assert received_packet.bpv7.primary_block.route.dest_eid == expected_dst
+
+    received_packet.bpv7.primary_block.route.dest_eid = "ipn:9.9"
+    modified_bytes = bytes(received_packet)
+
+    final_packet = LTP(modified_bytes)
+    assert final_packet.bpv7 is not None
+    assert final_packet.bpv7.primary_block.route.dest_eid == "ipn:9.9"
