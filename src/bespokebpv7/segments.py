@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: LTP Segment Definitions
  Author: Nate Richard
- Modified: 03/26/2026
+ Modified: 03/31/2026
  Company: JPL
  Date:   03/24/2026
 
@@ -56,6 +56,7 @@ else:
 class LTPSegment:
     """Base class for all LTP Segments handling common header logic."""
 
+    version: int = field(default=0)  # Added the 4-bit version field
     session_originator: int = field(default=0)
     session_number: int = field(default=0)
     segment_type: LTPSegmentType = field(default=LTPSegmentType.DATA_RED)
@@ -74,14 +75,15 @@ class LTPSegment:
         """
         buf = bytearray()
 
-        ctrl_byte = self.segment_type.value << 0
+        # Shift version to the high 4 bits and combine with the 4-bit segment type
+        ctrl_byte = ((self.version & 0x0F) << 4) | (self.segment_type.value & 0x0F)
         buf.append(ctrl_byte)
 
         buf.extend(encode_sdnv(self.session_originator))
         buf.extend(encode_sdnv(self.session_number))
 
-        # Header and Trailer Extensions counts (assuming 0 for now)
-        buf.extend(encode_sdnv(0))
+        ext_counts = ((self.header_count & 0x0F) << 4) | (self.trailer_count & 0x0F)
+        buf.append(ext_counts)
 
         return bytes(buf)
 
@@ -98,7 +100,11 @@ class LTPSegment:
         block = cls()
 
         ctrl_byte = data[0]
-        block.segment_type = LTPSegmentType(ctrl_byte >> 0)
+
+        # Extract the high 4 bits for version and low 4 bits for segment type
+        block.version = (ctrl_byte >> 4) & 0x0F
+        block.segment_type = LTPSegmentType(ctrl_byte & 0x0F)
+
         offset = 1
 
         block.session_originator, consumed = decode_sdnv(data[offset:])
@@ -107,9 +113,11 @@ class LTPSegment:
         block.session_number, consumed = decode_sdnv(data[offset:])
         offset += consumed
 
-        # Skip header/trailer extensions counts for now (assume 0)
-        _, consumed = decode_sdnv(data[offset:])
-        offset += consumed
+        # Extract header extensions count
+        ext_counts = data[offset]
+        block.header_count = (ext_counts >> 4) & 0x0F
+        block.trailer_count = ext_counts & 0x0F
+        offset += 1
 
         # Store offset so the subclass knows where to pick up parsing
         block.increment_offset(offset)
@@ -216,7 +224,110 @@ class CancelSegment(LTPSegment):
         return block
 
 
+@define
+class DataSegment(LTPSegment):
+    """Data Segment (Red or Green)."""
+
+    client_service_id: int = field(default=1)  # 1 is typical for Bundle Protocol
+    client_offset: int = field(default=0)
+    client_length: int = field(default=0)
+    checkpoint_serial_number: int = field(default=0)
+    report_serial_number: int = field(default=0)
+    data: bytes = field(factory=bytes)
+
+    @property
+    def is_checkpoint(self) -> bool:
+        """Whether segment is a checkpoint or not."""
+        return self.segment_type in {
+            LTPSegmentType.DATA_RED_CP,
+            LTPSegmentType.DATA_RED_CP_EORP,
+            LTPSegmentType.DATA_RED_CP_EORP_EOB,
+        }
+
+    @property
+    def is_eorp(self) -> bool:
+        """Whether segment is end of red part or not."""
+        return self.segment_type in {
+            LTPSegmentType.DATA_RED_CP_EORP,
+            LTPSegmentType.DATA_RED_CP_EORP_EOB,
+        }
+
+    @property
+    def is_eob(self) -> bool:
+        """Whether segment is end of block or not."""
+        return self.segment_type in {
+            LTPSegmentType.DATA_RED_CP_EORP_EOB,
+            LTPSegmentType.DATA_GREEN_EOB,
+        }
+
+    def _unstructure(self) -> bytes:
+        """Serialize the Data segment.
+
+        Returns:
+            Class a byte string
+
+        """
+        buf = bytearray(super()._unstructure())
+
+        buf.extend(encode_sdnv(self.client_service_id))
+        buf.extend(encode_sdnv(self.client_offset))
+        buf.extend(encode_sdnv(self.client_length))
+
+        if self.is_checkpoint:
+            buf.extend(encode_sdnv(self.checkpoint_serial_number))
+            buf.extend(encode_sdnv(self.report_serial_number))
+
+        buf.extend(self.data)
+        return bytes(buf)
+
+    @classmethod
+    def _structure(cls, data: bytes) -> Self:
+        """Deserialize a Data segment.
+
+        Returns:
+            Data structured as a class
+
+        Raises:
+            ValueError: if segment type does not fall in segment range
+
+        """
+        block = super()._structure(data)
+
+        if block.segment_type > LTPSegmentType.DATA_GREEN_EOB:
+            msg = f"Expected a Data Segment type (0x0-0x6), got {block.segment_type}"
+            raise ValueError(msg)
+
+        offset = block.get_offset()
+
+        block.client_service_id, consumed = decode_sdnv(data[offset:])
+        offset += consumed
+
+        block.client_offset, consumed = decode_sdnv(data[offset:])
+        offset += consumed
+
+        block.client_length, consumed = decode_sdnv(data[offset:])
+        offset += consumed
+
+        if block.is_checkpoint:
+            block.checkpoint_serial_number, consumed = decode_sdnv(data[offset:])
+            offset += consumed
+
+            block.report_serial_number, consumed = decode_sdnv(data[offset:])
+            offset += consumed
+
+        block.data = data[offset : offset + block.client_length]
+        block.increment_offset(offset + len(block.data))
+
+        return block
+
+
 SEGMENTFUNCTIONS = {
+    LTPSegmentType.DATA_RED: DataSegment,
+    LTPSegmentType.DATA_GREEN: DataSegment,
+    LTPSegmentType.DATA_RED_CP: DataSegment,
+    LTPSegmentType.DATA_RED_CP_EORP: DataSegment,
+    LTPSegmentType.DATA_RED_CP_EORP_EOB: DataSegment,
+    LTPSegmentType.DATA_GREEN_EOB: DataSegment,
     LTPSegmentType.REPORT_ACK: ReportAckSegment,
     LTPSegmentType.CANCEL_SENDER: CancelSegment,
     LTPSegmentType.CANCEL_RECV: CancelSegment,

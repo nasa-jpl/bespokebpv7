@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Hypothesis custom strategies
  Author: Nate Richard
- Modified: 03/04/2026
+ Modified: 03/31/2026
  Company: JPL
  Date:   01/27/2026
 
@@ -55,6 +55,7 @@ from bespokebpv7.bundle_params import (  # type: ignore[import-untyped]
     CTBundleSequence,
     StatusAssertion,
 )
+from bespokebpv7.segment_enum import LTPSegmentType  # type: ignore[import-untyped]
 
 st_ipn_eid = st.builds(
     lambda n, s: f"ipn:{n}.{s}",
@@ -208,3 +209,12 @@ st_security_targets = st.lists(
     min_size=1,
     max_size=5,
 )
+
+st_data_segment_types = st.sampled_from([
+    LTPSegmentType.DATA_RED,
+    LTPSegmentType.DATA_GREEN,
+    LTPSegmentType.DATA_RED_CP,
+    LTPSegmentType.DATA_RED_CP_EORP,
+    LTPSegmentType.DATA_RED_CP_EORP_EOB,
+    LTPSegmentType.DATA_GREEN_EOB,
+])

@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: LTP Segment Enumerations
  Author: Nate Richard
- Modified: 03/24/2026
+ Modified: 03/31/2026
  Company: JPL
  Date:   03/24/2026
 
@@ -44,9 +44,17 @@ class LTPSegmentType(IntEnum):
     """Enumeration for LTP segment types based on RFC 5326."""
 
     DATA_RED = 0x0
-    DATA_GREEN = 0x1
+    DATA_RED_CP = 0x1  # Red data, checkpoint
+    DATA_RED_CP_EORP = 0x2  # Red data, checkpoint, End of Red-Part
+    DATA_RED_CP_EORP_EOB = 0x3  # Red data, checkpoint, EORP, EOB
+    DATA_GREEN = 0x4
+    DATA_GREEN_UNDEF1 = 0x5
+    DATA_GREEN_UNDEF2 = 0x6
+    DATA_GREEN_EOB = 0x7  # Green data, End of Block
     REPORT = 0x8
     REPORT_ACK = 0x9
+    CS_UNDEF1 = 0xA
+    CS_UNDEF2 = 0xB
     CANCEL_SENDER = 0xC
     CANCEL_SENDER_ACK = 0xD
     CANCEL_RECV = 0xE

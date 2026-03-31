@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bespoke BPv7 test suite for ltp_segments.py
  Author: Nate Richard
- Modified: 03/25/2026
+ Modified: 03/31/2026
  Company: JPL
  Date:   03/24/2026
 
@@ -42,6 +42,7 @@ software to foreign countries or providing access to foreign persons.
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
+from strategies import st_data_segment_types
 
 from bespokebpv7.segment_enum import (  # type: ignore[import-untyped]
     CancelReasonCode,
@@ -49,6 +50,7 @@ from bespokebpv7.segment_enum import (  # type: ignore[import-untyped]
 )
 from bespokebpv7.segments import (  # type: ignore[import-untyped]
     CancelSegment,
+    DataSegment,
     ReportAckSegment,
 )
 from bespokebpv7.utils import encode_sdnv  # type: ignore[import-untyped]
@@ -115,3 +117,65 @@ def test_invalid_segment_type() -> None:
 
     with pytest.raises(ValueError, match=r"Expected CANCEL"):
         CancelSegment._structure(bytes(bad_header))
+
+
+@given(
+    seg_type=st_data_segment_types,
+    sdnv_params=st.tuples(
+        st.integers(min_value=0, max_value=1000),  # client_service_id
+        st.integers(min_value=0, max_value=10000),  # client_offset
+        st.integers(min_value=0, max_value=10000),  # cp_serial
+        st.integers(min_value=0, max_value=10000),  # report_serial
+    ),
+    payload=st.binary(max_size=256),
+)
+def test_data_segment_roundtrip(
+    seg_type: LTPSegmentType,
+    sdnv_params: tuple[int, int, int, int],
+    payload: bytes,
+) -> None:
+    """Verify DataSegment de/serialization with all valid data segment types."""
+    client_service_id, client_offset, cp_serial, report_serial = sdnv_params
+
+    seg = DataSegment()
+    seg.segment_type = seg_type
+
+    seg.client_service_id = client_service_id
+    seg.client_offset = client_offset
+    seg.client_length = len(payload)
+    seg.checkpoint_serial_number = cp_serial
+    seg.report_serial_number = report_serial
+    seg.data = payload
+
+    raw_bytes = seg._unstructure()
+
+    parsed_seg = DataSegment._structure(raw_bytes)
+
+    assert parsed_seg.segment_type == seg_type
+
+    expected_is_cp = seg_type in {
+        LTPSegmentType.DATA_RED_CP,
+        LTPSegmentType.DATA_RED_CP_EORP,
+        LTPSegmentType.DATA_RED_CP_EORP_EOB,
+    }
+
+    assert parsed_seg.is_checkpoint == expected_is_cp
+    assert parsed_seg.client_service_id == client_service_id
+    assert parsed_seg.client_offset == client_offset
+    assert parsed_seg.client_length == len(payload)
+
+    if expected_is_cp:
+        assert parsed_seg.checkpoint_serial_number == cp_serial
+        assert parsed_seg.report_serial_number == report_serial
+
+    assert parsed_seg.data == payload
+
+
+def test_data_segment_invalid_type() -> None:
+    """Verify DataSegment raises an error if parsed with a control segment type."""
+    # Build a raw byte array starting with a Report Segment type (0x08)
+    # The segment type lives in the lower 4 bits of the first byte.
+    bad_data = b"\x08\x00\x00\x00\x00"
+
+    with pytest.raises(ValueError, match="Expected a Data Segment type"):
+        DataSegment._structure(bad_data)
