@@ -123,6 +123,17 @@ BLOCKFUNCTIONS = {
 }
 ```
 
+**LTP segments:**
+```python
+# In segments.py SEGMENTFUNCTIONS dict
+SEGMENTFUNCTIONS = {
+    LTPSegmentType.DATA_RED: DataSegment,
+    LTPSegmentType.REPORT_ACK: ReportAckSegment,
+    LTPSegmentType.CANCEL_SENDER: CancelSegment,  # ADD NEW SEGMENTS HERE
+    # ...
+}
+```
+
 **Admin records:**
 ```python
 # In admin_records.py ADMINFUNCTIONS dict
@@ -148,6 +159,31 @@ bcb.update_crc()  # REQUIRED before serialization
 bytes(bcb)  # Now CRC is correct
 ```
 
+## SDNV Encoding (LTP)
+
+**CRITICAL**: LTP uses SDNV (Self-Delimiting Numeric Values) for variable-length integers.
+
+**Required usage:**
+- Session IDs, serial numbers, offsets, lengths all use SDNV encoding
+- Use `encode_sdnv(value: int) -> bytes` from `utils.py`
+- Use `decode_sdnv(data: bytes) -> tuple[int, int]` which returns (value, bytes_consumed)
+- Track byte offsets when decoding: `decode_sdnv()` returns bytes consumed for next offset
+
+**Test pattern:**
+```python
+from bespokebpv7.utils import encode_sdnv, decode_sdnv  # type: ignore[import-untyped]
+
+# Encoding
+encoded = encode_sdnv(12345)
+
+# Decoding
+value, consumed = decode_sdnv(encoded)
+assert value == 12345
+assert consumed == len(encoded)
+```
+
+**Common mistake:** Forgetting to track offset after SDNV decode leads to parsing errors in subsequent fields.
+
 ## Review Criteria
 
 **Before code review passes:**
@@ -156,8 +192,11 @@ bytes(bcb)  # Now CRC is correct
 - [ ] `mypy --strict` passes
 - [ ] `ruff check --fix` applied
 - [ ] Extension blocks registered in BLOCKFUNCTIONS
+- [ ] LTP segments registered in SEGMENTFUNCTIONS
 - [ ] Admin records registered in ADMINFUNCTIONS
 - [ ] CRC updated after all block modifications
+- [ ] SDNV encoding used for all LTP variable-length integers
+- [ ] LTP data segments with client_service_id=1 parse embedded bundles
 - [ ] Tests include property-based checks (not just static examples)
 - [ ] Coverage ≥95% branch coverage
 - [ ] Tests pass: `tox` (all Python 3.10-3.14)
@@ -165,8 +204,10 @@ bytes(bcb)  # Now CRC is correct
 
 **Failure modes to check:**
 - CBOR decode errors handled (no bare `cbor2.loads()` without try/except)
+- SDNV decode offset tracking correct (accumulate bytes_consumed)
 - CRC mismatches emit warnings (not silent failures)
 - Invalid block types gracefully fall back to `CanonicalBlock`
+- Invalid segment types gracefully fall back to `LTPSegment`
 
 ## Commit Conventions
 

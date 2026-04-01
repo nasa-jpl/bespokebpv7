@@ -1,10 +1,12 @@
 # CLAUDE.md
 
+Last verified: 2026-04-01
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-This is **bespokebpv7**, a Python library for creating, parsing, and modifying Bundle Protocol version 7 (BPv7) bundles per RFC 9171. It supports Delay/Disruption Tolerant Networking (DTN) applications and can create both RFC-compliant and intentionally non-compliant bundles for testing purposes.
+This is **bespokebpv7**, a Python library for creating, parsing, and modifying Bundle Protocol version 7 (BPv7) bundles per RFC 9171 and Licklider Transmission Protocol (LTP) segments per RFC 5326. It supports Delay/Disruption Tolerant Networking (DTN) applications and can create both RFC-compliant and intentionally non-compliant bundles/segments for testing purposes.
 
 ## Development Commands
 
@@ -129,12 +131,34 @@ A BPv7 bundle consists of:
 - `CompressedReportSignal`: ION report signals (non-standard)
 - `ADMINFUNCTIONS` dict maps AdminRecordType to admin class
 
+**ltp.py** - Licklider Transmission Protocol class
+
+- `LTP` class extends `dpkt.Packet`
+- Parses and creates LTP segments per RFC 5326 / CCSDS 734.1-B-1
+- Automatically extracts BPv7 bundles from data segments with client_service_id=1
+- Entry point for all LTP segment operations
+
+**segments.py** - LTP segment structure classes
+
+- `LTPSegment`: Base class with common header (version, session_originator, session_number, segment_type, header/trailer extension counts)
+- `DataSegment`: Red/green data segments with client service ID, offset, length, optional checkpoint fields, and embedded data payload
+- `ReportAckSegment`: Report acknowledgment segments
+- `CancelSegment`: Cancel segments (sender/receiver) with reason codes
+- `SEGMENTFUNCTIONS` dict maps LTPSegmentType to segment class
+
+**segment_enum.py** - LTP enumerations
+
+- `LTPSegmentType`: Segment type identifiers (DATA_RED, DATA_GREEN, DATA_RED_CP, DATA_RED_CP_EORP, DATA_RED_CP_EORP_EOB, DATA_GREEN_EOB, REPORT_ACK, CANCEL_SENDER, CANCEL_RECV, etc.)
+- `CancelReasonCode`: Cancel reason codes per RFC 5326 (CLIENT_CANCELED, UNREACHABLE, SYS_CNCLD, MISCOLORED, SYS_ERROR, RETRY_EXCEED)
+
 **utils.py** - Utility functions
 
 - `parse_eid_string()`: Convert EID string to CBOR array
 - `format_eid()`: Convert CBOR array to EID string
 - `calculate_crc()`: Compute CRC16/CRC32 checksums
 - `bundle_converter()`: Marshal bundle structures to CBOR bytes
+- `encode_sdnv()`: Encode integers as Self-Delimiting Numeric Values
+- `decode_sdnv()`: Decode SDNV bytes, returns (value, bytes_consumed)
 - `DTN_EPOCH`: DTN epoch constant (2000-01-01 00:00:00 UTC)
 
 ### Data Flow
@@ -163,11 +187,38 @@ A BPv7 bundle consists of:
 3. Call `update_crc()` on modified blocks to recalculate checksums
 4. Serialize modified bundle to bytes
 
+**Parsing an LTP segment:**
+
+1. Bytes → `LTP.__init__()` → `LTP.unpack()`
+2. Extract control byte to determine segment type
+3. Look up segment class in `SEGMENTFUNCTIONS` dict
+4. Deserialize via `bundle_converter.structure()` to appropriate segment class
+5. If DataSegment with client_service_id=1, attempt to parse embedded BPv7 bundle
+6. Store parsed bundle in `LTP.bpv7` attribute
+
+**Creating an LTP segment:**
+
+1. Instantiate `LTP()` → creates empty `LTPSegment`
+2. Create appropriate segment instance (DataSegment, ReportAckSegment, CancelSegment)
+3. Set segment parameters (session info, type-specific fields)
+4. For DataSegment containing bundles: set `LTP.bpv7` to BPv7 instance
+5. Convert to bytes: `bytes(ltp_packet)` → automatically serializes embedded bundle if present
+
+**Modifying an LTP segment with embedded bundle:**
+
+1. Parse existing LTP segment
+2. Modify embedded `ltp.bpv7` bundle attributes
+3. Serialize LTP packet: embedded bundle is automatically re-serialized and data segment updated
+
 ## Important Notes
 
 ### CBOR Encoding
 
 All bundle data is CBOR-encoded per RFC 9171. Use `cbor2` library for encoding/decoding extension block data payloads.
+
+### SDNV Encoding
+
+LTP segments use Self-Delimiting Numeric Values (SDNV) for variable-length integer fields. Use `encode_sdnv()` and `decode_sdnv()` from `utils.py` for encoding/decoding. SDNVs are used for session IDs, serial numbers, offsets, lengths, and other numeric fields in LTP headers.
 
 ### CRC Handling
 
@@ -185,6 +236,10 @@ Use `parse_eid_string()` and `format_eid()` for conversions.
 ### Block Ordering
 
 Canonical blocks are stored in an `OrderedDict` and maintain insertion order. The payload block should typically be last.
+
+### BPv7 and dpkt Integration
+
+The `BPv7` class implements `__bool__()` (always returns True) and `__len__()` (returns actual serialized size) to properly integrate with dpkt's packet handling. This ensures truthiness checks work correctly and length calculations reflect CBOR's variable-length encoding rather than fixed header sizes.
 
 ### Testing Philosophy
 
