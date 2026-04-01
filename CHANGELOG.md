@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] 2026-04-01
+
+### Added
+
+- Support LTP Data segments
+- Support parsing of bundles within Data Segments
+
 ## [0.4.0] 2026-03-26
 
 ### Added

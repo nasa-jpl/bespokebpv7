@@ -1,7 +1,6 @@
-# Version 0.4.0
+# Version 0.4.1
 
 ## Added
 
-- Minimal BCB support, all security operations are up to user
-- Minimal LTP support, report, cancel, and their respective ACKs
-- Documents for Claude and ed3d-plugins
+- Support LTP Data segments
+- Support parsing of bundles within Data Segments
