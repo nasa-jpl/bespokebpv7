@@ -107,3 +107,15 @@ print(mod_bundle)
 # Get hex string representation
 print(bytes(mod_bundle).hex())
 ```
+
+### Kind Setup
+
+Dependency setup:
+helm install arc --namespace arc-systems --create-namespace oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller
+
+Enterprise Repo Cert setup:
+kubectl create namespace arc-runners
+kubectl -n arc-runners create configmap ca-cert --from-file=egithub.crt="./egithub.crt"
+
+Runner install:
+helm install arc-runner-set --namespace arc-runners --create-namespace --set githubConfigUrl="<https://github.jpl.nasa.gov/PTL/bespokebpv7>" --set "githubServerTLS.certificateFrom.configMapKeyRef.name=ca-cert" --set "githubServerTLS.certificateFrom.configMapKeyRef.key=egithub.crt" --set githubConfigSecret.github_token="<git_token>" oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
