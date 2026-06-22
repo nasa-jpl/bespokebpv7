@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Verification and Validation Test
  Author: Nate Richard
- Modified: 02/02/2026
+ Modified: 06/22/2026
  Company: JPL
  Date:   01/29/2026
 
@@ -44,13 +44,11 @@ import socket
 import sys
 import threading
 import time
-from unittest.mock import patch
 
 import cbor2
 
 from bespokebpv7.block_enum import BlockType, CRCType  # type: ignore[import-untyped]
 from bespokebpv7.bpv7 import BPv7  # type: ignore[import-untyped]
-from bespokebpv7.utils import bundle_converter  # type: ignore[import-untyped]
 
 received_responses: list[bytes] = []
 
@@ -127,13 +125,12 @@ def create_bundle(
 
 
 def generate_malformed_bytes(
-    target_data: list | str | int, injection_bytes: bytes = b"deadbeef"
+    target_block_type: BlockType, injection_bytes: bytes = b"deadbeef"
 ) -> bytes:
     """Generate a bundle with bad extension block data.
 
     Args:
-        target_data: The specific Python object (list, int, etc.) inside the block
-                     that we want to corrupt during serialization.
+        target_block_type: Blocktype to malicously modify
         injection_bytes: The bad bytes to add to the target's valid CBOR.
 
     Returns:
@@ -142,19 +139,12 @@ def generate_malformed_bytes(
     """
     bundle = BPv7(create_bundle(crc=True, creation=True, add_ext=True))
 
-    # Catch original
-    original_dumps = bundle_converter.dumps
+    target_block = bundle.get_block_by_type(target_block_type)
 
-    def malicious_dumps(obj: list | str | int, *args, **kwargs) -> bytes:
-        if obj == target_data:
-            return injection_bytes + original_dumps(obj, *args, **kwargs)
-        return original_dumps(obj, *args, **kwargs)
+    if target_block:
+        target_block.data_prefix = injection_bytes
 
-    # This is where we need to override data serialization, so our bad data gets through
-    with patch(
-        "bespokebpv7.ext_functions.bundle_converter.dumps", side_effect=malicious_dumps
-    ):
-        return bytes(bundle)
+    return bytes(bundle)
 
 
 if __name__ == "__main__":
@@ -190,7 +180,7 @@ if __name__ == "__main__":
             "Payload block number != 1",
             create_bundle(crc=True, creation=True, pldnum=99),
         ),
-        ("Malformed Hop Count", generate_malformed_bytes([5, 10])),
+        ("Malformed Hop Count", generate_malformed_bytes(BlockType.HOP_COUNT)),
         ("No Primary CRC and no BIB", create_bundle(creation=True)),
         ("Creation Time 0 and no Bundle Age block", create_bundle(crc=True)),
     ]

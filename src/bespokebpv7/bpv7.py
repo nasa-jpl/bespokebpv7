@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Protocol v7 Class
  Author: Nate Richard
- Modified: 03/31/2026
+ Modified: 06/22/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -110,20 +110,25 @@ class BPv7(dpkt.Packet):
         return f"BPv7('{src}, {dest}, flags={self.primary_block.flags})"
 
     def __bytes__(self) -> bytes:
-        """Serialize as an indefinite CBOR array (0x9f ... 0xff).
+        """
+        Serialize as an indefinite CBOR array (0x9f ... 0xff),
+        supporting raw primary overrides.
 
         Returns:
-            bundle as byte string
+            bundle byte-string
 
         """
-        pb_list = bundle_converter.unstructure(self.primary_block)
+        if self.primary_block.raw_override is not None:
+            pb_bytes = self.primary_block.raw_override
+        else:
+            pb_list = bundle_converter.unstructure(self.primary_block)
+            pb_bytes = bundle_converter.dumps(pb_list)
 
         ext_lists = [
             bundle_converter.unstructure(extblock) for extblock in self.blocks.values()
         ]
 
-        all_blocks = [pb_list, *ext_lists]
-        body = b"".join(bundle_converter.dumps(b) for b in all_blocks)
+        body = pb_bytes + b"".join(bundle_converter.dumps(b) for b in ext_lists)
         return b"\x9f" + body + b"\xff"
 
     def __bool__(self) -> bool:

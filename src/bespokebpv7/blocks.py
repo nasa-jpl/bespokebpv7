@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: BPv7 Block Classes & helper functions
  Author: Nate Richard
- Modified: 01/27/2026
+ Modified: 06/22/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -146,6 +146,10 @@ class CanonicalBlock(BaseBlock):
     block_number: int = field(default=1, converter=int)  # cannot be 0 (primary)
     data: bytes = field(factory=bytes)
 
+    # Support native malformed data injection
+    data_prefix: bytes = field(default=b"")
+    data_override: bytes | None = field(default=None)
+
     replica_fragment = flag_property(BlockFlags.REPLICATE_FRAGMENT)
     status_report = flag_property(BlockFlags.STATUS_BUNDLE)
     delete_bundle = flag_property(BlockFlags.DELETE_BUNDLE)
@@ -176,24 +180,28 @@ class CanonicalBlock(BaseBlock):
 
     def _unstructure(self) -> list:
         """
-        Convert CanonicalBlock to CBOR list.
+        Convert CanonicalBlock to CBOR list, applying overrides if present.
 
         Returns:
             list of canonical block parameters
 
         """
+        # allow full override
+        block_data = self.data_override if self.data_override is not None else self.data
+
+        # ensure it's converted to bytes
+        if not isinstance(block_data, bytes):
+            block_data = bundle_converter.dumps(block_data)
+
+        block_data = self.data_prefix + block_data
+
         out: list[int | bytes] = [
             int(self.block_type),
             self.block_number,
             int(self.flags),
             int(self.crc_type),
+            block_data,
         ]
-
-        # Process data - ensure it's bytes
-        if not isinstance(self.data, bytes):
-            out.append(bundle_converter.dumps(self.data))
-        else:
-            out.append(self.data)
 
         if self.crc_type != CRCType.NONE and self.crc:
             out.append(self.crc)
@@ -209,6 +217,10 @@ class PrimaryBlock(BaseBlock):
     route: BundleRoute = field(factory=BundleRoute)
     life: BundleLife = field(factory=BundleLife)
     fragmentation: BundleFragmentation | None = None
+
+    list_override: list | None = field(default=None)
+    extra_elements: list = field(factory=list)
+    raw_override: bytes | None = field(default=None)
 
     is_fragment = flag_property(BundleFlags.IS_FRAGMENT)
     adu_is_admin = flag_property(BundleFlags.ADU_IS_ADMIN_RECORD)
@@ -270,12 +282,17 @@ class PrimaryBlock(BaseBlock):
 
     def _unstructure(self) -> list:
         """
-        Convert PrimaryBlock to CBOR list.
+        Convert PrimaryBlock to CBOR list, applying overrides if present.
 
         Returns:
             list of primary block parameters
 
         """
+        # Override block layout
+        if self.list_override is not None:
+            return self.list_override
+
+        # Baseline compliant layout
         out: list[int | list | bytes] = [
             self.version,
             int(self.flags),
@@ -288,12 +305,17 @@ class PrimaryBlock(BaseBlock):
         ]
 
         if self.is_fragment and self.fragmentation:
-            out.extend(
-                [self.fragmentation.fragment_offset, self.fragmentation.total_adu_len]
-            )
+            out.extend([
+                self.fragmentation.fragment_offset,
+                self.fragmentation.total_adu_len,
+            ])
 
         if self.crc_type != CRCType.NONE and self.crc:
             out.append(self.crc)
+
+        # inject extra elements
+        if self.extra_elements:
+            out.extend(self.extra_elements)
 
         return out
 
