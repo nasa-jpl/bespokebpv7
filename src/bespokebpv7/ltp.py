@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Licklider Transmission Protocol Class
  Author: Nate Richard
- Modified: 03/31/2026
+ Modified: 06/22/2026
  Company: JPL
  Date:   03/25/2026
 
@@ -64,6 +64,10 @@ class LTP(dpkt.Packet):
         self.bpv7: BPv7 | None = None
         super().__init__(*args, **kwargs)
 
+        self.raw_prefix: bytes = b""
+        self.raw_trailer: bytes = b""
+        self.raw_override: bytes | None = None
+
     def unpack(self, buf: bytes) -> None:
         """Unpack raw bytes into the appropriate LTP segment.
 
@@ -98,13 +102,17 @@ class LTP(dpkt.Packet):
         if self.segment is None:
             return b""
 
+        if self.raw_override is not None:
+            return self.raw_override
+
         if isinstance(self.segment, DataSegment) and self.bpv7 is not None:
             updated_bundle_bytes = bytes(self.bpv7)
-
             self.segment.data = updated_bundle_bytes
             self.segment.client_length = len(updated_bundle_bytes)
 
-        return bundle_converter.unstructure(self.segment)
+        seg_bytes = bundle_converter.unstructure(self.segment)
+
+        return self.raw_prefix + seg_bytes + self.raw_trailer
 
     def __str__(self) -> str:
         """Friendly display for debugging.

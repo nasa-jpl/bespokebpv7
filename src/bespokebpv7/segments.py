@@ -18,7 +18,7 @@
  Author: Nate Richard
  Modified: 03/31/2026
  Company: JPL
- Date:   03/24/2026
+ Date:   06/22/2026
 
  File: ext_functions
  Description:
@@ -66,6 +66,8 @@ class LTPSegment:
     # Internal tracker for deserialization
     _offset: int = field(default=0, init=False, repr=False)
 
+    header_mutation: bytes = field(default=b"")
+
     def _unstructure(self) -> bytes:
         """Serialize the common LTP header into bytes.
 
@@ -84,6 +86,9 @@ class LTPSegment:
 
         ext_counts = ((self.header_count & 0x0F) << 4) | (self.trailer_count & 0x0F)
         buf.append(ext_counts)
+
+        if self.header_mutation:
+            buf.extend(self.header_mutation)
 
         return bytes(buf)
 
