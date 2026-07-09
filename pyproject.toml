@@ -3,7 +3,22 @@ name = "bespokebpv7"
 version = "0.4.1"
 description = "Generate whatever format of BPv7 bundles"
 readme = "README.md"
-requires-python = ">=3.10.19"
+requires-python = ">=3.10"
+authors = [
+    { name = "Nate Richard", email = "nrichard@jpl.nasa.gov" }
+]
+keywords = ["dtn", "bp", "ltp"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: System :: Networking",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
 dependencies = [
     "attrs>=25.4.0",
     "cattrs>=25.3.0",
