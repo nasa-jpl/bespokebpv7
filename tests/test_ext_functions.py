@@ -49,6 +49,7 @@ from bespokebpv7.block_enum import (  # type: ignore[import-untyped]
     CREBFlags,
 )
 from bespokebpv7.ext_functions import (  # type: ignore[import-untyped]
+    BPQExt,
     BundleAgeExt,
     CompressedReportingExt,
     CustodyTransferExt,
@@ -234,3 +235,37 @@ def test_creb_additional_flags() -> None:
 
         setattr(creb, prop_name, False)
         assert not getattr(creb, prop_name)
+
+
+@given(
+    st.integers(min_value=0, max_value=255),  # qos_flags
+    st.integers(min_value=0, max_value=255),  # class_of_service
+    st.integers(min_value=0),  # ordinal
+    st.integers(min_value=0),  # data_label
+)
+def test_qos_ext(
+    qos_flags: int, class_of_service: int, ordinal: int, data_label: int
+) -> None:
+    """Verify Quality of Service (QoS) extension creation and roundtrip."""
+    qos_block = BPQExt(block_type=BlockType.QOS)
+    qos_block.qos_flags = qos_flags
+    qos_block.class_of_service = class_of_service
+    qos_block.ordinal = ordinal
+    qos_block.data_label = data_label
+
+    out_list = bundle_converter.unstructure(qos_block)
+
+    assert cbor2.loads(out_list[4]) == [
+        qos_flags,
+        class_of_service,
+        ordinal,
+        data_label,
+    ]
+
+    qos_new = bundle_converter.structure(out_list, BPQExt)
+
+    assert qos_new.block_type == BlockType.QOS
+    assert qos_new.qos_flags == qos_flags
+    assert qos_new.class_of_service == class_of_service
+    assert qos_new.ordinal == ordinal
+    assert qos_new.data_label == data_label

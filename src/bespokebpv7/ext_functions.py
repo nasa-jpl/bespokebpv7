@@ -99,7 +99,7 @@ class PreviousNodeExt(CanonicalBlock):
 
     @property
     def previous_node(self) -> str:
-        """Return source EID"""
+        """Source EID"""
         return format_eid(self._previous_node)
 
     @previous_node.setter
@@ -188,7 +188,7 @@ class CustodyTransferExt(CanonicalBlock):
 
     @property
     def block_src_admin_eid(self) -> str:
-        """Return source EID"""
+        """Source EID"""
         return format_eid(self._block_src_admin_eid)
 
     @block_src_admin_eid.setter
@@ -221,13 +221,11 @@ class CustodyTransferExt(CanonicalBlock):
             Converted class to list
 
         """
-        self.data = bundle_converter.dumps(
-            [
-                self.sequence_num,
-                self.sequence_id,
-                self._block_src_admin_eid,
-            ]
-        )
+        self.data = bundle_converter.dumps([
+            self.sequence_num,
+            self.sequence_id,
+            self._block_src_admin_eid,
+        ])
         return super()._unstructure()
 
 
@@ -279,7 +277,7 @@ class CompressedReportingExt(CanonicalBlock):
 
     @property
     def block_src_admin_eid(self) -> str | None:
-        """Return source EID
+        """Source EID
 
         Returns:
             Block source admin EID as string if exists
@@ -298,7 +296,7 @@ class CompressedReportingExt(CanonicalBlock):
 
     @property
     def report_to_eid(self) -> str | None:
-        """Return report to EID
+        """Report to EID
 
         Returns:
             Report to EID as string if exists
@@ -360,6 +358,54 @@ class CompressedReportingExt(CanonicalBlock):
         return super()._unstructure()
 
 
+@define
+class BPQExt(CanonicalBlock):
+    """Class definition for Quality of Service (QoS) extension block."""
+
+    qos_flags: int = field(default=0)
+    class_of_service: int = field(default=0)
+    ordinal: int = field(default=0)
+    data_label: int = field(default=0)
+
+    qos_array_len = 4
+
+    def __attrs_post_init__(self) -> None:
+        """Set block type"""
+        self.block_type = BlockType.QOS
+
+    @classmethod
+    def _structure(cls, data: list) -> Self:
+        """Structure QoSExt from CBOR list.
+
+        Returns:
+            Populated QoS Extension
+
+        """
+        block = super()._structure(data)
+        qos_data = bundle_converter.loads(block.data, list)
+        if len(qos_data) == block.qos_array_len:  # pylint: disable=E1101
+            block.qos_flags = qos_data[0]
+            block.class_of_service = qos_data[1]
+            block.ordinal = qos_data[2]
+            block.data_label = qos_data[3]
+        return block
+
+    def _unstructure(self) -> list:
+        """Unstructure QoSExt to CBOR list.
+
+        Returns:
+            Converted class to list
+
+        """
+        self.data = bundle_converter.dumps([
+            self.qos_flags,
+            self.class_of_service,
+            self.ordinal,
+            self.data_label,
+        ])
+        return super()._unstructure()
+
+
 BLOCKFUNCTIONS = {
     BlockType.BIB: BlockIntegrityBlock,
     BlockType.BCB: BlockConfidentialityBlock,
@@ -369,5 +415,6 @@ BLOCKFUNCTIONS = {
     BlockType.HOP_COUNT: HopCountExt,
     BlockType.CTEB: CustodyTransferExt,
     BlockType.CREB: CompressedReportingExt,
+    BlockType.QOS: BPQExt,
     BlockType.UNKNOWN_BLOCK: CanonicalBlock,
 }
