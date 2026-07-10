@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] 2026-07-09
+
+### Added
+
+- ION QoS Extension block support
+- Native bundle & Segment mangling/modification
+
+### Changed
+
+- Update cbor2 version requirement
+- Fix timing issue on status-rpt example
+
+### Added
+
+- Support LTP Data segments
+- Support parsing of bundles within Data Segments
+
 ## [0.4.1] 2026-04-01
 
 ### Added
