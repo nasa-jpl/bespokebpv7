@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Utility functions for bundle processing
  Author: Nate Richard
- Modified: 03/24/2026
+ Modified: 07/13/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -53,6 +53,9 @@ from bespokebpv7.block_enum import CRCType, SchemeCode
 __all__ = ["DTN_EPOCH", "calculate_crc", "format_eid", "parse_eid_string"]
 
 DTN_EPOCH = datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc)
+LOCAL_NODE = 2**32 - 1
+LEGACY_LIST = 2
+ALLOCATOR_LIST = 3
 
 
 def calculate_crc(block_list: list, crc_type: CRCType) -> bytes | None:
@@ -80,57 +83,127 @@ def calculate_crc(block_list: list, crc_type: CRCType) -> bytes | None:
     return None
 
 
-def parse_eid_string(eid_str: str) -> list[int | list[int] | str]:
-    """Convert 'ipn:node.service' or 'dtn:name' into CBOR list format.
-    - ipn:3.1 -> [2, 3, 1]
-    - dtn:node1 -> [1, "node1"]
+def parse_eid_string(eid_str: str | list) -> list:
+    """Convert 'ipn:allocator.node.service', 'ipn:node.service' or 'dtn:name'
+    into CBOR list format.
 
     Returns:
-        list where first element is scheme type, the either a list of ints for
-        IPN scheme or a string for a DTN scheme
+        A logical 3-element list for IPN [SchemeCode.IPN, [allocator, node, service]]
+        or a DTN scheme list.
+
+    Raises:
+        ValueError: if given format does not match a valid scheme
 
     """
-    # attrs converter maybe sending lists, so just return them
     if isinstance(eid_str, list):
+        if (
+            eid_str[0] == SchemeCode.IPN
+            and isinstance(eid_str[1], list)
+            and len(eid_str[1]) == LEGACY_LIST
+        ):
+            fqnn, service = eid_str[1]
+            allocator = fqnn >> 32
+            node = fqnn & 0xFFFFFFFF
+            return (
+                [int(SchemeCode.DTN), 0]
+                if allocator == 0 and node == 0
+                else [int(SchemeCode.IPN), [allocator, node, service]]
+            )
         return eid_str
+
     if ":" not in eid_str:
         return [int(SchemeCode.DTN), eid_str]
-    scheme, ssp = eid_str.split(":")
+
+    scheme, ssp = eid_str.split(":", 1)
+
     if scheme.lower() == "ipn":
         parts = ssp.split(".")
-        node = int(parts[0])
-        service = int(parts[1]) if len(parts) > 1 else 0
-        return [int(SchemeCode.IPN), [node, service]]
+        if len(parts) == LEGACY_LIST:
+            allocator = 0
+            node_str = parts[0]
+            service = int(parts[1])
+        elif len(parts) == ALLOCATOR_LIST:
+            allocator = int(parts[0])
+            node_str = parts[1]
+            service = int(parts[2])
+        else:
+            errmsg = "Invalid ipn URI format."
+            raise ValueError(errmsg)
 
-    # assume some sort of type conversion error as a CBOR unsigned int of 0
-    # means dtn:none per RFC 9171 4.2.5.11
-    if ssp in {"0", "none"}:
-        return [int(SchemeCode.DTN), 0]
-    return [int(SchemeCode.DTN), ssp]
+        node = LOCAL_NODE if node_str == "!" else int(node_str)
+
+        return (
+            [int(SchemeCode.DTN), 0]
+            if allocator == 0 and node == 0
+            else [int(SchemeCode.IPN), [allocator, node, service]]
+        )
+
+    return [int(SchemeCode.DTN), 0 if ssp in {"0", "none"} else ssp]
 
 
 def format_eid(eid: list) -> str:
     """Parse the EID array at primary_block[eid_index] into a URI string.
 
     Returns:
-        A string representation of the endpoint
+        A string representation of the endpoint.
 
     """
     scheme = SchemeCode(eid[0])
 
     if scheme == SchemeCode.IPN:
-        # ipn format: [2, [node_number, service_number]] -> ipn:node.service
-        node_nums = eid[1]
-        return f"ipn:{node_nums[0]}.{node_nums[1]}"
+        ssp = eid[1]
+        if len(ssp) == LEGACY_LIST:
+            # Handle standard FQNN unpacking just in case it slipped through
+            fqnn, service = ssp
+            allocator = fqnn >> 32
+            node = fqnn & 0xFFFFFFFF
+        else:
+            allocator, node, service = ssp
+
+        node_str = "!" if node == LOCAL_NODE else str(node)
+
+        # Omit allocator if it is the Default Allocator (0)
+        if allocator == 0:
+            return f"ipn:{node_str}.{service}"
+        return f"ipn:{allocator}.{node_str}.{service}"
 
     if scheme == SchemeCode.DTN:
-        # dtn format: [1, "string-name"] -> dtn:string-name
         dtnstr = eid[1]
         if dtnstr == 0 or dtnstr is None:
             dtnstr = "none"
         return f"dtn:{dtnstr}"
 
     return "unknown:none"
+
+
+def unstructure_eid_list(obj: list) -> list:
+    """List hook, which forces 2-element CBOR encoding for Default Allocators.
+
+    Returns:
+        unstructured list
+
+    """
+    # Check if this is an IPN EID list
+    if (
+        len(obj) == LEGACY_LIST
+        and obj[0] == SchemeCode.IPN
+        and isinstance(obj[1], list)
+    ):
+        ssp = obj[1]
+        if len(ssp) == ALLOCATOR_LIST:
+            allocator, node, service = ssp
+            # Fall back to 2-element encoding for backwards compatibility
+            if allocator == 0:
+                # Pack FQNN:
+                # Most significant 32 bits = Allocator
+                # Least significant 32 bits = Node Number
+                fqnn = (allocator << 32) | (node & 0xFFFFFFFF)
+                return [obj[0], [fqnn, service]]
+            # 3-element encoding is RECOMMENDED for non-default allocators
+            return [obj[0], [allocator, node, service]]
+
+    # For all other standard lists, apply recursive unstructuring
+    return [bundle_converter.unstructure(item) for item in obj]
 
 
 def decode_cbor_sequence(data: bytes) -> list:
@@ -248,3 +321,4 @@ def decode_sdnv(data: bytes) -> tuple[int, int]:
 
 bundle_converter = make_converter()
 use_class_methods(bundle_converter, "_structure", "_unstructure")
+bundle_converter.register_unstructure_hook(list, unstructure_eid_list)
