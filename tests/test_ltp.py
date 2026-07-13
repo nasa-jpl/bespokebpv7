@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bespoke BPv7 test suite for ltp.py
  Author: Nate Richard
- Modified: 03/31/2026
+ Modified: 07/13/2026
  Company: JPL
  Date:   03/25/2026
 
@@ -51,6 +51,10 @@ from bespokebpv7.segments import (
     DataSegment,
     LTPSegmentType,
     ReportAckSegment,
+)
+from bespokebpv7.utils import (  # type: ignore[import-untyped]
+    format_eid,
+    parse_eid_string,
 )
 
 
@@ -121,8 +125,8 @@ def test_ltp_bpv7_integration(
     src_eid: str, dst_eid: str, payload: bytes, session_orig: int, session_num: int
 ) -> None:
     """Verify that LTP automatically parses embedded BPv7 bundles."""
-    expected_src = src_eid if src_eid != "dtn:0" else "dtn:none"
-    expected_dst = dst_eid if dst_eid != "dtn:0" else "dtn:none"
+    expected_src = format_eid(parse_eid_string(src_eid))
+    expected_dst = format_eid(parse_eid_string(dst_eid))
 
     bundle = BPv7()
     bundle.primary_block.route.source_eid = src_eid

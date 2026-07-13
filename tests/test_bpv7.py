@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bespoke BPv7 test suite for bpv7.py
  Author: Nate Richard
- Modified: 01/27/2026
+ Modified: 07/13/2026
  Company: JPL
  Date:   01/14/2026
 
@@ -50,17 +50,16 @@ from bespokebpv7 import (
     BundleFlags,
     CRCType,
 )
-from bespokebpv7.blocks import ( 
+from bespokebpv7.blocks import (
     CanonicalBlock,
     CanonicalBlockInit,
     PrimaryBlock,
 )
-from bespokebpv7.bundle_params import ( 
+from bespokebpv7.bundle_params import (
     BundleFragmentation,
 )
-from bespokebpv7.ext_functions import BundleAgeExt 
+from bespokebpv7.ext_functions import BundleAgeExt
 from bespokebpv7.utils import bundle_converter
-
 
 
 # ==========================================
@@ -100,13 +99,8 @@ def test_bpv7_add_blocks() -> None:
 @given(st_eid, st_eid, st_data)
 def test_bpv7_pack_unpack_roundtrip(src: str, dst: str, payload: bytes) -> None:
     """Full serialization round trip."""
-    expected_src = src
-    expected_dest = dst
-    if src == "dtn:0":
-        expected_src = "dtn:none"
-
-    if dst == "dtn:0":
-        expected_dest = "dtn:none"
+    expected_src = format_eid(parse_eid_string(src))
+    expected_dest = format_eid(parse_eid_string(dst))
 
     age = 300
     b1 = BPv7()

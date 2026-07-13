@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bespoke BPv7 test suite for blocks.py
  Author: Nate Richard
- Modified: 01/27/2026
+ Modified: 07/13/2026
  Company: JPL
  Date:   01/27/2026
 
@@ -50,7 +50,7 @@ from bespokebpv7 import (
     BundleFlags,
     BPv7,
 )
-from bespokebpv7.blocks import ( 
+from bespokebpv7.blocks import (
     CanonicalBlock,
     CanonicalBlockInit,
     PrimaryBlock,
@@ -93,13 +93,8 @@ def test_primary_block_serialization_roundtrip(
     src: str, dst: str, lifetime: int
 ) -> None:
     """Verify primary block encodes and decodes correctly."""
-    expected_src = src
-    expected_dest = dst
-    if src == "dtn:0":
-        expected_src = "dtn:none"
-
-    if dst == "dtn:0":
-        expected_dest = "dtn:none"
+    expected_src = format_eid(parse_eid_string(src))
+    expected_dest = format_eid(parse_eid_string(dst))
 
     pb = PrimaryBlock()
     pb.route.source_eid = src

@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bespoke BPv7 test suite for ext_functions.py
  Author: Nate Richard
- Modified: 01/27/2026
+ Modified: 07/13/2026
  Company: JPL
  Date:   01/27/2026
 
@@ -58,6 +58,7 @@ from bespokebpv7.ext_functions import (
 )
 from bespokebpv7.utils import ( 
     bundle_converter,
+    format_eid,
     parse_eid_string,
 )
 
@@ -87,9 +88,7 @@ def test_bundle_age_ext() -> None:
 @given(st_eid)
 def test_previous_node_ext(prev_eid: str) -> None:
     """Verify previous node creation"""
-    expected_prev = prev_eid
-    if prev_eid == "dtn:0":
-        expected_prev = "dtn:none"
+    expected_prev = format_eid(parse_eid_string(prev_eid))
     cbor_pn = parse_eid_string(expected_prev)
 
     pnb = PreviousNodeExt()
@@ -97,7 +96,8 @@ def test_previous_node_ext(prev_eid: str) -> None:
     pnb.previous_node = expected_prev
 
     out_list = bundle_converter.unstructure(pnb)
-    assert cbor2.loads(out_list[4]) == cbor_pn
+
+    assert cbor2.loads(out_list[4]) == bundle_converter.unstructure(cbor_pn)
 
     pnb_new = bundle_converter.structure(out_list, PreviousNodeExt)
     assert pnb_new.previous_node == expected_prev
@@ -122,9 +122,7 @@ def test_hop_count_ext(hop_limit: int, hop_count: int) -> None:
 @given(st.integers(min_value=0), st.integers(min_value=0), st_eid)
 def test_ct_ext(seq_num: int, seq_id: int, admin_eid: str) -> None:
     """Verify custody transfer creation"""
-    expected_admin = admin_eid
-    if admin_eid == "dtn:0":
-        expected_admin = "dtn:none"
+    expected_admin = format_eid(parse_eid_string(admin_eid))
 
     cteb = CustodyTransferExt(block_type=BlockType.CTEB)
     cteb.sequence_num = seq_num
@@ -132,7 +130,9 @@ def test_ct_ext(seq_num: int, seq_id: int, admin_eid: str) -> None:
     cteb.block_src_admin_eid = expected_admin
 
     out_list = bundle_converter.unstructure(cteb)
-    assert cbor2.loads(out_list[4]) == [seq_num, seq_id, parse_eid_string(admin_eid)]
+
+    wire_admin_eid = bundle_converter.unstructure(parse_eid_string(expected_admin))
+    assert cbor2.loads(out_list[4]) == [seq_num, seq_id, wire_admin_eid]
 
     cteb_new = bundle_converter.structure(out_list, CustodyTransferExt)
     assert cteb_new.sequence_num == seq_num
@@ -145,36 +145,44 @@ def test_cr_ext(params: tuple[int, int, int, str, str, int]) -> None:
     """Verify custody report creation"""
     seq_num, seq_id, int_flag, admin_eid, report_eid, array_len = params
 
-    expected_admin = admin_eid
-    expected_report = report_eid
-    if admin_eid == "dtn:0":
-        expected_admin = "dtn:none"
+    expected_admin = format_eid(parse_eid_string(admin_eid))
+    expected_report = format_eid(parse_eid_string(report_eid))
 
-    if report_eid == "dtn:0":
-        expected_report = "dtn:none"
-
-    # since length can vary we'll truncate after the fact based on array_len value
-    inputs_total = [
+    obj_vals = [
         seq_num,
         seq_id,
         int_flag,
-        parse_eid_string(expected_admin),
-        parse_eid_string(expected_report),
-    ]
-    inputs = inputs_total[:array_len]
+        expected_admin,
+        expected_report,
+    ][:array_len]
 
     creb = CompressedReportingExt(block_type=BlockType.CREB)
-    for idx, val in enumerate(inputs):
-        key = creb.__slots__[idx]  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
-        setattr(creb, key, val)
+
+    cbor_index_map = {
+        0: "sequence_num",
+        1: "sequence_id",
+        2: "status_report_flags",
+        3: "block_src_admin_eid",
+        4: "report_to_eid",
+    }
+
+    for idx, val in enumerate(obj_vals):
+        setattr(creb, cbor_index_map[idx], val)
 
     out_list = bundle_converter.unstructure(creb)
-    assert cbor2.loads(out_list[4]) == inputs
+
+    expected_wire = [
+        bundle_converter.unstructure(parse_eid_string(v)) if isinstance(v, str) else v
+        for v in obj_vals
+    ]
+
+    assert cbor2.loads(out_list[4]) == expected_wire
 
     creb_new = bundle_converter.structure(out_list, CompressedReportingExt)
-    for idx, val in enumerate(inputs):
-        key = creb_new.__slots__[idx]  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
-        assert getattr(creb_new, key) == val
+
+    for idx, val in enumerate(obj_vals):
+        # Assert against the public property instead of the slot
+        assert getattr(creb_new, cbor_index_map[idx]) == val
 
 
 def test_cr_ext_flags() -> None:
@@ -191,13 +199,8 @@ def test_cr_ext_flags() -> None:
 @given(st_eid, st_eid)
 def test_cr_ext_eids(admin_eid: str, report_eid: str) -> None:
     """Verify CREB EIDs are set correctly."""
-    expected_admin = admin_eid
-    expected_report = report_eid
-    if admin_eid == "dtn:0":
-        expected_admin = "dtn:none"
-
-    if report_eid == "dtn:0":
-        expected_report = "dtn:none"
+    expected_admin = format_eid(parse_eid_string(admin_eid))
+    expected_report = format_eid(parse_eid_string(report_eid))
 
     # need to fill rest of array
     seq_id = 0

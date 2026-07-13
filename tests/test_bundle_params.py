@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bespoke BPv7 test suite for bundle_params.py
  Author: Nate Richard
- Modified: 01/27/2026
+ Modified: 07/13/2026
  Company: JPL
  Date:   01/27/2026
 
@@ -44,7 +44,7 @@ import datetime
 from hypothesis import given
 from strategies import st_eid
 
-from bespokebpv7.bundle_params import ( 
+from bespokebpv7.bundle_params import (
     BundleLife,
     BundleRoute,
     StatusAssertion,
@@ -58,13 +58,8 @@ from bespokebpv7 import DTN_EPOCH
 @given(st_eid, st_eid)
 def test_bundle_route(src: str, dst: str) -> None:
     """Verify values are stored correctly in BundleRoute class."""
-    expected_src = src
-    expected_dest = dst
-    if src == "dtn:0":
-        expected_src = "dtn:none"
-
-    if dst == "dtn:0":
-        expected_dest = "dtn:none"
+    expected_src = format_eid(parse_eid_string(src))
+    expected_dest = format_eid(parse_eid_string(dst))
 
     route = BundleRoute()
     route.source_eid = src

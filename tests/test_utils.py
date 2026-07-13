@@ -17,7 +17,7 @@
 *****************************************************************************
  Title: Bespoke BPv7 test suite for utils.py
  Author: Nate Richard
- Modified: 03/25/2026
+ Modified: 07/13/2026
  Company: JPL
  Date:   01/27/2026
 
@@ -44,13 +44,15 @@ from hypothesis import given
 from hypothesis import strategies as st
 from strategies import st_eid
 
+from bespokebpv7.block_enum import SchemeCode
 from bespokebpv7 import CRCType
-from bespokebpv7.utils import ( 
+from bespokebpv7.utils import (
     calculate_crc,
     decode_sdnv,
     encode_sdnv,
     format_eid,
     parse_eid_string,
+    unstructure_eid_list,
 )
 
 
@@ -58,27 +60,89 @@ from bespokebpv7.utils import (
 # Tests for bespokebpv7/utils.py
 # ==========================================
 @given(st_eid)
-def test_eid_roundtrip(eid_str: str) -> None:
-    """Test that parsing and then formatting an EID returns the original string."""
-    parsed = parse_eid_string(eid_str)
-    formatted = format_eid(parsed)
-    # Note: dtn:none edge case handling might result in dtn:0 -> dtn:none
-    if eid_str in {"dtn:none", "dtn:0"}:
-        assert formatted == "dtn:none"
-    else:
-        assert formatted == eid_str
+def test_eid_structural_roundtrip(eid_str: str) -> None:
+    """Test that parsing a formatted EID matches the original internal structure."""
+    initial_parsed = parse_eid_string(eid_str)
+    formatted_str = format_eid(initial_parsed)
+    second_parsed = parse_eid_string(formatted_str)
+
+    assert initial_parsed == second_parsed
 
 
 def test_parse_eid_defaults() -> None:
     """Test parsing edge cases."""
     parsed = parse_eid_string("node1")
-    assert parsed == [1, "node1"]
+    assert parsed == [int(SchemeCode.DTN), "node1"]
 
     parsed_none = parse_eid_string("dtn:none")
-    assert parsed_none == [1, 0]
+    assert parsed_none == [int(SchemeCode.DTN), 0]
 
     parsed_0 = parse_eid_string("dtn:0")
-    assert parsed_0 == [1, 0]
+    assert parsed_0 == [int(SchemeCode.DTN), 0]
+
+
+def test_parse_ipn_eid() -> None:
+    """Verify parsing of the updated IPN scheme."""
+    # Standard default allocator
+    assert parse_eid_string("ipn:1.2") == [int(SchemeCode.IPN), [0, 1, 2]]
+
+    # Explicit non-default allocator
+    assert parse_eid_string("ipn:977000.100.1") == [
+        int(SchemeCode.IPN),
+        [977000, 100, 1],
+    ]
+
+    # LocalNode shorthand
+    assert parse_eid_string("ipn:!.7") == [int(SchemeCode.IPN), [0, 4294967295, 7]]
+
+    # Unpacking FQNN from 2-element CBOR lists
+    fqnn = (977000 << 32) | 100
+    assert parse_eid_string([int(SchemeCode.IPN), [fqnn, 1]]) == [
+        int(SchemeCode.IPN),
+        [977000, 100, 1],
+    ]
+
+    # Invalid formats
+    with pytest.raises(ValueError, match=r"Invalid ipn URI format."):
+        parse_eid_string("ipn:1")
+
+
+def test_format_ipn_eid() -> None:
+    """Verify formatting of the updated IPN scheme."""
+    # Standard default allocator
+    assert format_eid([int(SchemeCode.IPN), [0, 1, 2]]) == "ipn:1.2"
+
+    # Explicit non-default allocator
+    assert format_eid([int(SchemeCode.IPN), [977000, 100, 1]]) == "ipn:977000.100.1"
+
+    # LocalNode shorthand
+    assert format_eid([int(SchemeCode.IPN), [0, 4294967295, 7]]) == "ipn:!.7"
+
+    # Formatting from 2-element CBOR lists directly
+    fqnn = (977000 << 32) | 100
+    assert format_eid([int(SchemeCode.IPN), [fqnn, 1]]) == "ipn:977000.100.1"
+
+
+def test_unstructure_eid_list() -> None:
+    """Verify the custom cattrs hook correctly handles FQNN packing."""
+    # Default allocator packs into 2 elements
+    # FQNN for allocator 0, node 1 is just 1
+    assert unstructure_eid_list([int(SchemeCode.IPN), [0, 1, 2]]) == [
+        int(SchemeCode.IPN),
+        [1, 2],
+    ]
+
+    # Non-default allocator stays as 3 elements
+    assert unstructure_eid_list([int(SchemeCode.IPN), [977000, 100, 1]]) == [
+        int(SchemeCode.IPN),
+        [977000, 100, 1],
+    ]
+
+    # Non-IPN lists should be passed through normally
+    assert unstructure_eid_list([int(SchemeCode.DTN), "node1"]) == [
+        int(SchemeCode.DTN),
+        "node1",
+    ]
 
 
 def test_calculate_crc() -> None:
@@ -128,3 +192,12 @@ def test_sdnv_incomplete_buffer() -> None:
         ValueError, match=r"Incomplete SDNV data: missing terminal byte."
     ):
         decode_sdnv(bad_data)
+
+def test_parse_ipn_null_uri() -> None:
+    """Verify that Null IPN URIs are treated as the Null EID (dtn:none)."""
+    # RFC 9758: ipn:0.0.<nonzero> is a Null URI
+    assert parse_eid_string("ipn:0.0.1") == [int(SchemeCode.DTN), 0]
+    assert parse_eid_string("ipn:0.0.12345") == [int(SchemeCode.DTN), 0]
+
+    # Case with 2-element CBOR input (FQNN=0)
+    assert parse_eid_string([int(SchemeCode.IPN), [0, 1]]) == [int(SchemeCode.DTN), 0]
