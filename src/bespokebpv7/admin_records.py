@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: BPv7 Admin Record Classes & helper functions
  Author: Nate Richard
- Modified: 01/27/2026
+ Modified: 07/14/2026
  Company: JPL
  Date:   01/20/2026
 
@@ -57,7 +57,7 @@ from bespokebpv7.bundle_params import (
     CRBundleSequence,
     CTBundleSequence,
 )
-from bespokebpv7.utils import bundle_converter, parse_eid_string
+from bespokebpv7.utils import bundle_converter, parse_eid_string, unstructure_eid_list
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -121,9 +121,10 @@ class BundleStatusReport(AdminRecord):
         status_data = bundle_converter.unstructure(self.base_status)
 
         if self.fragmentation is not None:
-            status_data.extend(
-                [self.fragmentation.fragment_offset, self.fragmentation.total_adu_len]
-            )
+            status_data.extend([
+                self.fragmentation.fragment_offset,
+                self.fragmentation.total_adu_len,
+            ])
 
         admin_payload = [self.record_type, status_data]
         self.data = bundle_converter.dumps(admin_payload)
@@ -280,7 +281,8 @@ class CompressedReportSignal(AdminRecord):
             for seq in seq_list:
                 encoded_seq = [seq.dest_seq, seq.first_seq_num, seq.seq_range]
                 if seq.block_src_admin_eid is not None:
-                    encoded_seq.append(parse_eid_string(seq.block_src_admin_eid))
+                    parsed_eid = parse_eid_string(seq.block_src_admin_eid)
+                    encoded_seq.append(unstructure_eid_list(parsed_eid))
                 encoded_collection.append(encoded_seq)
             cbor_map[int(key)] = encoded_collection
 
