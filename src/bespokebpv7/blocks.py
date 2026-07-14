@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: BPv7 Block Classes & helper functions
  Author: Nate Richard
- Modified: 06/22/2026
+ Modified: 07/14/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -62,6 +62,7 @@ from bespokebpv7.utils import (
     bundle_converter,
     calculate_crc,
     parse_eid_string,
+    unstructure_eid_list,
 )
 
 if sys.version_info >= (3, 11):
@@ -297,9 +298,9 @@ class PrimaryBlock(BaseBlock):
             self.version,
             int(self.flags),
             int(self.crc_type),
-            parse_eid_string(self.route.dest_eid),
-            parse_eid_string(self.route.source_eid),
-            parse_eid_string(self.route.report_to),
+            unstructure_eid_list(parse_eid_string(self.route.dest_eid)),
+            unstructure_eid_list(parse_eid_string(self.route.source_eid)),
+            unstructure_eid_list(parse_eid_string(self.route.report_to)),
             [self.life.timestamp_ms, self.life.sequence],
             self.life.lifetime,
         ]

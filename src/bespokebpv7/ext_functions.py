@@ -16,7 +16,7 @@
 *****************************************************************************
  Title: Bundle Extension Block functions
  Author: Nate Richard
- Modified: 03/04/2026
+ Modified: 07/14/2026
  Company: JPL
  Date:   12/19/2025
 
@@ -46,7 +46,12 @@ from attrs.converters import optional
 from bespokebpv7.block_enum import BlockType, CREBFlags
 from bespokebpv7.blocks import CanonicalBlock
 from bespokebpv7.bpsec import BlockConfidentialityBlock, BlockIntegrityBlock
-from bespokebpv7.utils import bundle_converter, format_eid, parse_eid_string
+from bespokebpv7.utils import (
+    bundle_converter,
+    format_eid,
+    parse_eid_string,
+    unstructure_eid_list,
+)
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -221,13 +226,11 @@ class CustodyTransferExt(CanonicalBlock):
             Converted class to list
 
         """
-        self.data = bundle_converter.dumps(
-            [
-                self.sequence_num,
-                self.sequence_id,
-                self._block_src_admin_eid,
-            ]
-        )
+        self.data = bundle_converter.dumps([
+            self.sequence_num,
+            self.sequence_id,
+            unstructure_eid_list(self._block_src_admin_eid),
+        ])
         return super()._unstructure()
 
 
