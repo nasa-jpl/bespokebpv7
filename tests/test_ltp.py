@@ -167,3 +167,27 @@ def test_ltp_bpv7_integration(
     final_packet = LTP(modified_bytes)
     assert final_packet.bpv7 is not None
     assert final_packet.bpv7.primary_block.route.dest_eid == "ipn:9.9"
+
+
+def test_ltp_unpack_tolerates_unparsable_carried_bundle() -> None:
+    """A data segment holding a bundle fragment must still unpack.
+
+    Only the first data segment of a block begins with a bundle header;
+    the rest carry fragments that cannot decode as bundles. Unpacking
+    such a segment must yield the segment, with no bundle attached,
+    rather than raising.
+    """
+    seg = DataSegment(
+        session_number=1,
+        client_service_id=1,
+        client_offset=1200,
+        client_length=200,
+        data=b"x" * 200,
+    )
+    seg.segment_type = LTPSegmentType.DATA_RED
+
+    packet = LTP(seg._unstructure())
+
+    assert isinstance(packet.segment, DataSegment)
+    assert packet.segment.client_offset == 1200
+    assert packet.bpv7 is None

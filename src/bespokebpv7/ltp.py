@@ -89,7 +89,13 @@ class LTP(dpkt.Packet):
             isinstance(self.segment, DataSegment)
             and self.segment.client_service_id == 1
         ):
-            with contextlib.suppress(ValueError):
+            # A data segment carries an arbitrary slice of the block, so
+            # only the first one begins with a bundle header; every other
+            # segment holds a fragment that cannot parse as a bundle.
+            # Decoding one is therefore best effort, and a failure of any
+            # kind must leave the LTP segment itself usable rather than
+            # propagating out of unpack().
+            with contextlib.suppress(Exception):
                 self.bpv7 = BPv7(self.segment.data)
 
     def __bytes__(self) -> bytes:
