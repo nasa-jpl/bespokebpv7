@@ -144,6 +144,110 @@ class LTPSegment:
 
 
 @define
+class ReportSegment(LTPSegment):
+    """Report Segment (RS), per RFC 5326 section 3.2.1.
+
+    Claim offsets are relative to the report's lower bound, not to the
+    start of the block.  A report whose single claim spans the whole
+    scope asserts complete reception of that scope; more than one claim
+    means the receiver is reporting gaps between them.
+    """
+
+    report_serial_number: int = field(default=0)
+    checkpoint_serial_number: int = field(default=0)
+    upper_bound: int = field(default=0)
+    lower_bound: int = field(default=0)
+    reception_claims: list[tuple[int, int]] = field(factory=list)
+
+    def __attrs_post_init__(self) -> None:
+        """Set segment type to Report."""
+        self.segment_type = LTPSegmentType.REPORT
+
+    @property
+    def claimed_length(self) -> int:
+        """Total number of bytes claimed as received.
+
+        Returns:
+            Sum of the lengths of every reception claim.
+
+        """
+        return sum(length for _, length in self.reception_claims)
+
+    def is_complete_for_scope(self) -> bool:
+        """Report whether the claims cover the report's whole scope.
+
+        Returns:
+            True if a single claim spans lower bound to upper bound.
+
+        """
+        if len(self.reception_claims) != 1:
+            return False
+
+        offset, length = self.reception_claims[0]
+        return offset == 0 and length == self.upper_bound - self.lower_bound
+
+    def _unstructure(self) -> bytes:
+        """Serialize the RS segment.
+
+        Returns:
+            Segment as a byte string.
+
+        """
+        body = (
+            encode_sdnv(self.report_serial_number)
+            + encode_sdnv(self.checkpoint_serial_number)
+            + encode_sdnv(self.upper_bound)
+            + encode_sdnv(self.lower_bound)
+            + encode_sdnv(len(self.reception_claims))
+        )
+
+        for offset, length in self.reception_claims:
+            body += encode_sdnv(offset) + encode_sdnv(length)
+
+        return super()._unstructure() + body
+
+    @classmethod
+    def _structure(cls, data: bytes) -> Self:
+        """Deserialize an RS segment.
+
+        Returns:
+            Segment as class.
+
+        Raises:
+            ValueError: segment type is not Report.
+
+        """
+        block = super()._structure(data)
+
+        if block.segment_type != LTPSegmentType.REPORT:
+            msg = f"Expected REPORT (0x8), got {block.segment_type}"
+            raise ValueError(msg)
+
+        for name in (
+            "report_serial_number",
+            "checkpoint_serial_number",
+            "upper_bound",
+            "lower_bound",
+        ):
+            value, consumed = decode_sdnv(data[block.get_offset() :])
+            setattr(block, name, value)
+            block.increment_offset(consumed)
+
+        claim_count, consumed = decode_sdnv(data[block.get_offset() :])
+        block.increment_offset(consumed)
+
+        block.reception_claims = []
+        for _ in range(claim_count):
+            offset, consumed = decode_sdnv(data[block.get_offset() :])
+            block.increment_offset(consumed)
+            length, consumed = decode_sdnv(data[block.get_offset() :])
+            block.increment_offset(consumed)
+            block.reception_claims.append((offset, length))
+
+        return block
+
+
+@define
 class ReportAckSegment(LTPSegment):
     """Report-Acknowledgment Segment (RA)."""
 
@@ -333,6 +437,7 @@ SEGMENTFUNCTIONS = {
     LTPSegmentType.DATA_RED_CP_EORP: DataSegment,
     LTPSegmentType.DATA_RED_CP_EORP_EOB: DataSegment,
     LTPSegmentType.DATA_GREEN_EOB: DataSegment,
+    LTPSegmentType.REPORT: ReportSegment,
     LTPSegmentType.REPORT_ACK: ReportAckSegment,
     LTPSegmentType.CANCEL_SENDER: CancelSegment,
     LTPSegmentType.CANCEL_RECV: CancelSegment,
