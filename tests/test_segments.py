@@ -52,6 +52,7 @@ from bespokebpv7.segments import (  # type: ignore[import-untyped]
     CancelSegment,
     DataSegment,
     ReportAckSegment,
+    ReportSegment,
 )
 from bespokebpv7.utils import encode_sdnv  # type: ignore[import-untyped]
 
@@ -179,3 +180,67 @@ def test_data_segment_invalid_type() -> None:
 
     with pytest.raises(ValueError, match="Expected a Data Segment type"):
         DataSegment._structure(bad_data)
+
+
+@given(
+    st.integers(min_value=0, max_value=2**32 - 1),
+    st.integers(min_value=0, max_value=2**32 - 1),
+    st.integers(min_value=0, max_value=2**32 - 1),
+    st.lists(
+        st.tuples(
+            st.integers(min_value=0, max_value=2**16),
+            st.integers(min_value=1, max_value=2**16),
+        ),
+        min_size=1,
+        max_size=8,
+    ),
+)
+def test_report_segment_roundtrip(
+    orig: int, num: int, rsn: int, claims: list[tuple[int, int]]
+) -> None:
+    """Verify ReportSegment serializes and deserializes correctly."""
+    rs_seg = ReportSegment(
+        session_originator=orig,
+        session_number=num,
+        report_serial_number=rsn,
+        checkpoint_serial_number=rsn + 1,
+        lower_bound=0,
+        upper_bound=2**17,
+        reception_claims=claims,
+    )
+
+    parsed_seg = ReportSegment._structure(rs_seg._unstructure())
+
+    assert parsed_seg.segment_type == LTPSegmentType.REPORT
+    assert parsed_seg.session_originator == orig
+    assert parsed_seg.session_number == num
+    assert parsed_seg.report_serial_number == rsn
+    assert parsed_seg.checkpoint_serial_number == rsn + 1
+    assert parsed_seg.lower_bound == 0
+    assert parsed_seg.upper_bound == 2**17
+    assert parsed_seg.reception_claims == claims
+    assert parsed_seg.claimed_length == sum(length for _, length in claims)
+
+
+def test_report_segment_completeness() -> None:
+    """A single claim spanning the scope reports complete reception."""
+    complete = ReportSegment(
+        lower_bound=0, upper_bound=4800, reception_claims=[(0, 4800)]
+    )
+    assert complete.is_complete_for_scope()
+
+    gapped = ReportSegment(
+        lower_bound=0, upper_bound=4800, reception_claims=[(0, 1200), (2400, 2400)]
+    )
+    assert not gapped.is_complete_for_scope()
+
+    short = ReportSegment(lower_bound=0, upper_bound=4800, reception_claims=[(0, 1200)])
+    assert not short.is_complete_for_scope()
+
+
+def test_report_segment_rejects_wrong_type() -> None:
+    """Structuring a non-report segment as a report must fail."""
+    ra_seg = ReportAckSegment(session_number=1, report_serial_number=2)
+
+    with pytest.raises(ValueError, match="Expected REPORT"):
+        ReportSegment._structure(ra_seg._unstructure())
