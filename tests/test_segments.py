@@ -42,7 +42,7 @@ software to foreign countries or providing access to foreign persons.
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from strategies import st_data_segment_types
+from strategies import st_data_segment_types, st_reception_claims
 
 from bespokebpv7 import (
     CancelReasonCode,
@@ -186,14 +186,7 @@ def test_data_segment_invalid_type() -> None:
     st.integers(min_value=0, max_value=2**32 - 1),
     st.integers(min_value=0, max_value=2**32 - 1),
     st.integers(min_value=0, max_value=2**32 - 1),
-    st.lists(
-        st.tuples(
-            st.integers(min_value=0, max_value=2**16),
-            st.integers(min_value=1, max_value=2**16),
-        ),
-        min_size=1,
-        max_size=8,
-    ),
+    st_reception_claims,
 )
 def test_report_segment_roundtrip(
     orig: int, num: int, rsn: int, claims: list[tuple[int, int]]
