@@ -220,3 +220,15 @@ st_data_segment_types = st.sampled_from(
         LTPSegmentType.DATA_GREEN_EOB,
     ]
 )
+
+# Reception claims as a report segment carries them: each is an offset into
+# the report's scope paired with a length, and a report always makes at
+# least one.
+st_reception_claims = st.lists(
+    st.tuples(
+        st.integers(min_value=0, max_value=2**16),
+        st.integers(min_value=1, max_value=2**16),
+    ),
+    min_size=1,
+    max_size=8,
+)
