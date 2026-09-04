@@ -191,3 +191,56 @@ def test_ltp_unpack_tolerates_unparsable_carried_bundle() -> None:
     assert isinstance(packet.segment, DataSegment)
     assert packet.segment.client_offset == 1200
     assert packet.bpv7 is None
+
+
+def test_ltp_unpack_tolerates_undecodable_bundle_at_offset_zero() -> None:
+    """A segment at offset zero that will not decode must still unpack.
+
+    The block may continue into later segments, leaving this one a
+    partial bundle, and a malformed segment may claim offset zero and
+    carry anything at all. Either way the segment stays usable and no
+    bundle is attached.
+    """
+    seg = DataSegment(
+        session_number=1,
+        client_service_id=1,
+        client_offset=0,
+        client_length=200,
+        data=b"x" * 200,
+    )
+    seg.segment_type = LTPSegmentType.DATA_RED
+
+    packet = LTP(seg._unstructure())
+
+    assert isinstance(packet.segment, DataSegment)
+    assert packet.segment.client_offset == 0
+    assert packet.bpv7 is None
+
+
+def test_ltp_unpack_does_not_swallow_unexpected_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A defect in bundle decoding must reach the caller.
+
+    The suppression around the carried bundle covers what undecodable
+    input actually produces and nothing else, so that a genuine bug is
+    not mistaken for a bundle that merely would not parse.
+    """
+
+    def boom(*_args: object, **_kwargs: object) -> None:
+        msg = "simulated defect"
+        raise AttributeError(msg)
+
+    monkeypatch.setattr("bespokebpv7.ltp.BPv7", boom)
+
+    seg = DataSegment(
+        session_number=1,
+        client_service_id=1,
+        client_offset=0,
+        client_length=4,
+        data=b"data",
+    )
+    seg.segment_type = LTPSegmentType.DATA_RED
+
+    with pytest.raises(AttributeError, match="simulated defect"):
+        LTP(seg._unstructure())

@@ -88,14 +88,22 @@ class LTP(dpkt.Packet):
         if (
             isinstance(self.segment, DataSegment)
             and self.segment.client_service_id == 1
+            and self.segment.client_offset == 0
         ):
-            # A data segment carries an arbitrary slice of the block, so
-            # only the first one begins with a bundle header; every other
-            # segment holds a fragment that cannot parse as a bundle.
-            # Decoding one is therefore best effort, and a failure of any
-            # kind must leave the LTP segment itself usable rather than
-            # propagating out of unpack().
-            with contextlib.suppress(Exception):
+            # Only the data segment at offset zero begins with a bundle
+            # header.  Every other segment carries a slice from the middle
+            # of the block, which was never going to decode, so asking is
+            # not worth the exception it raises.
+            #
+            # A segment at offset zero can still fail to decode: the block
+            # may continue into later segments, leaving this one a partial
+            # bundle, and a malformed segment may claim offset zero and
+            # carry anything at all.  Decoding stays best effort, but only
+            # for the failures that undecodable input actually produces --
+            # truncation raises ValueError, and arbitrary bytes add
+            # TypeError and IndexError.  Anything else is a defect in this
+            # library and should not be silenced here.
+            with contextlib.suppress(ValueError, TypeError, IndexError):
                 self.bpv7 = BPv7(self.segment.data)
 
     def __bytes__(self) -> bytes:
