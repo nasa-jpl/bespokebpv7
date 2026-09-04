@@ -93,8 +93,10 @@ class LTP(dpkt.Packet):  # type: ignore[misc]
         if (
             isinstance(self.segment, DataSegment)
             and self.segment.client_service_id == 1
+            and self.segment.client_offset == 0
         ):
-            with contextlib.suppress(ValueError, TypeError):
+            # Only the data segment at offset zero begins with a bundle header.
+            with contextlib.suppress(ValueError, TypeError, IndexError):
                 self.bpv7 = BPv7(self.segment.data)
 
     def __bytes__(self) -> bytes:
