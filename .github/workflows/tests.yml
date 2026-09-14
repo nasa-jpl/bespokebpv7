@@ -1,21 +1,32 @@
-name: Tests
+name: bespokebpv7 Tests
 
 on:
   pull_request:
     branches: ["main"]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ION_VERSION: ion-open-source-4.2.0
+
 jobs:
   tests:
     name: Test ${{ matrix.python-version }}
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install uv manually
         run: |
@@ -45,9 +56,10 @@ jobs:
         run: |
           git clone --single-branch https://github.com/nasa-jpl/ION-DTN.git
           cd ION-DTN
+          git checkout ${{ env.ION_VERSION }}
           autoreconf -fi
           ./configure --enable-crypto-mbedtls
-          make
+          make -j $(nproc)
           sudo make install
           sudo ldconfig
 
@@ -66,7 +78,7 @@ jobs:
 
       - name: Upload ION logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         with:
           name: ion-logs-${{ matrix.python-version }}
           path: |
@@ -75,7 +87,7 @@ jobs:
           retention-days: 1
 
       - name: Upload coverage data
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-data-${{ matrix.python-version }}
           path: .coverage.*
@@ -85,10 +97,10 @@ jobs:
   coverage:
     name: Combine Coverage & Check Threshold
     needs: tests
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install uv manually
         run: |
@@ -99,7 +111,7 @@ jobs:
         run: uv tool install tox --with tox-uv
 
       - name: Download coverage data
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v8
         with:
           path: .
 
@@ -113,7 +125,7 @@ jobs:
         run: uvx tox -e coverage
 
       - name: Upload HTML Coverage Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: htmlcov
@@ -121,9 +133,9 @@ jobs:
 
   lint:
     name: Lint & Type Check
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install uv manually
         run: |
