@@ -44,8 +44,8 @@ import threading
 from collections.abc import Callable
 from typing import cast
 
-from bespokebpv7.bpv7 import BPv7  # type: ignore[import-untyped]
-from bespokebpv7.utils import parse_eid_string  # type: ignore[import-untyped]
+from bespokebpv7 import BPv7
+from bespokebpv7 import parse_eid_string
 
 
 class BPv7ProxyServer(socketserver.ThreadingMixIn, socketserver.UDPServer):

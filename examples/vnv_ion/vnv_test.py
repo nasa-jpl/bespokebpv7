@@ -47,8 +47,8 @@ import time
 
 import cbor2
 
-from bespokebpv7.block_enum import BlockType, CRCType  # type: ignore[import-untyped]
-from bespokebpv7.bpv7 import BPv7  # type: ignore[import-untyped]
+from bespokebpv7 import BlockType, CRCType
+from bespokebpv7 import BPv7
 
 received_responses: list[bytes] = []
 

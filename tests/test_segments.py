@@ -44,16 +44,16 @@ from hypothesis import given
 from hypothesis import strategies as st
 from strategies import st_data_segment_types
 
-from bespokebpv7.segment_enum import (  # type: ignore[import-untyped]
+from bespokebpv7 import (
     CancelReasonCode,
     LTPSegmentType,
 )
-from bespokebpv7.segments import (  # type: ignore[import-untyped]
+from bespokebpv7.segments import ( 
     CancelSegment,
     DataSegment,
     ReportAckSegment,
 )
-from bespokebpv7.utils import encode_sdnv  # type: ignore[import-untyped]
+from bespokebpv7.utils import encode_sdnv 
 
 
 # ==========================================

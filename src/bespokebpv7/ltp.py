@@ -51,6 +51,8 @@ from bespokebpv7.segments import (
 )
 from bespokebpv7.utils import bundle_converter
 
+__all__ = ["LTP"]
+
 
 class LTP(dpkt.Packet):
     """

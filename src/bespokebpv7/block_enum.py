@@ -40,6 +40,14 @@ software to foreign countries or providing access to foreign persons.
 
 from enum import Enum, IntEnum, IntFlag
 
+__all__ = [
+    "BlockFlags",
+    "BlockType",
+    "BundleFlags",
+    "CRCType",
+    "SchemeCode",
+]
+
 
 class BundleFlags(IntFlag):
     """Enumeration for supported bundle flags."""

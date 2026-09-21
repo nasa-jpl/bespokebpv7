@@ -47,7 +47,7 @@ from pathlib import Path
 
 import dpkt  # type: ignore[import-untyped]
 
-from bespokebpv7.bpv7 import BPv7  # type: ignore[import-untyped]
+from bespokebpv7 import BPv7
 
 
 def bp_parse(ts: float, buff: bytes, record: dict[float, list[BPv7]]) -> None:

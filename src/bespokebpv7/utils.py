@@ -50,6 +50,8 @@ from cattrs.strategies import use_class_methods
 
 from bespokebpv7.block_enum import CRCType, SchemeCode
 
+__all__ = ["DTN_EPOCH", "calculate_crc", "format_eid", "parse_eid_string"]
+
 DTN_EPOCH = datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc)
 
 

@@ -44,11 +44,11 @@ from hypothesis import given
 from hypothesis import strategies as st
 from strategies import st_creb_params, st_eid
 
-from bespokebpv7.block_enum import (  # type: ignore[import-untyped]
+from bespokebpv7 import (
     BlockType,
-    CREBFlags,
 )
-from bespokebpv7.ext_functions import (  # type: ignore[import-untyped]
+from bespokebpv7.block_enum import CREBFlags
+from bespokebpv7.ext_functions import ( 
     BPQExt,
     BundleAgeExt,
     CompressedReportingExt,
@@ -56,7 +56,7 @@ from bespokebpv7.ext_functions import (  # type: ignore[import-untyped]
     HopCountExt,
     PreviousNodeExt,
 )
-from bespokebpv7.utils import (  # type: ignore[import-untyped]
+from bespokebpv7.utils import ( 
     bundle_converter,
     parse_eid_string,
 )

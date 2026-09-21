@@ -305,10 +305,12 @@ class PrimaryBlock(BaseBlock):
         ]
 
         if self.is_fragment and self.fragmentation:
-            out.extend([
-                self.fragmentation.fragment_offset,
-                self.fragmentation.total_adu_len,
-            ])
+            out.extend(
+                [
+                    self.fragmentation.fragment_offset,
+                    self.fragmentation.total_adu_len,
+                ]
+            )
 
         if self.crc_type != CRCType.NONE and self.crc:
             out.append(self.crc)

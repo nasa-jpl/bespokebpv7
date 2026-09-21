@@ -41,12 +41,15 @@ software to foreign countries or providing access to foreign persons.
 
 from hypothesis import strategies as st
 
-from bespokebpv7.block_enum import (  # type: ignore[import-untyped]
+from bespokebpv7.block_enum import (
     AdminReasonCode,
     BCBAESVariant,
     BIBSHAVariant,
+    AdminRecordType,
+    AADScopeFlags,
+    IntegrityScopeFlags,
 )
-from bespokebpv7.bundle_params import (  # type: ignore[import-untyped]
+from bespokebpv7.bundle_params import ( 
     BaseStatusReport,
     BundleFragmentation,
     BundleStatusInformation,
@@ -55,7 +58,7 @@ from bespokebpv7.bundle_params import (  # type: ignore[import-untyped]
     CTBundleSequence,
     StatusAssertion,
 )
-from bespokebpv7.segment_enum import LTPSegmentType  # type: ignore[import-untyped]
+from bespokebpv7 import LTPSegmentType
 
 st_ipn_eid = st.builds(
     lambda n, s: f"ipn:{n}.{s}",

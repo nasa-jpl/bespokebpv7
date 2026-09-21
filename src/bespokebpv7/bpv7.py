@@ -58,6 +58,8 @@ from bespokebpv7.blocks import (
 from bespokebpv7.ext_functions import BLOCKFUNCTIONS
 from bespokebpv7.utils import bundle_converter, calculate_crc
 
+__all__ = ["BPv7"]
+
 
 class BPv7(dpkt.Packet):
     """Bundle Protocol Version 7 (RFC 9171)

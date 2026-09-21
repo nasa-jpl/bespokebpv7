@@ -44,12 +44,12 @@ import datetime
 from hypothesis import given
 from strategies import st_eid
 
-from bespokebpv7.bundle_params import (  # type: ignore[import-untyped]
+from bespokebpv7.bundle_params import ( 
     BundleLife,
     BundleRoute,
     StatusAssertion,
 )
-from bespokebpv7.utils import DTN_EPOCH  # type: ignore[import-untyped]
+from bespokebpv7 import DTN_EPOCH
 
 
 # ==========================================

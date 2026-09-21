@@ -39,6 +39,8 @@ software to foreign countries or providing access to foreign persons.
 
 from enum import IntEnum
 
+__all__ = ["CancelReasonCode", "LTPSegmentType"]
+
 
 class LTPSegmentType(IntEnum):
     """Enumeration for LTP segment types based on RFC 5326."""

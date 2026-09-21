@@ -46,7 +46,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from bespokebpv7.bpv7 import BPv7  # type: ignore[import-untyped]
+from bespokebpv7 import BPv7
 
 MAINDIR = Path.cwd()
 NODE1DIR = MAINDIR.joinpath("1.ipn.bp.udp")
