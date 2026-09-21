@@ -121,10 +121,12 @@ class BundleStatusReport(AdminRecord):
         status_data = bundle_converter.unstructure(self.base_status)
 
         if self.fragmentation is not None:
-            status_data.extend([
-                self.fragmentation.fragment_offset,
-                self.fragmentation.total_adu_len,
-            ])
+            status_data.extend(
+                [
+                    self.fragmentation.fragment_offset,
+                    self.fragmentation.total_adu_len,
+                ]
+            )
 
         admin_payload = [self.record_type, status_data]
         self.data = bundle_converter.dumps(admin_payload)

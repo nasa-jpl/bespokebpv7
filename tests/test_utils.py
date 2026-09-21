@@ -193,6 +193,7 @@ def test_sdnv_incomplete_buffer() -> None:
     ):
         decode_sdnv(bad_data)
 
+
 def test_parse_ipn_null_uri() -> None:
     """Verify that Null IPN URIs are treated as the Null EID (dtn:none)."""
     # RFC 9758: ipn:0.0.<nonzero> is a Null URI

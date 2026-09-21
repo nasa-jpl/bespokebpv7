@@ -45,11 +45,8 @@ from bespokebpv7.block_enum import (
     AdminReasonCode,
     BCBAESVariant,
     BIBSHAVariant,
-    AdminRecordType,
-    AADScopeFlags,
-    IntegrityScopeFlags,
 )
-from bespokebpv7.bundle_params import ( 
+from bespokebpv7.bundle_params import (
     BaseStatusReport,
     BundleFragmentation,
     BundleStatusInformation,
@@ -213,11 +210,13 @@ st_security_targets = st.lists(
     max_size=5,
 )
 
-st_data_segment_types = st.sampled_from([
-    LTPSegmentType.DATA_RED,
-    LTPSegmentType.DATA_GREEN,
-    LTPSegmentType.DATA_RED_CP,
-    LTPSegmentType.DATA_RED_CP_EORP,
-    LTPSegmentType.DATA_RED_CP_EORP_EOB,
-    LTPSegmentType.DATA_GREEN_EOB,
-])
+st_data_segment_types = st.sampled_from(
+    [
+        LTPSegmentType.DATA_RED,
+        LTPSegmentType.DATA_GREEN,
+        LTPSegmentType.DATA_RED_CP,
+        LTPSegmentType.DATA_RED_CP_EORP,
+        LTPSegmentType.DATA_RED_CP_EORP_EOB,
+        LTPSegmentType.DATA_GREEN_EOB,
+    ]
+)

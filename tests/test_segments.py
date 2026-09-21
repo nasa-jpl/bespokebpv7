@@ -48,12 +48,12 @@ from bespokebpv7 import (
     CancelReasonCode,
     LTPSegmentType,
 )
-from bespokebpv7.segments import ( 
+from bespokebpv7.segments import (
     CancelSegment,
     DataSegment,
     ReportAckSegment,
 )
-from bespokebpv7.utils import encode_sdnv 
+from bespokebpv7.utils import encode_sdnv
 
 
 # ==========================================

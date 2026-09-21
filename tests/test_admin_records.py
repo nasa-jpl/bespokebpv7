@@ -49,7 +49,7 @@ from strategies import (
     fragmentation_strategy,
 )
 
-from bespokebpv7.admin_records import ( 
+from bespokebpv7.admin_records import (
     BundleStatusReport,
     CompressedCustodySignal,
     CompressedReportSignal,
@@ -60,13 +60,13 @@ from bespokebpv7.block_enum import (
     CustodyRefusalCode,
     ReportReason,
 )
-from bespokebpv7.bundle_params import ( 
+from bespokebpv7.bundle_params import (
     BaseStatusReport,
     BundleFragmentation,
     CRBundleSequence,
     CTBundleSequence,
 )
-from bespokebpv7.utils import bundle_converter 
+from bespokebpv7.utils import bundle_converter
 
 
 # ==========================================

@@ -49,12 +49,10 @@ from bespokebpv7 import (
     BlockType,
     BundleFlags,
     CRCType,
+    format_eid,
+    parse_eid_string,
 )
-from bespokebpv7.blocks import (
-    CanonicalBlock,
-    CanonicalBlockInit,
-    PrimaryBlock,
-)
+from bespokebpv7.blocks import CanonicalBlock, CanonicalBlockInit, PrimaryBlock
 from bespokebpv7.bundle_params import (
     BundleFragmentation,
 )
