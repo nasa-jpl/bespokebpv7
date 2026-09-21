@@ -48,7 +48,7 @@ from bespokebpv7 import (
     BlockType,
 )
 from bespokebpv7.block_enum import CREBFlags
-from bespokebpv7.ext_functions import ( 
+from bespokebpv7.ext_functions import (
     BPQExt,
     BundleAgeExt,
     CompressedReportingExt,
@@ -56,7 +56,7 @@ from bespokebpv7.ext_functions import (
     HopCountExt,
     PreviousNodeExt,
 )
-from bespokebpv7.utils import ( 
+from bespokebpv7.utils import (
     bundle_converter,
     format_eid,
     parse_eid_string,

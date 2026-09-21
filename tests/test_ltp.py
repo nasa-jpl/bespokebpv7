@@ -45,7 +45,7 @@ from hypothesis import strategies as st
 from strategies import st_data, st_eid
 
 from bespokebpv7 import BPv7, LTP
-from bespokebpv7.segments import ( 
+from bespokebpv7.segments import (
     CancelReasonCode,
     CancelSegment,
     DataSegment,

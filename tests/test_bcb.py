@@ -55,10 +55,10 @@ from bespokebpv7.block_enum import (
     BCBResultEnum,
     BlockType,
 )
-from bespokebpv7.blocks import CanonicalBlock 
-from bespokebpv7.bpsec import BlockConfidentialityBlock 
-from bespokebpv7.ext_functions import BLOCKFUNCTIONS 
-from bespokebpv7.utils import ( 
+from bespokebpv7.blocks import CanonicalBlock
+from bespokebpv7.bpsec import BlockConfidentialityBlock
+from bespokebpv7.ext_functions import BLOCKFUNCTIONS
+from bespokebpv7.utils import (
     bundle_converter,
     decode_cbor_sequence,
 )

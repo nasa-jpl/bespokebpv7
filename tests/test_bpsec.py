@@ -55,8 +55,8 @@ from bespokebpv7.block_enum import (
     BIBSHAVariant,
     IntegrityScopeFlags,
 )
-from bespokebpv7.bpsec import BlockIntegrityBlock 
-from bespokebpv7.utils import ( 
+from bespokebpv7.bpsec import BlockIntegrityBlock
+from bespokebpv7.utils import (
     bundle_converter,
     decode_cbor_sequence,
 )

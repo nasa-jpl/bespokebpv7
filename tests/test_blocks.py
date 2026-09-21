@@ -49,6 +49,8 @@ from bespokebpv7 import (
     BlockType,
     BundleFlags,
     BPv7,
+    format_eid,
+    parse_eid_string,
 )
 from bespokebpv7.blocks import (
     CanonicalBlock,
