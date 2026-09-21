@@ -1,0 +1,7 @@
+# List of revisions to be ignored by git-blame.
+# Include commits that you think will make git-blame more helpful by
+# filtering out non-functional changes (whitespace, typos, formatting).
+# This file is sorted in git log order (newest commits first).
+
+# Ruff formatting cleanup
+acc7a30082cc6c44743cbbae4332f141cfe55466
