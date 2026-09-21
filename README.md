@@ -19,11 +19,10 @@ this package.
 ```python
 import binascii
 
-from bespokebpv7.block_enum import BlockType
-from bespokebpv7.bpv7 import BPv7
+from bespokebpv7 import BlockType, BPv7
 
 # Take hex string representation of bundle and convert to bytes
-bundle = "9f88071844008202820301820100820100821b000000b5998c982b011a000493e08506021000458202820200850704010042183485010101004454455354ff"
+test_bundle = "9f88071844008202820301820100820100821b000000b5998c982b011a000493e08506021000458202820200850704010042183485010101004454455354ff"
 parsed_bundle = BPv7(binascii.unhexlify(test_bundle))
 print(parsed_bundle)
 print(parsed_bundle.primary_block.route.source_eid)
@@ -36,13 +35,10 @@ print(parsed_bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK))
 ### Creating a Bundle
 
 ```python
-import binascii
-
 import cbor2
 
-from bespokebpv7.block_enum import BlockType, CRCType
+from bespokebpv7 import BlockType, BPv7, CRCType, parse_eid_string
 from bespokebpv7.blocks import CanonicalBlockInit
-from bespokebpv7.bpv7 import BPv7
 
 payload = cbor2.dumps("Hello!")
 new_bundle = BPv7()
@@ -75,8 +71,7 @@ import binascii
 
 import cbor2
 
-from bespokebpv7.block_enum import BlockType, CRCType
-from bespokebpv7.bpv7 import BPv7
+from bespokebpv7 import BlockType, BPv7, CRCType
 
 payload = cbor2.dumps("Hello!")
 

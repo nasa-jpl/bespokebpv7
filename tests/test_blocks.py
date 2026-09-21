@@ -44,18 +44,18 @@ from hypothesis import given
 from hypothesis import strategies as st
 from strategies import st_eid
 
-from bespokebpv7.block_enum import (  # type: ignore[import-untyped]
+from bespokebpv7 import (
     BlockFlags,
     BlockType,
     BundleFlags,
+    BPv7,
 )
-from bespokebpv7.blocks import (  # type: ignore[import-untyped]
+from bespokebpv7.blocks import ( 
     CanonicalBlock,
     CanonicalBlockInit,
     PrimaryBlock,
 )
-from bespokebpv7.bpv7 import BPv7  # type: ignore[import-untyped]
-from bespokebpv7.utils import bundle_converter  # type: ignore[import-untyped]
+from bespokebpv7.utils import bundle_converter
 
 
 # ==========================================

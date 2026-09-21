@@ -44,8 +44,8 @@ from hypothesis import given
 from hypothesis import strategies as st
 from strategies import st_eid
 
-from bespokebpv7.block_enum import CRCType  # type: ignore[import-untyped]
-from bespokebpv7.utils import (  # type: ignore[import-untyped]
+from bespokebpv7 import CRCType
+from bespokebpv7.utils import ( 
     calculate_crc,
     decode_sdnv,
     encode_sdnv,
