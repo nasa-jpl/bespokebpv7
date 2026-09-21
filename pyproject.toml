@@ -34,6 +34,7 @@ dev = [
     "hypothesis>=6.150.2",
     "mypy>=1.19.1",
     "pytest>=9.0.2",
+    "python-lsp-server>=1.15.0",
     "ruff>=0.14.10",
     "tox>=4.34.1",
     "tox-uv>=1.29.0",
