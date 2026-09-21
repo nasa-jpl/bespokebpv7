@@ -116,8 +116,8 @@ commands = [["mypy", "src/bespokebpv7"]]
 description = "Run Ruff"
 dependency_groups = ["dev"]
 commands = [
-    ["ruff", "check", "--fix", "src/bespokebpv7"],
-    ["ruff", "format", "src/bespokebpv7"]
+    ["ruff", "check", "src/bespokebpv7"],
+    ["ruff", "format", "--check", "src/bespokebpv7"]
 ]
 
 [tool.pytest.ini_options]
