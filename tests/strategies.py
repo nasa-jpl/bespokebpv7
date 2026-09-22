@@ -39,6 +39,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+import cbor2
 from hypothesis import strategies as st
 
 from bespokebpv7 import LTPSegmentType
@@ -46,7 +47,9 @@ from bespokebpv7.block_enum import (
     AdminReasonCode,
     BCBAESVariant,
     BIBSHAVariant,
+    BlockType,
 )
+from bespokebpv7.bpv7 import BPv7
 from bespokebpv7.bundle_params import (
     BaseStatusReport,
     BundleFragmentation,
@@ -55,6 +58,24 @@ from bespokebpv7.bundle_params import (
     CreationTime,
     CTBundleSequence,
     StatusAssertion,
+)
+from bespokebpv7.tcpcl import TCPCL
+from bespokebpv7.tcpcl_enum import (
+    TCPCLv3MessageType,
+    TCPCLv4MessageType,
+    TCPCLVersion,
+)
+from bespokebpv7.tcpcl_messages import (
+    TCPCLv3Contact,
+    TCPCLv3DataAck,
+    TCPCLv3DataSegment,
+    TCPCLv3Keepalive,
+    TCPCLv3Shutdown,
+    TCPCLv4Keepalive,
+    TCPCLv4SessInit,
+    TCPCLv4SessTerm,
+    TCPCLv4XferAck,
+    TCPCLv4XferSegment,
 )
 
 st_ipn_eid = st.builds(
@@ -232,3 +253,239 @@ st_reception_claims = st.lists(
     min_size=1,
     max_size=8,
 )
+
+# ==========================================
+# TCPCL Strategies
+# ==========================================
+
+st_tcpcl_version = st.sampled_from(TCPCLVersion)
+st_tcpclv3_msg_type = st.sampled_from(TCPCLv3MessageType)
+st_tcpclv4_msg_type = st.sampled_from(TCPCLv4MessageType)
+
+
+def st_tcpclv3_contact() -> st.SearchStrategy[TCPCLv3Contact]:
+    """Generate TCPCL v3 Contact messages with bounded random payloads.
+
+    Returns:
+        Strategy of TCPCLv3 Contacts
+
+    """
+    return st.builds(
+        TCPCLv3Contact,
+        payload=st.binary(max_size=256),
+    )
+
+
+def st_tcpclv3_keepalive() -> st.SearchStrategy[TCPCLv3Keepalive]:
+    """Generate TCPCL v3 Keepalive messages with bounded random payloads.
+
+    Returns:
+        Strategy of TCPCLv3 Keep Alive packets
+
+    """
+    return st.builds(
+        TCPCLv3Keepalive,
+        payload=st.binary(max_size=256),
+    )
+
+
+def st_tcpclv3_shutdown() -> st.SearchStrategy[TCPCLv3Shutdown]:
+    """Generate TCPCL v3 Shutdown messages with bounded random payloads.
+
+    Returns:
+        Strategy of TCPCLv3 Shutdown packets
+
+    """
+    return st.builds(
+        TCPCLv3Shutdown,
+        payload=st.binary(max_size=256),
+    )
+
+
+def st_tcpclv3_data_segment() -> st.SearchStrategy[TCPCLv3DataSegment]:
+    """Generate TCPCL v3 Data Segment messages honoring flag and seq constraints.
+
+    Returns:
+        Strategy of TCPCLv3 Data Segments
+
+    """
+    return st.builds(
+        TCPCLv3DataSegment,
+        s_flag=st.booleans(),
+        e_flag=st.booleans(),
+        sequence_number=st.integers(min_value=0, max_value=2**32 - 1),
+        payload=st.binary(max_size=512),
+    )
+
+
+def st_tcpclv3_data_ack() -> st.SearchStrategy[TCPCLv3DataAck]:
+    """Generate TCPCL v3 Data Ack messages with valid sequence numbers.
+
+    Returns:
+        Strategy of TCPCLv3 Acks
+
+    """
+    return st.builds(
+        TCPCLv3DataAck,
+        sequence_number=st.integers(min_value=0, max_value=2**32 - 1),
+    )
+
+
+def st_tcpclv4_sess_init() -> st.SearchStrategy[TCPCLv4SessInit]:
+    """Generate TCPCL v4 Session Init messages with bounded random payloads.
+
+    Returns:
+        Strategy of TCPCLv4 Init messages
+
+    """
+    return st.builds(
+        TCPCLv4SessInit,
+        payload=st.binary(max_size=256),
+    )
+
+
+def st_tcpclv4_keepalive() -> st.SearchStrategy[TCPCLv4Keepalive]:
+    """Generate TCPCL v4 Keepalive messages with bounded random payloads.
+
+    Returns:
+        Strategy of TCPCLv4 Keep Alives
+
+    """
+    return st.builds(
+        TCPCLv4Keepalive,
+        payload=st.binary(max_size=256),
+    )
+
+
+def st_tcpclv4_sess_term() -> st.SearchStrategy[TCPCLv4SessTerm]:
+    """Generate TCPCL v4 Session Termination messages with bounded random payloads.
+
+    Returns:
+        Strategy of TCPCLv4 Termination messages
+
+    """
+    return st.builds(
+        TCPCLv4SessTerm,
+        payload=st.binary(max_size=256),
+    )
+
+
+def st_tcpclv4_xfer_segment() -> st.SearchStrategy[TCPCLv4XferSegment]:
+    """Generate TCPCL v4 Transfer Segment messages honoring flag and seq constraints.
+
+    Returns:
+        Strategy of TCPCLv4 Transfer Segments
+
+    """
+    return st.builds(
+        TCPCLv4XferSegment,
+        s_flag=st.booleans(),
+        e_flag=st.booleans(),
+        sequence_number=st.integers(min_value=0, max_value=2**32 - 1),
+        payload=st.binary(max_size=512),
+    )
+
+
+def st_tcpclv4_xfer_ack() -> st.SearchStrategy[TCPCLv4XferAck]:
+    """Generate TCPCL v4 Transfer Ack messages with valid sequence numbers.
+
+    Returns:
+        Strategy of TCPCLv4 Acks
+
+    """
+    return st.builds(
+        TCPCLv4XferAck,
+        sequence_number=st.integers(min_value=0, max_value=2**32 - 1),
+    )
+
+
+# Registry mapping (version, message_type) -> strategy for building the message.
+_V3_MSG_STRATEGIES = {
+    TCPCLv3MessageType.CONTACT: st_tcpclv3_contact,
+    TCPCLv3MessageType.KEEPALIVE: st_tcpclv3_keepalive,
+    TCPCLv3MessageType.SHUTDOWN: st_tcpclv3_shutdown,
+    TCPCLv3MessageType.DATA_SEGMENT: st_tcpclv3_data_segment,
+    TCPCLv3MessageType.DATA_ACK: st_tcpclv3_data_ack,
+}
+_V4_MSG_STRATEGIES = {
+    TCPCLv4MessageType.SESS_INIT: st_tcpclv4_sess_init,
+    TCPCLv4MessageType.KEEPALIVE: st_tcpclv4_keepalive,
+    TCPCLv4MessageType.SESS_TERM: st_tcpclv4_sess_term,
+    TCPCLv4MessageType.XFER_SEGMENT: st_tcpclv4_xfer_segment,
+    TCPCLv4MessageType.XFER_ACK: st_tcpclv4_xfer_ack,
+}
+
+
+def st_bpv7_bundle() -> st.SearchStrategy[bytes]:
+    """Build a valid CBOR-encoded BPv7 bundle as raw bytes.
+
+    Mirrors the construction pattern in test_bpv7.py::test_bpv7_pack_unpack_roundtrip:
+    sets source/dest EIDs via st_eid, calls set_creation(1000, 0), adds a payload
+    block from st_data, and optionally adds a BundleAge canonical block.
+
+    Returns:
+        BPv7 Bundles as bye strings
+
+    """
+    return st.builds(
+        _build_bpv7_bundle_bytes,
+        src=st_eid,
+        dst=st_eid,
+        payload=st_data,
+        age=st.integers(min_value=0, max_value=2**32 - 1),
+        include_age=st.booleans(),
+    )
+
+
+def _build_bpv7_bundle_bytes(
+    src: str,
+    dst: str,
+    payload: bytes,
+    age: int,
+    *,
+    include_age: bool,
+) -> bytes:
+    """Construct a valid BPv7 bundle and serialize it to bytes.
+
+    Returns:
+        Bundle as byte string
+
+    """
+    bundle = BPv7()
+    bundle.primary_block.route.source_eid = src
+    bundle.primary_block.route.dest_eid = dst
+    bundle.primary_block.set_creation(1000, 0)
+    bundle.add_payload_block(payload)
+    if include_age:
+        bundle.add_canonical_block(
+            {"block_type": BlockType.BUNDLE_AGE},
+            cbor2.dumps(age),
+        )
+    return bytes(bundle)
+
+
+@st.composite
+def st_tcpcl_packet(draw: st.DrawFn) -> TCPCL:  # type: ignore[empty-body]
+    """Build a TCPCL packet with a random valid message.
+
+    Draws a version, picks a valid message_type for that version, and
+    constructs the inner message via the matching strategy.  The resulting
+    TCPCL object round-trips through bytes() / unpack().
+
+    Returns:
+        Constructed TCPCL packet
+
+    """
+    version = draw(st_tcpcl_version)
+    if version == TCPCLVersion.V3:
+        msg_type = draw(st_tcpclv3_msg_type)
+        msg = draw(_V3_MSG_STRATEGIES[msg_type]())
+    else:
+        msg_type = draw(st_tcpclv4_msg_type)
+        msg = draw(_V4_MSG_STRATEGIES[msg_type]())
+
+    pkt = TCPCL()
+    pkt.version = version
+    pkt.message_type = msg_type
+    pkt.message = msg
+    return pkt
