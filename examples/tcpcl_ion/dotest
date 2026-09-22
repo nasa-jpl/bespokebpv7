@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+#
+# TCPCL V&V Test Runner
+#
+# Based on examples/vnv_ion/dotest
+
+# Determine the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# Determine the repository root (one level up from examples/tcpcl_ion)
+REPO_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
+NODE_DIR="$SCRIPT_DIR/node1"
+
+CONFIGFILES=" \
+$NODE_DIR/bench.bprc \
+$NODE_DIR/bench.ionconfig \
+$NODE_DIR/bench.ionrc \
+$NODE_DIR/bench.ionsecrc \
+$NODE_DIR/bench.ipnrc \
+"
+
+# Randomize Port numbers so runners do not overlap
+readarray -t port_nums < <(shuf -i 5001-6000 -n 2)
+# Node 1 modification (Replacing the target port in ION config)
+sed -i "s/2113/${port_nums[0]}/g" "$NODE_DIR/bench.ipnrc"
+sed -i "s/2113/${port_nums[0]}/g" "$NODE_DIR/bench.bprc"
+# Node 2 (client) modification
+sed -i "s/3113/${port_nums[1]}/g" "$NODE_DIR/bench.bprc"
+
+echo "########################################"
+echo "NAME: TCPCL Integration Test"
+echo "PURPOSE: Demonstrate TCPCL interoperability with ION."
+echo "########################################"
+
+# Determine the Python interpreter to use
+# Prefer the project virtual environment if it exists.
+VENV_PYTHON="/home/nrichard/bespokebpv7/.venv/bin/python"
+if [ -f "$VENV_PYTHON" ]; then
+    PYTHON_EXE="$VENV_PYTHON"
+elif command -v python3.12 > /dev/null; then
+    PYTHON_EXE="python3.12"
+else
+    PYTHON_EXE="python3"
+fi
+
+echo "Starting ION..."
+export PYTHONPATH="$REPO_ROOT/src:$PYTHONPATH"
+export ION_NODE_LIST_DIR="$SCRIPT_DIR"
+cd "$NODE_DIR"
+./ionstart > node.stdout 2>&1
+
+echo "Waiting for ION to initialize..."
+sleep 2
+
+cd "$SCRIPT_DIR"
+echo "Running TCPCL V&V..."
+$PYTHON_EXE tcpcl_test.py --port ${port_nums[0]}
+TEST_RESULT=$?
+
+if [ $TEST_RESULT -eq 0 ]; then
+    echo "SUCCESS: TCPCL bundle scenarios passed."
+    RETVAL=0
+else
+    echo "ERROR: One or more TCPCL bundle scenarios failed."
+    RETVAL=1
+fi
+
+echo "Stopping ION..."
+cd "$NODE_DIR"
+./ionstop > /dev/null 2>&1
+ionexit > /dev/null 2>&1
+echo "V&V completed."
+exit $RETVAL
