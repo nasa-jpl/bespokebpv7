@@ -146,3 +146,6 @@ jobs:
 
       - name: Run Type Check
         run: uvx tox -e type
+
+      - name: Run Pyright Type Check
+        run: uvx tox -e pyright

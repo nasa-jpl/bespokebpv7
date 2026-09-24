@@ -8,6 +8,7 @@ authors = [
     { name = "Nate Richard", email = "nrichard@jpl.nasa.gov" }
 ]
 keywords = ["dtn", "bp", "ltp"]
+license = "Apache-2.0"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -33,9 +34,10 @@ dev = [
     "coverage>=7.13.1",
     "hypothesis>=6.150.2",
     "mypy>=1.19.1",
+    "pyright>=1.1.400",
     "pytest>=9.0.2",
     "python-lsp-server>=1.15.0",
-    "ruff>=0.14.10",
+    "ruff>=0.16.0",
     "tox>=4.34.1",
     "tox-uv>=1.29.0",
 ]
@@ -46,12 +48,55 @@ build-backend = "uv_build"
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["ANN002", "ANN003", "D203", "D205", "D211", "D212", "D213", "D400", "D415", "COM812", "S101"]
+preview = true
+ignore = ["RUF201", "ANN002", "ANN003", "ANN401", "D203", "D205", "D211", "D212", "D213", "D400", "D415", "COM812", "S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "main.py" = ["T201", "ERA001"]
 "examples/*" = ["INP001", "T201", "FBT001", "FBT002", "S404", "S603"]
-"tests/*" = ["INP001"]
+"tests/*" = ["INP001", "SLF001", "FBT001"]
+"release_scripts/*" = ["INP001"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# ---------------------------------------------------------------------------
+# Type checking
+# ---------------------------------------------------------------------------
+# This project uses BOTH mypy and pyright for type checking to ensures IDE
+# diagnostics (like if VSCode has Pylance enabled) stay consistent with CI.
+
+[tool.mypy]
+strict = true
+warn_unused_ignores = false
+files = ["src/bespokebpv7", "tests", "examples"]
+mypy_path = "src:tests"
+explicit_package_bases = true
+exclude = ["examples/unittest_ion/issue-265-bpdriver-ttl-option/runtest.py"]
+
+[[tool.mypy.overrides]]
+module = ["dpkt.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["fastcrc.*"]
+ignore_missing_imports = true
+
+[tool.pyright]
+# Mirrors [tool.mypy] strictness so IDE diagnostics match CI.
+include = ["src/bespokebpv7", "tests", "examples"]
+extraPaths = ["src", "tests"]
+typeCheckingMode = "standard"
+# Third-party packages without inline type stubs.
+reportMissingTypeStubs = "none"
+# `type: ignore` comments are used intentionally to suppress specific
+# third-party (e.g. dpkt) type errors that mypy/pyright cannot resolve.
+reportUnnecessaryTypeIgnoreComment = "none"
+
+[tool.tox.env.pyright]
+description = "Run Pyright type check on code base"
+dependency_groups = ["dev"]
+commands = [["pyright", "src/bespokebpv7", "tests", "examples"]]
 
 [tool.coverage.run]
 branch = true
@@ -72,7 +117,7 @@ skip_covered = true
 
 [tool.tox]
 requires = ["tox>=4.34.1", "tox-uv>=1.29.0"]
-env_list = ["clean", "3.10", "3.11", "3.12", "3.13", "3.14", "type", "lint", "coverage"]
+env_list = ["clean", "3.10", "3.11", "3.12", "3.13", "3.14", "type", "pyright", "lint", "coverage"]
 isolated_build = true
 
 [tool.tox.env.clean]
@@ -110,14 +155,14 @@ commands = [
 [tool.tox.env.type]
 description = "Run type check on code base"
 dependency_groups = ["dev"]
-commands = [["mypy", "src/bespokebpv7"]]
+commands = [["mypy", "src/bespokebpv7", "tests", "examples"]]
 
 [tool.tox.env.lint]
 description = "Run Ruff"
 dependency_groups = ["dev"]
 commands = [
-    ["ruff", "check", "src/bespokebpv7"],
-    ["ruff", "format", "--check", "src/bespokebpv7"]
+    ["ruff", "check", "."],
+    ["ruff", "format", "--check", "."]
 ]
 
 [tool.pytest.ini_options]
