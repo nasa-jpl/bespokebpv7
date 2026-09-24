@@ -36,16 +36,22 @@ pytest tests/test_bpv7.py::test_function_name
 
 ### Linting and Type Checking
 
+CI checks the entire repository (`src/bespokebpv7`, `tests/`, and `examples/`)
+for lint and type correctness. Run locally with tox:
+
 ```bash
-# Run ruff linting (auto-fixes issues)
+# Run ruff linting and formatting checks (whole repo)
 tox -e lint
 
-# Run type checking with mypy
+# Run type checking with mypy (src + tests + examples)
 tox -e type
 
+# Run type checking with pyright (src + tests + examples)
+tox -e pyright
+
 # Run ruff directly (must be in virtual environment)
-ruff check --fix src/bespokebpv7
-ruff format src/bespokebpv7
+ruff check --fix .
+ruff format .
 ```
 
 ### Building
