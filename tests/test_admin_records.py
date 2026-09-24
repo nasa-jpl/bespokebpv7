@@ -132,7 +132,9 @@ def test_ccs_roundtrip(
     assert reconstructed.record_type == ccs.record_type
 
     if accept_seqs:
-        key = CustodyAcceptanceCode.CT_ACCEPTED
+        key: CustodyAcceptanceCode | CustodyRefusalCode = (
+            CustodyAcceptanceCode.CT_ACCEPTED
+        )
         assert key in reconstructed.custody_signal
         assert len(reconstructed.custody_signal[key]) == len(accept_seqs)
         assert reconstructed.custody_signal[key][0].dest_seq == accept_seqs[0].dest_seq

@@ -44,13 +44,12 @@ import datetime
 from hypothesis import given
 from strategies import st_eid
 
+from bespokebpv7 import DTN_EPOCH, format_eid, parse_eid_string
 from bespokebpv7.bundle_params import (
     BundleLife,
     BundleRoute,
     StatusAssertion,
 )
-from bespokebpv7 import format_eid, parse_eid_string
-from bespokebpv7 import DTN_EPOCH
 
 
 # ==========================================

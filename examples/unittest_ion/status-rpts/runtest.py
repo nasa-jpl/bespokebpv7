@@ -47,9 +47,8 @@ import time
 from pathlib import Path
 from queue import Empty, Queue
 
-from bespokebpv7.admin_records import BundleStatusReport 
-from bespokebpv7 import BlockType, CRCType
-from bespokebpv7 import BPv7
+from bespokebpv7 import BlockType, BPv7, CRCType
+from bespokebpv7.admin_records import BundleStatusReport
 
 report_queue: Queue[bytes] = Queue()
 
