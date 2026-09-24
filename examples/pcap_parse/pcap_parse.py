@@ -45,7 +45,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-import dpkt  # type: ignore[import-untyped]
+import dpkt
 
 from bespokebpv7 import BPv7
 
@@ -103,7 +103,7 @@ if __name__ == "__main__":
     bundled = pcap_extract(args.pcap)
 
     # expect 4 bundles with 2 with duplicate timestamps
-    if bundled and len(bundled) == 3:  # noqa: PLR2004
+    if bundled and len(bundled) == 3:  # ruff: ignore[magic-value-comparison]
         for tstamp, bundles in bundled.items():
             timestamp = datetime.fromtimestamp(tstamp, tz=timezone.utc).strftime(FSTR)
             for bundle in bundles:

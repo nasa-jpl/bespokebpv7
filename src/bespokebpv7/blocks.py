@@ -127,7 +127,7 @@ def flag_property(flag_bit: BundleFlags | BlockFlags) -> property:
     def getter(self: BaseBlock) -> bool:
         return bool(self.flags & flag_bit)
 
-    def setter(self: BaseBlock, value: bool) -> None:  # noqa: FBT001
+    def setter(self: BaseBlock, value: bool) -> None:  # ruff: ignore[boolean-type-hint-positional-argument]
         if value:
             self.set_flag(flag_bit)
         else:
@@ -158,7 +158,7 @@ class CanonicalBlock(BaseBlock):
     max_array_len = 5
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """
         Structure CBOR List as Canonical Block.
 
@@ -179,7 +179,7 @@ class CanonicalBlock(BaseBlock):
             block.crc = block.crc_type.fill_value
         return block
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """
         Convert CanonicalBlock to CBOR list, applying overrides if present.
 
@@ -219,8 +219,8 @@ class PrimaryBlock(BaseBlock):
     life: BundleLife = field(factory=BundleLife)
     fragmentation: BundleFragmentation | None = None
 
-    list_override: list | None = field(default=None)
-    extra_elements: list = field(factory=list)
+    list_override: list[Any] | None = field(default=None)
+    extra_elements: list[Any] = field(factory=list)
     raw_override: bytes | None = field(default=None)
 
     is_fragment = flag_property(BundleFlags.IS_FRAGMENT)
@@ -244,7 +244,7 @@ class PrimaryBlock(BaseBlock):
         self.life.sequence = seq
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """
         Structure CBOR List as Primary Block.
 
@@ -281,7 +281,7 @@ class PrimaryBlock(BaseBlock):
 
         return block
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """
         Convert PrimaryBlock to CBOR list, applying overrides if present.
 
@@ -294,7 +294,7 @@ class PrimaryBlock(BaseBlock):
             return self.list_override
 
         # Baseline compliant layout
-        out: list[int | list | bytes] = [
+        out: list[int | list[Any] | bytes] = [
             self.version,
             int(self.flags),
             int(self.crc_type),
@@ -323,7 +323,7 @@ class PrimaryBlock(BaseBlock):
         return out
 
 
-class ExtensionBlocks(OrderedDict):
+class ExtensionBlocks(OrderedDict[BlockType, CanonicalBlock]):
     """Store items in the order the keys were last added."""
 
     def __setitem__(self, key: BlockType, value: CanonicalBlock) -> None:

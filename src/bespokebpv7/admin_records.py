@@ -60,8 +60,10 @@ from bespokebpv7.bundle_params import (
 from bespokebpv7.utils import bundle_converter, parse_eid_string, unstructure_eid_list
 
 if sys.version_info >= (3, 11):
-    from typing import Self
+    from typing import Any, Self
 else:
+    from typing import Any
+
     from typing_extensions import Self
 
 
@@ -87,7 +89,7 @@ class BundleStatusReport(AdminRecord):
         self.record_type = AdminRecordType.BUNDLE_STATUS_REPORT
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Structure a BundleStatusReport from a CBOR list (Payload Block fields).
 
         Returns:
@@ -111,7 +113,7 @@ class BundleStatusReport(AdminRecord):
 
         return block
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Unstructure the BundleStatusReport into a CBOR list (Payload Block fields).
 
         Returns:
@@ -176,7 +178,7 @@ class CompressedCustodySignal(AdminRecord):
             self.custody_signal[key].append(seq)
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Structure a CompressedCustodySignal from a CBOR list.
 
         Returns:
@@ -198,10 +200,10 @@ class CompressedCustodySignal(AdminRecord):
                 )
                 seq.dest_seq = seq_data[0]
                 sequences.append(seq)
-            block.custody_signal[cs_key] = sequences  # pylint: disable=E1101
+            block.custody_signal[cs_key] = sequences
         return block
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Unstructure into [type, map].
 
         Returns:
@@ -244,7 +246,7 @@ class CompressedReportSignal(AdminRecord):
             self.reports[key].append(seq)
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Structure a CompressedReportSignal from a CBOR list [type, content].
 
         Returns:
@@ -267,10 +269,10 @@ class CompressedReportSignal(AdminRecord):
                 if len(seq_data) == seq.max_seq_len:
                     seq.block_src_admin_eid = seq_data[3]
                 sequences.append(seq)
-            block.reports[ReportReason(key)] = sequences  # pylint: disable=E1101
+            block.reports[ReportReason(key)] = sequences
         return block
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Unstructure into [type, map].
 
         Returns:

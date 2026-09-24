@@ -47,8 +47,7 @@ import time
 
 import cbor2
 
-from bespokebpv7 import BlockType, CRCType
-from bespokebpv7 import BPv7
+from bespokebpv7 import BlockType, BPv7, CRCType
 
 received_responses: list[bytes] = []
 
@@ -102,6 +101,9 @@ def create_bundle(
     Returns:
         Populated bundle
 
+    Raises:
+        RuntimeError: When payload block is missing
+
     """
     bundle = BPv7()
     bundle.primary_block.route.source_eid = "ipn:2.1"
@@ -109,7 +111,10 @@ def create_bundle(
     bundle.add_payload_block(b"Hello world!")
     if pldnum != 1:
         pld = bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK)
-        pld.block_number = pldnum  # pyright: ignore[reportOptionalMemberAccess]
+        if pld is None:
+            msg = "Payload block must exist to set its block number."
+            raise RuntimeError(msg)
+        pld.block_number = pldnum
     if creation:
         bundle.primary_block.set_creation()
     if crc:

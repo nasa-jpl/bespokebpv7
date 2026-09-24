@@ -42,6 +42,7 @@ software to foreign countries or providing access to foreign persons.
 import datetime
 import io
 import struct
+from typing import Any
 
 import cbor2
 import fastcrc
@@ -58,7 +59,7 @@ LEGACY_LIST = 2
 ALLOCATOR_LIST = 3
 
 
-def calculate_crc(block_list: list, crc_type: CRCType) -> bytes | None:
+def calculate_crc(block_list: list[Any], crc_type: CRCType) -> bytes | None:
     """Calculate CRC per RFC 9171.
     The CRC field (last element) is replaced by an empty byte string for calculation.
 
@@ -83,7 +84,7 @@ def calculate_crc(block_list: list, crc_type: CRCType) -> bytes | None:
     return None
 
 
-def parse_eid_string(eid_str: str | list) -> list:
+def parse_eid_string(eid_str: str | list[Any]) -> list[Any]:
     """Convert 'ipn:allocator.node.service', 'ipn:node.service' or 'dtn:name'
     into CBOR list format.
 
@@ -141,7 +142,7 @@ def parse_eid_string(eid_str: str | list) -> list:
     return [int(SchemeCode.DTN), 0 if ssp in {"0", "none"} else ssp]
 
 
-def format_eid(eid: list) -> str:
+def format_eid(eid: list[Any]) -> str:
     """Parse the EID array at primary_block[eid_index] into a URI string.
 
     Returns:
@@ -176,7 +177,7 @@ def format_eid(eid: list) -> str:
     return "unknown:none"
 
 
-def unstructure_eid_list(obj: list) -> list:
+def unstructure_eid_list(obj: list[Any]) -> list[Any]:
     """List hook, which forces 2-element CBOR encoding for Default Allocators.
 
     Returns:
@@ -206,7 +207,7 @@ def unstructure_eid_list(obj: list) -> list:
     return [bundle_converter.unstructure(item) for item in obj]
 
 
-def decode_cbor_sequence(data: bytes) -> list:
+def decode_cbor_sequence(data: bytes) -> list[Any]:
     """
     Decode a sequence of CBOR objects from bytes.
 
@@ -228,7 +229,7 @@ def decode_cbor_sequence(data: bytes) -> list:
     return results
 
 
-def encode_cbor_sequence(objects: list) -> bytes:
+def encode_cbor_sequence(objects: list[Any]) -> bytes:
     """
     Encode a sequence of objects into CBOR bytes.
 
