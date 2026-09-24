@@ -47,8 +47,8 @@ from strategies import st_eid
 from bespokebpv7 import (
     BlockFlags,
     BlockType,
-    BundleFlags,
     BPv7,
+    BundleFlags,
     format_eid,
     parse_eid_string,
 )

@@ -41,6 +41,7 @@ software to foreign countries or providing access to foreign persons.
 
 from hypothesis import strategies as st
 
+from bespokebpv7 import LTPSegmentType
 from bespokebpv7.block_enum import (
     AdminReasonCode,
     BCBAESVariant,
@@ -55,7 +56,6 @@ from bespokebpv7.bundle_params import (
     CTBundleSequence,
     StatusAssertion,
 )
-from bespokebpv7 import LTPSegmentType
 
 st_ipn_eid = st.builds(
     lambda n, s: f"ipn:{n}.{s}",

@@ -45,8 +45,8 @@ from hypothesis import given
 from strategies import st_data, st_eid
 
 from bespokebpv7 import (
-    BPv7,
     BlockType,
+    BPv7,
     BundleFlags,
     CRCType,
     format_eid,

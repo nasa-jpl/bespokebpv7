@@ -210,7 +210,7 @@ def test_cr_ext_eids(admin_eid: str, report_eid: str) -> None:
     creb.block_src_admin_eid = expected_admin
     creb.report_to_eid = expected_report
     creb.sequence_id = seq_id
-    creb.status_report_flags = flags
+    creb.status_report_flags = CREBFlags(flags)
 
     out_list = bundle_converter.unstructure(creb)
     creb_new = bundle_converter.structure(out_list, CompressedReportingExt)
