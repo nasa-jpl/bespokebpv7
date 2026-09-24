@@ -41,21 +41,20 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import sys
+from pathlib import Path
 
 version = sys.argv[1]
 result = "# Version " + version + "\n"
 RECORD = False
 
-with open("CHANGELOG.md", encoding="utf-8") as f:
+with Path("CHANGELOG.md").open(encoding="utf-8") as f:
     for line in f:
         if "##" in line and "###" not in line and RECORD is True:
             break
         if RECORD is True:
-            if "###" in line:
-                line = line.replace("###", "##")
-            result += line
+            output_line = line.replace("###", "##") if "###" in line else line
+            result += output_line
         if version in line:
             RECORD = True
 
-with open("RELEASE.md", "w", encoding="utf-8") as f:
-    f.write(f"{result.strip()}\n")
+Path("RELEASE.md").write_text(f"{result.strip()}\n", encoding="utf-8")

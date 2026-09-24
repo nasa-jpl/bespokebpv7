@@ -54,9 +54,9 @@ from bespokebpv7.utils import (
 )
 
 if sys.version_info >= (3, 11):
-    from typing import Self
+    from typing import Any, Self
 else:
-    from typing_extensions import Self
+    from typing_extensions import Any, Self
 
 
 @define
@@ -70,7 +70,7 @@ class BundleAgeExt(CanonicalBlock):
         self.block_type = BlockType.BUNDLE_AGE
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Structure BundleAgeExt from CBOR list.
 
         Returns:
@@ -81,7 +81,7 @@ class BundleAgeExt(CanonicalBlock):
         block.age = bundle_converter.loads(block.data, int)
         return block
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Unstructure BundleAgeExt to CBOR list.
 
         Returns:
@@ -96,7 +96,7 @@ class BundleAgeExt(CanonicalBlock):
 class PreviousNodeExt(CanonicalBlock):
     """Class definition for Previous Node extension block."""
 
-    _previous_node: list = field(factory=lambda: [1, "none"])
+    _previous_node: list[Any] = field(factory=lambda: [1, "none"])
 
     def __attrs_post_init__(self) -> None:
         """Set block type"""
@@ -108,14 +108,14 @@ class PreviousNodeExt(CanonicalBlock):
         return format_eid(self._previous_node)
 
     @previous_node.setter
-    def previous_node(self, value: str | list) -> None:
+    def previous_node(self, value: str | list[Any]) -> None:
         if isinstance(value, list):
             self._previous_node = value
         else:
             self._previous_node = parse_eid_string(value)
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Structure PreviousNodeExt from CBOR list.
 
         Returns:
@@ -123,10 +123,10 @@ class PreviousNodeExt(CanonicalBlock):
 
         """
         block = super()._structure(data)
-        block.previous_node = bundle_converter.loads(block.data, list)
+        block._previous_node = bundle_converter.loads(block.data, list)  # ruff: ignore[private-member-access]
         return block
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Unstructure PreviousNodeExt to CBOR list.
 
         Returns:
@@ -150,7 +150,7 @@ class HopCountExt(CanonicalBlock):
         self.block_type = BlockType.HOP_COUNT
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Structure HopCountExt from CBOR list.
 
         Returns:
@@ -159,12 +159,12 @@ class HopCountExt(CanonicalBlock):
         """
         block = super()._structure(data)
         hcb_data = bundle_converter.loads(block.data, list)
-        if len(hcb_data) == block.hcb_array_len:  # pylint: disable=E1101
+        if len(hcb_data) == block.hcb_array_len:
             block.hop_limit = hcb_data[0]
             block.hop_count = hcb_data[1]
         return block
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Unstructure HopCountExt to CBOR list.
 
         Returns:
@@ -181,7 +181,7 @@ class CustodyTransferExt(CanonicalBlock):
 
     sequence_num: int = field(default=0)
     sequence_id: int = field(default=0)
-    _block_src_admin_eid: list = field(
+    _block_src_admin_eid: list[Any] = field(
         factory=lambda: [1, "none"],
         converter=Converter(parse_eid_string),  # type: ignore[misc]
     )
@@ -197,14 +197,14 @@ class CustodyTransferExt(CanonicalBlock):
         return format_eid(self._block_src_admin_eid)
 
     @block_src_admin_eid.setter
-    def block_src_admin_eid(self, value: str | list) -> None:
+    def block_src_admin_eid(self, value: str | list[Any]) -> None:
         if isinstance(value, list):
             self._block_src_admin_eid = value
         else:
             self._block_src_admin_eid = parse_eid_string(value)
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Structure CustodyTransferExt from CBOR list.
 
         Returns:
@@ -213,13 +213,13 @@ class CustodyTransferExt(CanonicalBlock):
         """
         block = super()._structure(data)
         cteb_data = bundle_converter.loads(block.data, list)
-        if len(cteb_data) == block.cteb_array_len:  # pylint: disable=E1101
+        if len(cteb_data) == block.cteb_array_len:
             block.sequence_num = cteb_data[0]
             block.sequence_id = cteb_data[1]
             block.block_src_admin_eid = cteb_data[2]
         return block
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Unstructure CustodyTransferExt to CBOR list.
 
         Returns:
@@ -245,10 +245,10 @@ def creb_flag_property(flag_bit: CREBFlags) -> property:
 
     """
 
-    def getter(self) -> bool:  # noqa: ANN001
-        return bool(self.status_report_flags & flag_bit)
+    def getter(self: "CompressedReportingExt") -> bool:
+        return bool(self.status_report_flags & flag_bit)  # type: ignore[arg-type,operator]
 
-    def setter(self, value: bool) -> None:  # noqa: ANN001, FBT001
+    def setter(self: "CompressedReportingExt", value: bool) -> None:  # ruff: ignore[boolean-type-hint-positional-argument]
         if value:
             self.set_status_flag(flag_bit)
         else:
@@ -266,10 +266,10 @@ class CompressedReportingExt(CanonicalBlock):
     status_report_flags: CREBFlags | None = field(
         default=None, converter=optional(CREBFlags)
     )
-    _block_src_admin_eid: list | None = field(
+    _block_src_admin_eid: list[Any] | None = field(
         default=None, converter=optional(parse_eid_string)
     )
-    _report_to_eid: list | None = field(default=None)
+    _report_to_eid: list[Any] | None = field(default=None)
 
     report_recv = creb_flag_property(CREBFlags.RECV_REPORT_REQ)
     fwd_report = creb_flag_property(CREBFlags.FWD_REPORT_REQ)
@@ -295,7 +295,7 @@ class CompressedReportingExt(CanonicalBlock):
         return None
 
     @block_src_admin_eid.setter
-    def block_src_admin_eid(self, value: str | list) -> None:
+    def block_src_admin_eid(self, value: str | list[Any]) -> None:
         if isinstance(value, list):
             self._block_src_admin_eid = value
         else:
@@ -314,7 +314,7 @@ class CompressedReportingExt(CanonicalBlock):
         return None
 
     @report_to_eid.setter
-    def report_to_eid(self, value: str | list) -> None:
+    def report_to_eid(self, value: str | list[Any]) -> None:
         if isinstance(value, list):
             self._report_to_eid = value
         else:
@@ -333,7 +333,7 @@ class CompressedReportingExt(CanonicalBlock):
         self.status_report_flags &= ~int(status_flag)
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Structure CompressedReportingExt from CBOR list.
 
         Returns:
@@ -344,11 +344,11 @@ class CompressedReportingExt(CanonicalBlock):
         creb_data = bundle_converter.loads(block.data, list)
         # NOTE: linting tools do not recognize attrs __slots__ so disabling warnings
         for idx, value in enumerate(creb_data):
-            key = cls.__slots__[idx]  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
+            key = cls.__slots__[idx]  # pyright: ignore[reportAttributeAccessIssue]
             setattr(block, key, value)
         return block
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Unstructure CompressedReportingExt to CBOR list.
 
         Returns:
@@ -357,7 +357,7 @@ class CompressedReportingExt(CanonicalBlock):
         """
         # NOTE: linting tools do not recognize attrs __slots__ so disabling warnings
         block_data = []
-        for key in self.__slots__:  # pyright: ignore[reportAttributeAccessIssue] pylint: disable=E1101
+        for key in self.__slots__:  # pyright: ignore[reportAttributeAccessIssue]
             val = getattr(self, key)
             if val is not None:
                 block_data.append(val)
@@ -381,7 +381,7 @@ class BPQExt(CanonicalBlock):
         self.block_type = BlockType.QOS
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Structure QoSExt from CBOR list.
 
         Returns:
@@ -390,14 +390,14 @@ class BPQExt(CanonicalBlock):
         """
         block = super()._structure(data)
         qos_data = bundle_converter.loads(block.data, list)
-        if len(qos_data) == block.qos_array_len:  # pylint: disable=E1101
+        if len(qos_data) == block.qos_array_len:
             block.qos_flags = qos_data[0]
             block.class_of_service = qos_data[1]
             block.ordinal = qos_data[2]
             block.data_label = qos_data[3]
         return block
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Unstructure QoSExt to CBOR list.
 
         Returns:

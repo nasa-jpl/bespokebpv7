@@ -39,8 +39,9 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import contextlib
+from typing import Any
 
-import dpkt  # type: ignore[import-untyped]
+import dpkt
 
 from bespokebpv7.bpv7 import BPv7
 from bespokebpv7.segment_enum import LTPSegmentType
@@ -54,13 +55,13 @@ from bespokebpv7.utils import bundle_converter
 __all__ = ["LTP"]
 
 
-class LTP(dpkt.Packet):
+class LTP(dpkt.Packet):  # type: ignore[misc]
     """
     Licklider Transmission Protocol (RFC 5326 / CCSDS 734.1-B-1).
     Encapsulates a single LTP segment and interfaces with dpkt.
     """
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize segment parameters."""
         self.segment = LTPSegment()
         self.bpv7: BPv7 | None = None
@@ -84,14 +85,16 @@ class LTP(dpkt.Packet):
         ctrl_byte = buf[0]
         seg_type_val = ctrl_byte >> 0
 
-        segment_cls = SEGMENTFUNCTIONS.get(LTPSegmentType(seg_type_val), LTPSegment)
+        segment_cls: type[LTPSegment] = SEGMENTFUNCTIONS.get(
+            LTPSegmentType(seg_type_val), LTPSegment
+        )
         self.segment = bundle_converter.structure(buf, segment_cls)
 
         if (
             isinstance(self.segment, DataSegment)
             and self.segment.client_service_id == 1
         ):
-            with contextlib.suppress(ValueError):
+            with contextlib.suppress(ValueError, TypeError):
                 self.bpv7 = BPv7(self.segment.data)
 
     def __bytes__(self) -> bytes:
@@ -114,7 +117,7 @@ class LTP(dpkt.Packet):
 
         seg_bytes = bundle_converter.unstructure(self.segment)
 
-        return self.raw_prefix + seg_bytes + self.raw_trailer
+        return self.raw_prefix + bytes(seg_bytes) + self.raw_trailer
 
     def __str__(self) -> str:
         """Friendly display for debugging.

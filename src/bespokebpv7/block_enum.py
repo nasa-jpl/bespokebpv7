@@ -111,7 +111,7 @@ class CRCType(IntEnum):
 
     @property
     def fill_value(self) -> bytes:
-        """Returns the null/fill byte string for the CRC field per RFC 9171."""
+        """Null/fill byte string for the CRC field per RFC 9171."""
         if self == CRCType.CRC16:
             return b"\x00\x00"
         if self == CRCType.CRC32:

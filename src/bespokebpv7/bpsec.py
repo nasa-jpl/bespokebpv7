@@ -62,8 +62,10 @@ from bespokebpv7.utils import (
 )
 
 if sys.version_info >= (3, 11):
-    from typing import Self
+    from typing import Any, Self
 else:
+    from typing import Any
+
     from typing_extensions import Self
 
 
@@ -76,10 +78,10 @@ def asb_flag_property(flag_bit: SecurityContextFlags) -> property:
 
     """
 
-    def getter(self) -> bool:  # noqa: ANN001
+    def getter(self: "AbstractSecurityBlock") -> bool:
         return bool(self.security_context_flags & flag_bit)
 
-    def setter(self, value: bool) -> None:  # noqa: ANN001, FBT001
+    def setter(self: "AbstractSecurityBlock", value: bool) -> None:  # ruff: ignore[boolean-type-hint-positional-argument]
         if value:
             self.set_context_flag(flag_bit)
         else:
@@ -97,10 +99,10 @@ def integrity_flag_property(flag_bit: IntegrityScopeFlags) -> property:
 
     """
 
-    def getter(self) -> bool:  # noqa: ANN001
+    def getter(self: "BlockIntegrityBlock") -> bool:
         return bool(self.integrity_scope_flags & flag_bit)
 
-    def setter(self, value: bool) -> None:  # noqa: ANN001, FBT001
+    def setter(self: "BlockIntegrityBlock", value: bool) -> None:  # ruff: ignore[boolean-type-hint-positional-argument]
         if value:
             self.set_scope_flag(flag_bit)
         else:
@@ -118,10 +120,10 @@ def aad_flag_property(flag_bit: AADScopeFlags) -> property:
 
     """
 
-    def getter(self) -> bool:  # noqa: ANN001
+    def getter(self: "BlockConfidentialityBlock") -> bool:
         return bool(self.aad_scope_flags & flag_bit)
 
-    def setter(self, value: bool) -> None:  # noqa: ANN001, FBT001
+    def setter(self: "BlockConfidentialityBlock", value: bool) -> None:  # ruff: ignore[boolean-type-hint-positional-argument]
         if value:
             self.set_scope_flag(flag_bit)
         else:
@@ -140,7 +142,7 @@ class SecurityParameter:
     value: bytes | int
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Structure a SecurityParameter from a list.
 
         Returns:
@@ -149,7 +151,7 @@ class SecurityParameter:
         """
         return cls(parm_id=data[0], value=data[1])
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Flatten class for cbor encoding.
 
         Returns:
@@ -169,7 +171,7 @@ class SecurityResult:
     value: bytes
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Structure a SecurityResult from a list [id, value].
 
         Returns:
@@ -198,7 +200,7 @@ class AbstractSecurityBlock(CanonicalBlock):
         default=SecurityContextFlags(0),
         converter=SecurityContextFlags,
     )
-    security_source: list = field(factory=lambda: [1, "none"])
+    security_source: list[Any] = field(factory=lambda: [1, "none"])
     security_parameters: list[SecurityParameter] = field(factory=list)
     security_results: list[SecurityResult] = field(factory=list)
 
@@ -277,7 +279,7 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
         self.integrity_scope_flags &= ~int(security_flag)
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Structure a BIB from a CBOR list (extension block fields).
 
         Returns:
@@ -296,21 +298,21 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
         block.security_source = bib_data[3]
         next_idx = 4
 
-        if block.parm_present:  # pylint: disable=E1101
+        if block.parm_present:
             for parm in bib_data[next_idx]:
-                block.security_parameters.append(  # pylint: disable=E1101
+                block.security_parameters.append(
                     bundle_converter.structure(parm, SecurityParameter)
                 )
             next_idx += 1
 
         for result in bib_data[next_idx][0]:
-            block.security_results.append(  # pylint: disable=E1101
+            block.security_results.append(
                 bundle_converter.structure(result, SecurityResult)
             )
 
         return block
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Unstructure the BIB into a CBOR list.
 
         Returns:
@@ -407,7 +409,7 @@ class BlockConfidentialityBlock(AbstractSecurityBlock):
         self.aad_scope_flags &= ~int(security_flag)
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Structure a BCB from a CBOR list (extension block fields).
 
         Returns:
@@ -426,21 +428,21 @@ class BlockConfidentialityBlock(AbstractSecurityBlock):
         block.security_source = bcb_data[3]
         next_idx = 4
 
-        if block.parm_present:  # pylint: disable=E1101
+        if block.parm_present:
             for parm in bcb_data[next_idx]:
-                block.security_parameters.append(  # pylint: disable=E1101
+                block.security_parameters.append(
                     bundle_converter.structure(parm, SecurityParameter)
                 )
             next_idx += 1
 
         for result in bcb_data[next_idx][0]:
-            block.security_results.append(  # pylint: disable=E1101
+            block.security_results.append(
                 bundle_converter.structure(result, SecurityResult)
             )
 
         return block
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Unstructure the BCB into a CBOR list.
 
         Returns:

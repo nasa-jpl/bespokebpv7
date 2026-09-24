@@ -49,8 +49,10 @@ from bespokebpv7.block_enum import AdminReasonCode
 from bespokebpv7.utils import DTN_EPOCH, bundle_converter, format_eid, parse_eid_string
 
 if sys.version_info >= (3, 11):
-    from typing import Self
+    from typing import Any, Self
 else:
+    from typing import Any
+
     from typing_extensions import Self
 
 
@@ -58,26 +60,26 @@ else:
 class BundleRoute:
     """Routing EIDs for a bundle."""
 
-    _dest_eid: list = field(
+    _dest_eid: list[Any] = field(
         factory=lambda: [1, None],
         converter=Converter(parse_eid_string),  # type: ignore[misc]
     )
-    _source_eid: list = field(
+    _source_eid: list[Any] = field(
         factory=lambda: [1, None],
         converter=Converter(parse_eid_string),  # type: ignore[misc]
     )
-    _report_to_eid: list = field(
+    _report_to_eid: list[Any] = field(
         factory=lambda: [1, None],
         converter=Converter(parse_eid_string),  # type: ignore[misc]
     )
 
     @property
     def source_eid(self) -> str:
-        """Return source EID"""
+        """Source EID"""
         return format_eid(self._source_eid)
 
     @source_eid.setter
-    def source_eid(self, value: str | list) -> None:
+    def source_eid(self, value: str | list[Any]) -> None:
         if isinstance(value, list):
             self._source_eid = value
         else:
@@ -85,11 +87,11 @@ class BundleRoute:
 
     @property
     def dest_eid(self) -> str:
-        """Return destination EID"""
+        """Destination EID"""
         return format_eid(self._dest_eid)
 
     @dest_eid.setter
-    def dest_eid(self, value: str | list) -> None:
+    def dest_eid(self, value: str | list[Any]) -> None:
         if isinstance(value, list):
             self._dest_eid = value
         else:
@@ -97,11 +99,11 @@ class BundleRoute:
 
     @property
     def report_to(self) -> str:
-        """Return report to EID"""
+        """Report to EID"""
         return format_eid(self._report_to_eid)
 
     @report_to.setter
-    def report_to(self, value: str | list) -> None:
+    def report_to(self, value: str | list[Any]) -> None:
         if isinstance(value, list):
             self._report_to_eid = value
         else:
@@ -117,10 +119,10 @@ class CreationTime:
 
     @property
     def creation_dt(self) -> datetime.datetime:
-        """Return creation time as datetime object, does not use sequence number."""
+        """Creation time as datetime object, does not use sequence number."""
         return DTN_EPOCH + datetime.timedelta(milliseconds=self.timestamp_ms)
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Convert CreationTime to list for CBOR encoding.
 
         Returns:
@@ -130,7 +132,7 @@ class CreationTime:
         return [self.timestamp_ms, self.sequence]
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Convert list to CreationTime.
 
         Returns:
@@ -174,25 +176,25 @@ class StatusAssertion:
 
     @property
     def asserted_dt(self) -> datetime.datetime | None:
-        """Return creation time as datetime object, does not use sequence number."""
+        """Creation time as datetime object, does not use sequence number."""
         if self.asserted_time is not None:
             return DTN_EPOCH + datetime.timedelta(milliseconds=self.asserted_time)
         return None
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any | bool]:
         """Convert StatusAssertion to list for cbor encoding.
 
         Returns:
             Status assertion as list
 
         """
-        result: list[bool | int | None] = [self.status_indicator]
+        result: list[Any] = [self.status_indicator]
         if self.asserted_time is not None:
             result.append(self.asserted_time)
         return result
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """Convert list of values into Status Assertion.
 
         Returns:
@@ -215,7 +217,7 @@ class BundleStatusInformation:
     deliv_bundle: StatusAssertion = field(factory=StatusAssertion)
     del_bundle: StatusAssertion = field(factory=StatusAssertion)
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Convert BundleStatusInformation to list for CBOR encoding.
 
         Returns:
@@ -230,7 +232,7 @@ class BundleStatusInformation:
         ]
 
     @classmethod
-    def _structure(cls, data: list[list]) -> Self:
+    def _structure(cls, data: list[list[Any]]) -> Self:
         """Convert list of lists into Bundle Status Information.
 
         Returns:
@@ -253,7 +255,7 @@ class BaseStatusReport:
     reason_code: AdminReasonCode = field(
         default=AdminReasonCode(0), converter=AdminReasonCode
     )
-    _status_src_eid: list = field(
+    _status_src_eid: list[Any] = field(
         factory=lambda: [1, None],
         converter=Converter(parse_eid_string),  # type: ignore[misc]
     )
@@ -261,17 +263,17 @@ class BaseStatusReport:
 
     @property
     def status_src_eid(self) -> str:
-        """Return source EID"""
+        """Status source EID"""
         return format_eid(self._status_src_eid)
 
     @status_src_eid.setter
-    def status_src_eid(self, value: str | list) -> None:
+    def status_src_eid(self, value: str | list[Any]) -> None:
         if isinstance(value, list):
             self._status_src_eid = value
         else:
             self._status_src_eid = parse_eid_string(value)
 
-    def _unstructure(self) -> list:
+    def _unstructure(self) -> list[Any]:
         """Convert status report to list for CBOR encoding.
 
         Returns:
@@ -286,7 +288,7 @@ class BaseStatusReport:
         ]
 
     @classmethod
-    def _structure(cls, data: list) -> Self:
+    def _structure(cls, data: list[Any]) -> Self:
         """
         Convert list to Base Status Report Information.
 
@@ -307,7 +309,7 @@ class BaseStatusReport:
 class CTBundleSequence:
     """Bundle sequence definition for Compressed Custody Signal adminstrative record."""
 
-    dest_seq: int | list = field(default=0)
+    dest_seq: int | list[Any] = field(default=0)
     first_seq_num: int = field(default=0)
     seq_range: int | list[int] = field(default=0)
 
@@ -316,20 +318,20 @@ class CTBundleSequence:
 class CRBundleSequence(CTBundleSequence):
     """Bundle sequence definition for Compressed Reporting administrative record."""
 
-    _block_src_admin_eid: list | None = field(
+    _block_src_admin_eid: list[Any] | None = field(
         factory=lambda: [1, None], converter=optional(parse_eid_string)
     )  # type: ignore[misc]
     max_seq_len: int = 4
 
     @property
     def block_src_admin_eid(self) -> str | None:
-        """Return source EID"""
+        """Sequence source EID"""
         if self._block_src_admin_eid is not None:
             return format_eid(self._block_src_admin_eid)
         return None
 
     @block_src_admin_eid.setter
-    def block_src_admin_eid(self, value: str | list) -> None:
+    def block_src_admin_eid(self, value: str | list[Any]) -> None:
         if isinstance(value, list):
             self._block_src_admin_eid = value
         else:

@@ -40,9 +40,10 @@ software to foreign countries or providing access to foreign persons.
 
 import warnings
 from itertools import count
+from typing import Any
 
 import cbor2
-import dpkt  # type: ignore[import-untyped]
+import dpkt
 
 from bespokebpv7.admin_records import (
     ADMINFUNCTIONS,
@@ -61,12 +62,12 @@ from bespokebpv7.utils import bundle_converter, calculate_crc
 __all__ = ["BPv7"]
 
 
-class BPv7(dpkt.Packet):
+class BPv7(dpkt.Packet):  # type: ignore[misc]
     """Bundle Protocol Version 7 (RFC 9171)
     Format: [primary_block, *canonical_blocks]
     """
 
-    def __init__(self, *args, debug: bool = False, **kwargs) -> None:
+    def __init__(self, *args: Any, debug: bool = False, **kwargs: Any) -> None:
         """Initialize bundle parameters."""
         self.debug = debug
         self.primary_block = PrimaryBlock()
@@ -208,7 +209,7 @@ class BPv7(dpkt.Packet):
 
         """
         try:
-            return self.blocks[type_code]
+            return self.blocks[type_code]  # type: ignore[no-any-return]
         except KeyError:
             return None
 
@@ -261,7 +262,7 @@ class BPv7(dpkt.Packet):
 
     def _debug(
         self,
-        in_data: list,
+        in_data: list[Any],
         block_type: BlockType | None = None,
         typestr: str = "header",
     ) -> None:
@@ -269,12 +270,14 @@ class BPv7(dpkt.Packet):
         type_str_in = f"{typestr}  in"
         type_str_out = f"{typestr} out"
         if typestr == "block":
+            assert block_type is not None
             out_num = self.blocks[block_type].block_type
             type_str_in = f"{typestr} {block_type:>3}"
             type_str_out = f"{typestr} {int(out_num):>3}"
 
         hexstr = bundle_converter.dumps(in_data).hex()
         if typestr == "block":
+            assert block_type is not None
             blk = self.blocks[block_type]
             out_data = bundle_converter.dumps(blk).hex()
 
@@ -283,8 +286,8 @@ class BPv7(dpkt.Packet):
         else:
             out_data = bytes(self.primary_block).hex()
 
-        print(f"{type_str_in}:  {hexstr}\n{type_str_out}:  {out_data}")  # noqa: T201
+        print(f"{type_str_in}:  {hexstr}\n{type_str_out}:  {out_data}")  # ruff: ignore[print]
 
         if typestr == "header":
-            print(f"received:  9f{hexstr}{self.recv_exts}ff")  # noqa: T201
-            print(f"processed: 9f{bytes(self.primary_block).hex()}{self.proc_exts}ff")  # noqa: T201
+            print(f"received:  9f{hexstr}{self.recv_exts}ff")  # ruff: ignore[print]
+            print(f"processed: 9f{bytes(self.primary_block).hex()}{self.proc_exts}ff")  # ruff: ignore[print]

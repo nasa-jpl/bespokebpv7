@@ -41,11 +41,9 @@ software to foreign countries or providing access to foreign persons.
 import argparse
 import socketserver
 import threading
-from collections.abc import Callable
-from typing import cast
+from typing import Any, cast
 
-from bespokebpv7 import BPv7
-from bespokebpv7 import parse_eid_string
+from bespokebpv7 import BPv7, parse_eid_string
 
 
 class BPv7ProxyServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
@@ -56,9 +54,9 @@ class BPv7ProxyServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
 
     def __init__(
         self,
-        server_address: tuple,
-        requesthandlerclass: Callable,
-        config_map: dict,
+        server_address: tuple[Any, ...],
+        requesthandlerclass: type[socketserver.BaseRequestHandler],
+        config_map: dict[str, Any],
     ) -> None:
         """Set parameters for man in the middle"""
         super().__init__(server_address, requesthandlerclass)
@@ -137,15 +135,20 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
         current_socket.sendto(final_data, ("127.0.0.1", dest_port))
 
         if should_modify:
-            with server.count_lock:
-                server.mods += 1
-                print(f"   [COUNT] Mod {server.mods}/{server.expected_mods} completed.")
+            ThreadedUDPRequestHandler._track_modification(server)
 
-                if server.mods >= server.expected_mods:
-                    print("   [!] Mod limit reached. Triggering server shutdown...")
-                    # We use a separate thread for shutdown to avoid deadlocking the
-                    # current request
-                    threading.Thread(target=server.shutdown).start()
+    @staticmethod
+    def _track_modification(server: "BPv7ProxyServer") -> None:
+        """Increment the modification counter and shut down if limit reached."""
+        with server.count_lock:
+            server.mods += 1
+            print(f"   [COUNT] Mod {server.mods}/{server.expected_mods} completed.")
+
+            if server.mods >= server.expected_mods:
+                print("   [!] Mod limit reached. Triggering server shutdown...")
+                # We use a separate thread for shutdown to avoid deadlocking the
+                # current request
+                threading.Thread(target=server.shutdown).start()
 
     @staticmethod
     def modify_bundle(bundle: BPv7) -> BPv7:
