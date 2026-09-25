@@ -32,15 +32,8 @@ echo "PURPOSE: Demonstrate TCPCL interoperability with ION."
 echo "########################################"
 
 # Determine the Python interpreter to use
-# Prefer the project virtual environment if it exists.
-VENV_PYTHON="/home/nrichard/bespokebpv7/.venv/bin/python"
-if [ -f "$VENV_PYTHON" ]; then
-    PYTHON_EXE="$VENV_PYTHON"
-elif command -v python3.12 > /dev/null; then
-    PYTHON_EXE="python3.12"
-else
-    PYTHON_EXE="python3"
-fi
+# Use python3, which under tox points to the virtualenv with all deps installed.
+PYTHON_EXE="python3"
 
 echo "Starting ION..."
 export PYTHONPATH="$REPO_ROOT/src:$PYTHONPATH"
