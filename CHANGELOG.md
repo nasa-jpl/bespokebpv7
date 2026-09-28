@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] 2026-09-28
+
+### Added
+
+- Add TCPCL v3 & v4 support
+- Add LTP report segment support
+- Add allocator support
+
+### Changed
+
+- Update imports to allow for simplified imports for BP, LTP, & TCP
+- Typing & formatting updates
+- Dependency version updates
+
 ## [0.5.0] 2026-07-09
 
 ### Added
