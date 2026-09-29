@@ -1,104 +1,89 @@
-# Bespoke BPv7 Bundle Creation
+# Bespoke BPv7
 
-Custom created bundles and bundle modifications for whatever DTN purposes you require!
+Create, parse, and modify BPv7 (RFC 9171) bundles and LTP (RFC 5326)
+segments in Python.
 
-## Usage
+Supports both RFC-compliant bundles and intentionally non-compliant bundles
+for V&V testing of DTN implementations.
 
-This package supports defining RFC 9171 bundles and modifying the parameters to
-the extent both supported and unsupported by the RFC. Want to set the do not
-fragment and is a fragment flag, we won't stop you! It also supports definition
-and modification of standardized Extension Blocks, specifically the Bundle Age
-Block, the Hop Count Block, the Previous Node Block, and the Block Integrity
-Block. Eventually, it will support the non-standard Extension Blocks within
-ION. It can also take in a hex  representation of bundle and parse out the
-parameters, provided it is CBOR conformant. Below are a few examples for using
-this package.
+## Installation
 
-### Parse Bundle
-
-```python
-import binascii
-
-from bespokebpv7 import BlockType, BPv7
-
-# Take hex string representation of bundle and convert to bytes
-test_bundle = "9f88071844008202820301820100820100821b000000b5998c982b011a000493e08506021000458202820200850704010042183485010101004454455354ff"
-parsed_bundle = BPv7(binascii.unhexlify(test_bundle))
-print(parsed_bundle)
-print(parsed_bundle.primary_block.route.source_eid)
-print(parsed_bundle.primary_block.route.dest_eid)
-print(parsed_bundle.primary_block.route.report_to)
-print(parsed_bundle.primary_block.flags)
-print(parsed_bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK))
+```bash
+pip install bespokebpv7
 ```
 
-### Creating a Bundle
+## Quick Start
+
+### Create a Standard Bundle
 
 ```python
 import cbor2
 
-from bespokebpv7 import BlockType, BPv7, CRCType, parse_eid_string
-from bespokebpv7.blocks import CanonicalBlockInit
+from bespokebpv7 import BPv7, CRCType, parse_eid_string
 
-payload = cbor2.dumps("Hello!")
-new_bundle = BPv7()
-new_bundle.add_payload_block(payload)
+# Build payload as CBOR (RFC 9171 encodes all data in CBOR)
+payload = cbor2.dumps("Hello, World!")
 
-# Set Bundle creation time, not automatic
-# pass miliseconds to set a different time than current time
-new_bundle.primary_block.set_creation()
+# Initialize bundle and add payload block
+bundle = BPv7()
+bundle.add_payload_block(payload)
 
-# Set bundle flags to not fragment & include status time in status reports
-new_bundle.primary_block.no_fragment = True
-new_bundle.primary_block.status_time = True
-new_bundle.primary_block.crc_type = CRCType.CRC16
-new_bundle.primary_block.route.source_eid = "ipn:2.1"
-new_bundle.primary_block.route.dest_eid = "ipn:3.1"
-new_bundle.primary_block.update_crc()  # Sets CRC for primary block, not automatic
+# Set creation timestamp, routing, and flags
+bundle.primary_block.set_creation()
+bundle.primary_block.route.source_eid = "ipn:2.1"
+bundle.primary_block.route.dest_eid = "ipn:3.1"
+bundle.primary_block.no_fragment = True
+bundle.primary_block.crc_type = CRCType.CRC16
 
-# Add Previous Node block
-# Convert Endpoint string to list using parsing_eid_string
-# then convert to cbor string. Python lists become CBOR arrays
-block_parms: CanonicalBlockInit = {"block_type": BlockType.PREVIOUS_NODE}
-new_bundle.add_canonical_block(block_parms, cbor2.dumps(parse_eid_string("ipn:2.0")))
-print(new_bundle)
+# Always re-compute CRC after modifying a block
+bundle.primary_block.update_crc()
+
+# Serialize
+serialized: bytes = bytes(bundle)
 ```
 
-### Modifying a Bundle
+### V&V Path — Non-Compliant Bundle
+
+```python
+from bespokebpv7 import BPv7, BundleFlags, CRCType
+
+bundle = BPv7()
+bundle.add_payload_block(b"test")
+
+# Intentionally non-compliant: both IS_FRAGMENT and
+# DO_NOT_FRAGMENT are set simultaneously.
+bundle.primary_block.flags |= BundleFlags.IS_FRAGMENT
+bundle.primary_block.flags |= BundleFlags.DO_NOT_FRAGMENT
+
+bundle.primary_block.set_creation()
+bundle.primary_block.route.source_eid = "ipn:2.1"
+bundle.primary_block.route.dest_eid = "ipn:3.1"
+bundle.primary_block.crc_type = CRCType.CRC16
+bundle.primary_block.update_crc()
+```
+
+### Parsing from Hex
 
 ```python
 import binascii
+from bespokebpv7 import BPv7, BlockType
 
-import cbor2
-
-from bespokebpv7 import BlockType, BPv7, CRCType
-
-payload = cbor2.dumps("Hello!")
-
-# Take hex string representation of bundle and convert to bytes
-bundle = "9f88070000820282030182028201018202820100821b000000bb0e20b4ea001a000927c08508020100410086010100014d48656c6c6f2c20576f726c64214254b3ff"
-mod_bundle = BPv7(binascii.unhexlify(bundle))
-
-# Change the payload and update the payload block CRC
-mod_bundle.blocks[BlockType.PAYLOAD_BLOCK].data = payload
-mod_bundle.blocks[BlockType.PAYLOAD_BLOCK].update_crc()
-
-# Change the Bundle processing flags
-mod_bundle.primary_block.no_fragment = True
-mod_bundle.primary_block.status_time = True
-
-# Change the bundle route
-mod_bundle.primary_block.route.source_eid = "ipn:2.1"
-mod_bundle.primary_block.route.dest_eid = "ipn:3.1"
-
-# Change the creation time
-mod_bundle.primary_block.set_creation()
-
-# Update the primary block CRC to reflect the changes
-mod_bundle.primary_block.crc_type = CRCType.CRC16
-mod_bundle.primary_block.update_crc()
-print(mod_bundle)
-
-# Get hex string representation
-print(bytes(mod_bundle).hex())
+hex_bundle = (
+    "9f88071844008202820301820100820100821b000000b5998c98"
+    "2b011a000493e085060210004582028202008507040100421834"
+    "85010101004454455354ff"
+)
+bundle = BPv7(binascii.unhexlify(hex_bundle))
+print(bundle.primary_block.route.source_eid)
+print(bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK))
 ```
+
+## Documentation
+
+Full API reference and operational guides are available in the
+[generated documentation](https://nrichard.github.io/bespokebpv7/).
+
+## Examples
+
+The [`examples/`](examples/) directory contains integration tests and usage
+patterns, including PCAP parsing, V&V testing, and MITM BPSec testing.
