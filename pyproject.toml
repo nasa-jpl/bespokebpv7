@@ -40,6 +40,7 @@ dev = [
     "ruff>=0.16.0",
     "tox>=4.34.1",
     "tox-uv>=1.29.0",
+    "zensical>=0.0.66",
 ]
 
 [build-system]
