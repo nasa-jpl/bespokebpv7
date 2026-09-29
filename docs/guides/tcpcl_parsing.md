@@ -9,7 +9,7 @@ invariants.
 A TCPCL packet on the wire has the following fixed header layout (RFC 7242 /
 RFC 9174):
 
-```
+```text
 +--------+----------+----------+-----------+
 | Magic  | Version  | Length   | Type      |  Payload ...
 | 4 bytes| 1 byte   | 4 bytes  | 1 byte    |

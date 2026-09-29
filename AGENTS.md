@@ -63,15 +63,14 @@ uv build
 
 ### Examples
 
-The `examples/` directory contains integration tests that run against ION DTN implementation:
+The `examples/` directory contains integration tests and usage patterns:
 
 ```bash
-# Example tests are run as part of tox test suite
+# Run example tests
 cd examples/pcap_parse && ./dotest
-cd examples/unittest_ion/issue-265-bpdriver-ttl-option && ./dotest
-cd examples/unittest_ion/status-rpts && ./dotest
 cd examples/vnv_ion && ./dotest
 cd examples/mitm_test && ./dotest
+cd examples/tcpcl_ion && ./dotest
 ```
 
 ## Architecture
@@ -167,6 +166,25 @@ A BPv7 bundle consists of:
 - `decode_sdnv()`: Decode SDNV bytes, returns (value, bytes_consumed)
 - `DTN_EPOCH`: DTN epoch constant (2000-01-01 00:00:00 UTC)
 
+**tcpcl.py** - TCP Convergence Layer (RFC 7242 / RFC 9174)
+
+- `TCPCL(dpkt.Packet)`: Wire-format packet with `version`, `message_type`, `message` attributes; `__init__`, `unpack`, `__bytes__`, `__str__`, `__repr__`.
+- `TCPCLStreamParser`: Stream parser with `feed(data)` method. Retains partial magic bytes (up to 3) for split-packet recovery.
+- `MESSAGE_MAP`: dict mapping `(TCPCLVersion, int)` to message class.
+- `MAGIC`: `b"dtn!"` wire-format sentinel.
+
+**tcpcl_messages.py** - TCPCL message hierarchy
+
+- `TCPCLMessage` (base), `TCPCLv3Message`/`TCPCLv4Message` (version bases).
+- 10 concrete subclasses: `TCPCLv3Contact`, `TCPCLv3Keepalive`, `TCPCLv3Shutdown`, `TCPCLv3DataSegment`, `TCPCLv3DataAck`, `TCPCLv4SessInit`, `TCPCLv4Keepalive`, `TCPCLv4SessTerm`, `TCPCLv4XferSegment`, `TCPCLv4XferAck`.
+- Data segment classes (`TCPCLv3DataSegment`, `TCPCLv4XferSegment`) extract embedded `BPv7` when S=1 and E=1 flags are set.
+
+**tcpcl_enum.py** - TCPCL enumerations
+
+- `TCPCLVersion`: V3 (3), V4 (4).
+- `TCPCLv3MessageType`: CONTACT, KEEPALIVE, SHUTDOWN, DATA_SEGMENT, DATA_ACK.
+- `TCPCLv4MessageType`: SESS_INIT, KEEPALIVE, SESS_TERM, XFER_SEGMENT, XFER_ACK.
+
 ### Data Flow
 
 **Parsing a bundle:**
@@ -250,15 +268,6 @@ The `BPv7` class implements `__bool__()` (always returns True) and `__len__()` (
 ### Testing Philosophy
 
 The package supports creating non-RFC-compliant bundles (e.g., setting both DO_NOT_FRAGMENT and IS_FRAGMENT flags simultaneously). This is intentional for V&V testing of DTN implementations.
-
-### ION Integration
-
-Examples in `examples/` demonstrate integration with NASA JPL's ION DTN implementation, including:
-
-- PCAP parsing of captured bundles
-- Unit test simplification by replacing multi-node ION setups
-- V&V testing with malformed bundles
-- MITM attack simulation for BPSec testing
 
 ## Code Coverage
 
