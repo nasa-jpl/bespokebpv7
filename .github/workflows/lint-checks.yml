@@ -1,0 +1,74 @@
+name: bespokebpv7 Lint Checks
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "src/*"
+      - "tests/*"
+      - "examples/*"
+      - "docs/*"
+      - "*.md"
+      - ".markdownlint.json"
+      - ".markdownlintignore"
+      - "pyproject.toml"
+      - ".github/workflows/lint-checks.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+      name: Lint & Type Check
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v7
+
+        - name: Install uv manually
+          run: |
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+        - name: Install tox
+          run: uv tool install tox --with tox-uv
+
+        - name: Run Lint
+          run: uvx tox -e lint
+
+        - name: Run Type Check
+          run: uvx tox -e type
+
+        - name: Run Pyright Type Check
+          run: uvx tox -e pyright
+
+  markdownlint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv manually
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install tox
+        run: uv tool install tox --with tox-uv
+
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "26"
+
+      - name: Install markdownlint-cli
+        run: npm install -g markdownlint-cli
+
+      - name: Run markdownlint via tox
+        run: uvx tox -e markdownlint

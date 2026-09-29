@@ -117,7 +117,7 @@ skip_covered = true
 
 [tool.tox]
 requires = ["tox>=4.34.1", "tox-uv>=1.29.0"]
-env_list = ["clean", "3.10", "3.11", "3.12", "3.13", "3.14", "type", "pyright", "lint", "coverage"]
+env_list = ["clean", "3.10", "3.11", "3.12", "3.13", "3.14", "type", "pyright", "lint", "markdownlint", "coverage"]
 isolated_build = true
 
 [tool.tox.env.clean]
@@ -163,6 +163,12 @@ commands = [
     ["ruff", "check", "."],
     ["ruff", "format", "--check", "."]
 ]
+
+[tool.tox.env.markdownlint]
+description = "Run markdownlint on documentation"
+skip_install = true
+allowlist_externals = ["markdownlint"]
+commands = [["markdownlint", "**/*.md"]]
 
 [tool.pytest.ini_options]
 testpaths = [
