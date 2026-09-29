@@ -40,16 +40,19 @@ CI checks the entire repository (`src/bespokebpv7`, `tests/`, and `examples/`)
 for lint and type correctness. Run locally with tox:
 
 ```bash
-# Run ruff linting and formatting checks (whole repo)
+# Run Ruff Linting and Formatting Checks (Whole Repo)
 tox -e lint
 
-# Run type checking with mypy (src + tests + examples)
+# Run Markdown Linting (whole repo)
+tox -e markdownlint
+
+# Run Type Checking with mypy (src + tests + examples)
 tox -e type
 
-# Run type checking with pyright (src + tests + examples)
+# Run Type Checking with Pyright (src + tests + examples)
 tox -e pyright
 
-# Run ruff directly (must be in virtual environment)
+# Run Ruff Directly (must be in virtual environment)
 ruff check --fix .
 ruff format .
 ```
