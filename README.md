@@ -81,7 +81,7 @@ print(bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK))
 ## Documentation
 
 Full API reference and operational guides are available in the
-[generated documentation](https://nrichard.github.io/bespokebpv7/).
+[generated documentation](https://nasa-jpl.github.io/bespokebpv7/).
 
 ## Examples
 

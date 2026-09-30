@@ -1,6 +1,6 @@
 [project]
 docs_dir = "."
-site_url = "https://nrichard.github.io/bespokebpv7/"
+site_url = "https://nasa-jpl.github.io/bespokebpv7/"
 site_name = "bespokebpv7"
 site_description = "Python library for creating, parsing, and modifying BPv7 (RFC 9171) bundles and LTP (RFC 5326) segments."
 site_author = "Nate Richard"
