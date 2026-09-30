@@ -84,7 +84,7 @@ print(bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK))
 
 - [API Reference](api/core.md) — Detailed documentation for each module.
 - [Guides](guides/lifecycle.md) — Conceptual and workflow guides.
-- [Examples](https://github.com/nrichard/bespokebpv7/tree/main/examples/) —
+- [Examples](https://github.com/nasa-jpl/bespokebpv7/tree/main/examples/) —
 Integration tests and usage patterns.
 
 ## Dependencies
