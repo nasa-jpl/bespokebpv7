@@ -187,6 +187,6 @@ bpdriverAduFile
 .vscode/
 .worktrees/
 
-# Claude stuff
-docs/design-plans/
-docs/implementation-plans/
+# Review reports from agents
+# don't want them committed
+reports/
