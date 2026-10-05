@@ -243,3 +243,24 @@ def test_ltp_unpack_does_not_swallow_unexpected_errors(
 
     with pytest.raises(AttributeError, match="simulated defect"):
         LTP(seg._unstructure())
+
+def test_ltp_segment_type_masks_version_bits() -> None:
+    """Verify that version bits do not leak into the LTP segment type."""
+    seg = DataSegment(
+        session_number=1,
+        client_service_id=1,
+        client_offset=0,
+        client_length=4,
+        data=b"data",
+    )
+    seg.segment_type = LTPSegmentType.DATA_RED
+
+    raw = bytearray(seg._unstructure())
+
+    # Set version bits in the control byte while keeping the segment type.
+    raw[0] |= 0x30
+
+    packet = LTP(bytes(raw))
+
+    assert packet.segment is not None
+    assert packet.segment.segment_type == LTPSegmentType.DATA_RED
