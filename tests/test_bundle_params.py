@@ -41,13 +41,16 @@ software to foreign countries or providing access to foreign persons.
 
 import datetime
 
+import pytest
 from hypothesis import given
 from strategies import st_eid
 
 from bespokebpv7 import DTN_EPOCH, format_eid, parse_eid_string
 from bespokebpv7.bundle_params import (
+    BaseStatusReport,
     BundleLife,
     BundleRoute,
+    CreationTime,
     StatusAssertion,
 )
 
@@ -99,3 +102,28 @@ def test_status_assertion_methods() -> None:
     sa.set_asserted_time()
     assert sa.asserted_time is not None
     assert sa.asserted_time > ms
+
+
+def test_creation_time_structure_raises_on_short_list() -> None:
+    """Verify that CreationTime._structure() raises ValueError on lists
+    shorter than 2.
+    """
+    # CreationTime requires [timestamp_ms, sequence]
+    truncated_data = [12345]
+    with pytest.raises(
+        ValueError, match="CreationTime requires timestamp and sequence"
+    ):
+        CreationTime._structure(truncated_data)
+
+
+def test_base_status_report_structure_raises_on_short_list() -> None:
+    """Verify that BaseStatusReport._structure() raises ValueError on lists
+    shorter than 4.
+    """
+    # BaseStatusReport requires: [status_info, reason_code,
+    # status_src_eid, status_creation_time]
+    truncated_data = [[], 0, [1, "eid"]]
+    with pytest.raises(
+        ValueError, match="BaseStatusReport requires at least 4 elements"
+    ):
+        BaseStatusReport._structure(truncated_data)

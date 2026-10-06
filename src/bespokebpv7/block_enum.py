@@ -100,6 +100,18 @@ class BlockType(IntEnum):
     QOS = 193
     IMC = 195
 
+    @classmethod
+    def _missing_(cls, value: object) -> "BlockType | None":
+        """Fall back to UNKNOWN_BLOCK for unrecognized block type integers.
+
+        Returns:
+            The UNKNOWN_BLOCK type if the value is an integer, otherwise None.
+
+        """
+        if isinstance(value, int) and not isinstance(value, bool):
+            return cls.UNKNOWN_BLOCK
+        return None
+
 
 class CRCType(IntEnum):
     """Enumeration for supported CRC types."""

@@ -40,6 +40,7 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import cbor2
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from strategies import (
@@ -56,6 +57,7 @@ from bespokebpv7.admin_records import (
 )
 from bespokebpv7.block_enum import (
     AdminRecordType,
+    BlockType,
     CustodyAcceptanceCode,
     CustodyRefusalCode,
     ReportReason,
@@ -268,3 +270,26 @@ def test_bundle_status_report_roundtrip(
         assert reconstructed.fragmentation.total_adu_len == fragmentation.total_adu_len
     else:
         assert reconstructed.fragmentation is None
+
+
+def test_bundle_status_report_structure_raises_on_truncated_admin_record() -> None:
+    """Verify that BundleStatusReport._structure() raises ValueError on
+    truncated admin records.
+    """
+    # BundleStatusReport._structure calls super()._structure(data) first
+    # (CanonicalBlock), then loads the data field.
+    # Canonical block: [type, num, flags, crc_type, data]
+    # Admin record internal structure: [record_type, status_report_list]
+    # We want the admin_record list to be too short (< 2)
+
+    # Valid canonical block wrapper
+    canonical_list = [
+        int(BlockType.PAYLOAD_BLOCK),
+        2,
+        0,
+        0,
+        cbor2.dumps([1]),
+    ]  # admin_record = [1] (too short)
+
+    with pytest.raises(ValueError, match="Admin record CBOR array too short"):
+        bundle_converter.structure(canonical_list, BundleStatusReport)

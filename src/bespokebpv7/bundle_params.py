@@ -55,6 +55,9 @@ else:
 
     from typing_extensions import Self
 
+MIN_CREATION_TIME_LEN = 2
+MIN_BASE_STATUS_REPORT_LEN = 4
+
 
 @define
 class BundleRoute:
@@ -138,7 +141,13 @@ class CreationTime:
         Returns:
             Completed CreationTime class
 
+        Raises:
+            ValueError: If the list is too short to contain timestamp and sequence.
+
         """
+        if len(data) < MIN_CREATION_TIME_LEN:
+            msg = "CreationTime requires timestamp and sequence"
+            raise ValueError(msg)
         return cls(timestamp_ms=data[0], sequence=data[1])
 
 
@@ -176,7 +185,12 @@ class StatusAssertion:
 
     @property
     def asserted_dt(self) -> datetime.datetime | None:
-        """Creation time as datetime object, does not use sequence number."""
+        """Creation time as datetime object, does not use sequence number.
+
+        Returns:
+            Creation time as datetime object or None.
+
+        """
         if self.asserted_time is not None:
             return DTN_EPOCH + datetime.timedelta(milliseconds=self.asserted_time)
         return None
@@ -295,7 +309,13 @@ class BaseStatusReport:
         Returns:
             Completed BaseStatusReport class
 
+        Raises:
+            ValueError: If the data list contains fewer than 4 elements.
+
         """
+        if len(data) < MIN_BASE_STATUS_REPORT_LEN:
+            msg = "BaseStatusReport requires at least 4 elements"
+            raise ValueError(msg)
         block = cls(
             status_info=bundle_converter.structure(data[0], BundleStatusInformation),
             reason_code=AdminReasonCode(data[1]),

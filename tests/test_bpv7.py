@@ -222,3 +222,78 @@ def test_bpv7_debug_mode(capsys: pytest.CaptureFixture[str]) -> None:
     assert "received:  9f" in captured.out
     assert "processed: 9f" in captured.out
     assert "header  in" in captured.out
+
+
+def test_bpv7_unpack_unknown_block_type_in_bundle() -> None:
+    """Verify that BPv7.unpack() handles unknown block types by falling
+    back to UNKNOWN_BLOCK.
+    """
+    # Create a bundle with a primary block and one block with an unknown type (999)
+    # Primary block structure: [version, flags, crc_type, dest_eid,
+    # src_eid, report_to, [time, seq], lifetime]
+    pb_list = [7, 0, 0, [1, "dest"], [1, "src"], [1, "report"], [1000, 0], 100]
+    # Unknown block structure: [type, num, flags, crc_type, data]
+    unknown_block = [999, 2, 0, 0, b"data"]
+
+    bundle_list = [pb_list, unknown_block]
+    raw_bytes = (
+        b"\x9f"
+        + bundle_converter.dumps(bundle_list[0])
+        + bundle_converter.dumps(bundle_list[1])
+        + b"\xff"
+    )
+
+    bundle = BPv7(raw_bytes)
+    # The unknown block should be stored under BlockType.UNKNOWN_BLOCK
+    assert BlockType.UNKNOWN_BLOCK in bundle.blocks
+    assert bundle.blocks[BlockType.UNKNOWN_BLOCK].data == b"data"
+
+
+def test_bpv7_unpack_raises_on_empty_bundle_array() -> None:
+    """Verify that BPv7.unpack() raises ValueError on empty bundle CBOR array."""
+    # 0x9f is start of indefinite array, 0xff is end. Empty array = 9fff
+    raw_bytes = b"\x9f\xff"
+    with pytest.raises(ValueError, match="Bundle CBOR array is empty"):
+        BPv7(raw_bytes)
+
+
+def test_bpv7_unpack_raises_on_truncated_block_array() -> None:
+    """Verify that BPv7.unpack() raises ValueError on truncated block arrays."""
+    pb_list = [7, 0, 0, [1, "dest"], [1, "src"], [1, "report"], [1000, 0], 100]
+    # Truncated block: only 4 elements instead of 5
+    truncated_block = [1, 2, 0, 0]
+
+    bundle_list = [pb_list, truncated_block]
+    raw_bytes = (
+        b"\x9f"
+        + bundle_converter.dumps(bundle_list[0])
+        + bundle_converter.dumps(bundle_list[1])
+        + b"\xff"
+    )
+
+    with pytest.raises(ValueError, match="Canonical block CBOR array too short"):
+        BPv7(raw_bytes)
+
+
+def test_bpv7_unpack_raises_on_truncated_admin_record() -> None:
+    """Verify that BPv7.unpack() raises ValueError on truncated admin records in ADU."""
+    # Set ADU_IS_ADMIN_RECORD flag (1 << 1 = 2)
+    pb_list = [7, 2, 0, [1, "dest"], [1, "src"], [1, "report"], [1000, 0], 100]
+    # In admin mode, if block_type == PAYLOAD_BLOCK, it expects the
+    # data field to be a CBOR list and that the list itself is not empty.
+    # Payload block structure: [type, num, flags, crc_type, data]
+    # Here we make the 'data' field a truncated list [1] (assuming it
+    # needs more) or empty []
+    truncated_admin_data = cbor2.dumps([])
+    admin_block = [1, 2, 0, 0, truncated_admin_data]
+
+    bundle_list = [pb_list, admin_block]
+    raw_bytes = (
+        b"\x9f"
+        + bundle_converter.dumps(bundle_list[0])
+        + bundle_converter.dumps(bundle_list[1])
+        + b"\xff"
+    )
+
+    with pytest.raises(ValueError, match="Admin record CBOR array is empty"):
+        BPv7(raw_bytes)

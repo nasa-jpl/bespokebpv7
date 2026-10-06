@@ -40,6 +40,7 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import cbor2
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from strategies import st_eid
@@ -60,9 +61,28 @@ from bespokebpv7.blocks import (
 from bespokebpv7.utils import bundle_converter
 
 
-# ==========================================
-# Tests for bespokebpv7/blocks.py
-# ==========================================
+@given(st_eid, st_eid, st.integers(min_value=0, max_value=100))
+def test_primary_block_serialization_roundtrip(
+    src: str, dst: str, lifetime: int
+) -> None:
+    """Verify primary block encodes and decodes correctly."""
+    expected_src = format_eid(parse_eid_string(src))
+    expected_dest = format_eid(parse_eid_string(dst))
+
+    pb = PrimaryBlock()
+    pb.route.source_eid = src
+    pb.route.dest_eid = dst
+    pb.life.lifetime = lifetime
+
+    serialized_list = bundle_converter.unstructure(pb)
+
+    pb_new = bundle_converter.structure(serialized_list, PrimaryBlock)
+
+    assert pb_new.route.source_eid == expected_src
+    assert pb_new.route.dest_eid == expected_dest
+    assert pb_new.life.lifetime == lifetime
+
+
 def test_primary_block_flags() -> None:
     """Verify Primary block flags are set correctly."""
     pb = PrimaryBlock()
@@ -88,28 +108,6 @@ def test_primary_block_creation_time() -> None:
 
     pb.set_creation()
     assert pb.life.timestamp_ms > 0
-
-
-@given(st_eid, st_eid, st.integers(min_value=0, max_value=100))
-def test_primary_block_serialization_roundtrip(
-    src: str, dst: str, lifetime: int
-) -> None:
-    """Verify primary block encodes and decodes correctly."""
-    expected_src = format_eid(parse_eid_string(src))
-    expected_dest = format_eid(parse_eid_string(dst))
-
-    pb = PrimaryBlock()
-    pb.route.source_eid = src
-    pb.route.dest_eid = dst
-    pb.life.lifetime = lifetime
-
-    serialized_list = bundle_converter.unstructure(pb)
-
-    pb_new = bundle_converter.structure(serialized_list, PrimaryBlock)
-
-    assert pb_new.route.source_eid == expected_src
-    assert pb_new.route.dest_eid == expected_dest
-    assert pb_new.life.lifetime == lifetime
 
 
 def test_canonical_block_logic() -> None:
@@ -199,3 +197,27 @@ def test_extension_blocks_ordering() -> None:
     decoded = cbor2.loads(raw)
     assert decoded[1][0] == int(BlockType.HOP_COUNT)
     assert decoded[2][0] == int(BlockType.PAYLOAD_BLOCK)
+
+
+def test_canonical_block_unknown_block_type_falls_back() -> None:
+    """Verify that CanonicalBlock.structure() handles unknown block types by
+    falling back to UNKNOWN_BLOCK.
+    """
+    # Use a block type value that is NOT in BlockType enum
+    unknown_type_val = 999
+    data = [unknown_type_val, 2, 0, 0, b"data"]
+
+    cb = bundle_converter.structure(data, CanonicalBlock)
+    assert cb.block_type == BlockType.UNKNOWN_BLOCK
+
+
+def test_canonical_block_structure_raises_on_truncated_list() -> None:
+    """Verify that CanonicalBlock.structure() raises ValueError on
+    truncated CBOR lists.
+    """
+    # Canonical block needs at least 5 elements: type, num, flags, crc_type, data
+    # Try with 4 elements
+    truncated_data = [1, 2, 0, 0]
+
+    with pytest.raises(ValueError, match="Canonical block CBOR array too short"):
+        bundle_converter.structure(truncated_data, CanonicalBlock)
