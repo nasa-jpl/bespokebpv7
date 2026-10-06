@@ -40,6 +40,7 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import cbor2
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from strategies import st_creb_params, st_eid
@@ -272,3 +273,41 @@ def test_qos_ext(
     assert qos_new.class_of_service == class_of_service
     assert qos_new.ordinal == ordinal
     assert qos_new.data_label == data_label
+
+
+def test_compressed_reporting_ext_structure_raises_on_overlong_list() -> None:
+    """Verify CREB raises ValueError if CBOR list is longer than 5 fields."""
+    # Create a CBOR list with 6 elements
+    overlong_data = [1, 2, 3, 4, 5, 6]
+    data_bytes = cbor2.dumps(overlong_data)
+
+    # Mock the structure list: [block_type, flags, length, data_bytes]
+    # For CREB, block_type is 7 (BlockType.CREB = 7)
+    in_list = [7, 0, 0, 0, data_bytes]
+
+    with pytest.raises(
+        ValueError, match="CompressedReportingExt CBOR list longer than known fields"
+    ):
+        bundle_converter.structure(in_list, CompressedReportingExt)
+
+
+def test_compressed_reporting_ext_unstructure_raises_on_interior_none_gap() -> None:
+    """Verify CREB raises ValueError if an interior field is None while
+    a later field is set.
+    """
+    creb = CompressedReportingExt(block_type=BlockType.CREB)
+
+    # Field order: sequence_num, sequence_id, status_report_flags,
+    # _block_src_admin_eid, _report_to_eid
+    creb.sequence_num = 123
+    creb.sequence_id = None  # Gap!
+    creb.report_to_eid = "ipn:2.1"
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "CompressedReportingExt cannot omit an interior field "
+            "while a later field is set"
+        ),
+    ):
+        bundle_converter.unstructure(creb)

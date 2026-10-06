@@ -41,11 +41,17 @@ draft CCSDS Orange Book on Bundle Protocol reporting.
 * **Structure:** The CREB is represented as a CBOR list with the following
   optional fields:
     1. **Sequence Number** (`int`)
-    1. **Sequence ID** (`int` | `None`)
-    1. **Status Report Flags** (`flags`): A bitmask specifying the requested
+    2. **Sequence ID** (`int` | `None`)
+    3. **Status Report Flags** (`flags`): A bitmask specifying the requested
        reports.
-    1. **Block Source Admin EID** (`EID` | `None`)
-    1. **Report To EID** (`EID` | `None`)
+    4. **Block Source Admin EID** (`EID` | `None`)
+    5. **Report To EID** (`EID` | `None`)
+
+   Fields may only be omitted from the **end** of the list (trailing
+   omission). If an interior field is `None` while a later field is
+   set, serialization raises `ValueError`. Callers wanting to set a
+   later field must supply explicit values (e.g. `0` or an EID)
+   for all earlier ones.
 
 #### Report Flags
 
