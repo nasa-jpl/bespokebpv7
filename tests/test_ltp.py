@@ -46,7 +46,13 @@ from strategies import st_data, st_eid
 
 from bespokebpv7 import LTP, BPv7
 from bespokebpv7.segment_enum import CancelReasonCode, LTPSegmentType
-from bespokebpv7.segments import CancelSegment, DataSegment, ReportAckSegment
+from bespokebpv7.segments import (
+    SEGMENTFUNCTIONS,
+    CancelSegment,
+    DataSegment,
+    LTPSegment,
+    ReportAckSegment,
+)
 from bespokebpv7.utils import (  # type: ignore[import-untyped]
     format_eid,
     parse_eid_string,
@@ -243,3 +249,45 @@ def test_ltp_unpack_does_not_swallow_unexpected_errors(
 
     with pytest.raises(AttributeError, match="simulated defect"):
         LTP(seg._unstructure())
+
+
+def test_ltp_segment_type_mask_covers_all_control_bytes() -> None:
+    """Verify every control byte 0-255 maps to a valid LTPSegmentType."""
+    for ctrl_byte in range(256):
+        seg_type_val = ctrl_byte & 0x0F
+        seg_type = LTPSegmentType(seg_type_val)
+        assert isinstance(seg_type, LTPSegmentType)
+        # SEGMENTFUNCTIONS should have an entry for known types or fall back
+        assert SEGMENTFUNCTIONS.get(seg_type, LTPSegment) is not None
+
+
+@given(
+    st.integers(min_value=0, max_value=2**32 - 1),
+    st.integers(min_value=0, max_value=2**32 - 1),
+)
+def test_ltp_unpack_ignores_version_nibble(session_orig: int, session_num: int) -> None:
+    """Verify that varying the high nibble of the control byte does not
+    affect the parsed segment (version is ignored in comparison).
+    """
+    seg = ReportAckSegment(
+        session_originator=session_orig,
+        session_number=session_num,
+        report_serial_number=42,
+    )
+    raw_bytes = seg._unstructure()
+
+    # Base parse with the original bytes
+    base_packet = LTP(raw_bytes)
+    base_seg = base_packet.segment
+    assert isinstance(base_seg, ReportAckSegment)
+
+    # Vary only the high nibble of byte 0 (version) and verify identical results
+    for high_nibble in (0x10, 0x20, 0xF0):
+        modified_bytes = bytes([high_nibble | (raw_bytes[0] & 0x0F)]) + raw_bytes[1:]
+        parsed_packet = LTP(modified_bytes)
+        parsed_seg = parsed_packet.segment
+
+        assert isinstance(parsed_seg, ReportAckSegment)
+        assert parsed_seg.session_originator == base_seg.session_originator
+        assert parsed_seg.session_number == base_seg.session_number
+        assert parsed_seg.report_serial_number == base_seg.report_serial_number
