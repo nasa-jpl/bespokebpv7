@@ -25,8 +25,8 @@ Book on Bundle Protocol custody transfer.
 * **Structure:** The CTEB is represented as a CBOR list containing:
     1. **Sequence Number** (`int`): The sequence number associated with the
        custody transfer.
-    1. **Sequence ID** (`int`): The identifier for the sequence.
-    1. **Block Source Admin EID** (`EID`): The EID of the administering node.
+    2. **Sequence ID** (`int`): The identifier for the sequence.
+    3. **Block Source Admin EID** (`EID`): The EID of the administering node.
 
 In `bespokebpv7`, this is implemented in the `CustodyTransferExt` class within
 `ext_functions.py`.
@@ -80,9 +80,9 @@ forwarding behavior within the ION network.
 * **Structure:** The QOS extension block is represented as a CBOR list with the
   following fields:
     1. **QoS Flags** (`int`): Bitmask of QoS control flags.
-    1. **Class of Service** (`int`): The ECOS class of service value.
-    1. **Ordinal** (`int`): The ECOS ordinal value.
-    1. **Data Label** (`int`): An optional data label for extended
+    2. **Class of Service** (`int`): The ECOS class of service value.
+    3. **Ordinal** (`int`): The ECOS ordinal value.
+    4. **Data Label** (`int`): An optional data label for extended
        classification.
 
 In `bespokebpv7`, this is implemented in the `BPQExt` class within
