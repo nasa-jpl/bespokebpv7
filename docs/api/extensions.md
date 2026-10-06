@@ -55,13 +55,20 @@ Implementation of the Compressed Reporting extension block (CREB).
 **Attributes:**
 
 - `sequence_num` (int): Sequence number.
-- `sequence_id` (int | None): Optional sequence identifier.
+- `sequence_id` (int | None): Sequence identifier.
 - `status_report_flags` (`CREBFlags` | None): Flags indicating which
   reports are requested.
 - `block_src_admin_eid` (property): Get/set the source EID for the
   admin block. Accepts a string or a list representation.
 - `report_to_eid` (property): Get/set the report-to EID.
   Accepts a string or a list representation.
+
+The fields are ordered: `sequence_num`, `sequence_id`,
+`status_report_flags`, `block_src_admin_eid`, `report_to_eid`.
+Fields may only be omitted from the **end** of the list (trailing omission);
+an interior field set to `None` while a later field is set raises
+`ValueError` during serialization. Callers wanting to set a later field
+must supply explicit values (e.g. `0`) for all earlier ones.
 
 **Report Request Properties (Boolean):**
 

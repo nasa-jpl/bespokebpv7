@@ -54,8 +54,10 @@ from bespokebpv7.utils import (
 )
 
 if sys.version_info >= (3, 11):
-    from typing import Any, Self
+    from typing import Any, ClassVar, Self
 else:
+    from typing import ClassVar
+
     from typing_extensions import Any, Self
 
 
@@ -261,6 +263,14 @@ def creb_flag_property(flag_bit: CREBFlags) -> property:
 class CompressedReportingExt(CanonicalBlock):
     """Class definition for Compressed Reporting extension block (CREB)."""
 
+    _CREB_FIELDS: ClassVar[tuple[str, ...]] = (
+        "sequence_num",
+        "sequence_id",
+        "status_report_flags",
+        "_block_src_admin_eid",
+        "_report_to_eid",
+    )
+
     sequence_num: int = field(default=0)
     sequence_id: int | None = field(default=None)
     status_report_flags: CREBFlags | None = field(
@@ -339,12 +349,16 @@ class CompressedReportingExt(CanonicalBlock):
         Returns:
             Populated Compressed Reporting Extension
 
+        Raises:
+            ValueError: If the CBOR list is longer than the known fields.
+
         """
         block = super()._structure(data)
         creb_data = bundle_converter.loads(block.data, list)
-        # NOTE: linting tools do not recognize attrs __slots__ so disabling warnings
-        for idx, value in enumerate(creb_data):
-            key = cls.__slots__[idx]  # pyright: ignore[reportAttributeAccessIssue]
+        if len(creb_data) > len(cls._CREB_FIELDS):
+            msg = "CompressedReportingExt CBOR list longer than known fields"
+            raise ValueError(msg)
+        for key, value in zip(cls._CREB_FIELDS, creb_data, strict=False):
             setattr(block, key, value)
         return block
 
@@ -354,13 +368,24 @@ class CompressedReportingExt(CanonicalBlock):
         Returns:
             Converted class to list
 
+        Raises:
+            ValueError: If an interior field is omitted while a later field is set.
+
         """
-        # NOTE: linting tools do not recognize attrs __slots__ so disabling warnings
         block_data = []
-        for key in self.__slots__:  # pyright: ignore[reportAttributeAccessIssue]
+        omitted = False
+        for key in self._CREB_FIELDS:
             val = getattr(self, key)
-            if val is not None:
-                block_data.append(val)
+            if val is None:
+                omitted = True
+                continue
+            if omitted:
+                msg = (
+                    "CompressedReportingExt cannot omit an interior field "
+                    "while a later field is set"
+                )
+                raise ValueError(msg)
+            block_data.append(val)
         self.data = bundle_converter.dumps(block_data)
         return super()._unstructure()
 
