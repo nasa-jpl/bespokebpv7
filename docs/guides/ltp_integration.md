@@ -59,9 +59,9 @@ data is still accessible via `self.segment.data`.
 When creating an LTP segment with an embedded BPv7 bundle:
 
 1. Instantiate `LTP()` and set `self.segment` to a `DataSegment` instance.
-1. Set `client_service_id = 1` and `client_offset = 0`.
-1. Set `self.bpv7` to the BPv7 instance.
-1. On serialization (`bytes(ltp_packet)`), the embedded bundle is automatically
+2. Set `client_service_id = 1` and `client_offset = 0`.
+3. Set `self.bpv7` to the BPv7 instance.
+4. On serialization (`bytes(ltp_packet)`), the embedded bundle is automatically
    re-serialized and the data segment's `data` and `client_length` fields are
    updated.
 

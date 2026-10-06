@@ -16,7 +16,7 @@ creates two integration challenges:
    defined, which in turn relies on `__hdr_len__` (a fixed header size).
    Since CBOR data has no fixed header, this would produce incorrect results.
 
-1. **Length**: `dpkt.Packet.__len__` returns the fixed header length, not
+2. **Length**: `dpkt.Packet.__len__` returns the fixed header length, not
    the actual serialized CBOR size.
 
 ## `__bool__()` Override

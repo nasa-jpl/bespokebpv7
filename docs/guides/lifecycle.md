@@ -35,15 +35,15 @@ high-level Python object that can be easily manipulated.
 ### The Process
 
 1. **Initialization**: A `BPv7` object is instantiated.
-1. **Unpacking**: The `unpack()` method is called on the raw bytes.
-1. **Primary Block**: The library CBOR-decodes the primary block to populate the
+2. **Unpacking**: The `unpack()` method is called on the raw bytes.
+3. **Primary Block**: The library CBOR-decodes the primary block to populate the
    `PrimaryBlock` instance (routing, flags, and lifetime).
-1. **Canonical Blocks**: The library iterates through the remaining data:
+4. **Canonical Blocks**: The library iterates through the remaining data:
     - It identifies the block type.
     - It uses the `BLOCKFUNCTIONS` dictionary to map the type to the correct
       extension class (e.g., `BundleAgeExt`, `HopCountExt`).
     - Each block is CBOR-decoded.
-1. **Storage**: All decoded blocks are stored in an `ExtensionBlocks`
+5. **Storage**: All decoded blocks are stored in an `ExtensionBlocks`
    `OrderedDict`, preserving the original order of blocks in the bundle.
 
 **Example:**
@@ -101,10 +101,10 @@ transmission or storage.
 
 1. **Conversion**: Calling `bytes(bundle)` triggers the internal serialization
    logic.
-1. **Bundle Converter**: The `bundle_converter()` utility is invoked.
-1. **CBOR Encoding**: The `PrimaryBlock` and all blocks in the `ExtensionBlocks`
+2. **Bundle Converter**: The `bundle_converter()` utility is invoked.
+3. **CBOR Encoding**: The `PrimaryBlock` and all blocks in the `ExtensionBlocks`
    `OrderedDict` are serialized into CBOR format.
-1. **Output**: The resulting bytes are returned as a single contiguous blob.
+4. **Output**: The resulting bytes are returned as a single contiguous blob.
 
 **Example:**
 

@@ -13,7 +13,7 @@
     "siblings_only": true
   },
   "MD029": {
-    "style": "one"
+    "style": "ordered"
   },
   "MD040": {
     "fenced_code_language": true,
