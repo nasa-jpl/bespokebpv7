@@ -194,6 +194,14 @@ def test_sdnv_incomplete_buffer() -> None:
         decode_sdnv(bad_data)
 
 
+def test_decode_sdnv_rejects_overlong_sdnv() -> None:
+    """Verify that an SDNV with more than 10 bytes raises a ValueError."""
+    # MSB=1 repeated 11 times means no terminal byte within 10 bytes
+    overlong_bytes = b"\x80" * 11
+    with pytest.raises(ValueError, match=r"exceeds maximum encodable length"):
+        decode_sdnv(overlong_bytes)
+
+
 def test_parse_ipn_null_uri() -> None:
     """Verify that Null IPN URIs are treated as the Null EID (dtn:none)."""
     # RFC 9758: ipn:0.0.<nonzero> is a Null URI

@@ -57,6 +57,7 @@ DTN_EPOCH = datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc)
 LOCAL_NODE = 2**32 - 1
 LEGACY_LIST = 2
 ALLOCATOR_LIST = 3
+MAX_SDNV_LEN = 10
 
 
 def calculate_crc(block_list: list[Any], crc_type: CRCType) -> bytes | None:
@@ -298,17 +299,24 @@ def decode_sdnv(data: bytes) -> tuple[int, int]:
             - The number of bytes consumed from the byte string.
 
     Raises:
-        ValueError: If the byte string ends before the SDNV is fully terminated.
+        ValueError: If the byte string ends before the SDNV is fully
+            terminated.
+        ValueError: If the SDNV exceeds the maximum encodable length of
+            10 bytes.
 
     """
     value = 0
     bytes_consumed = 0
 
     for byte in data:
+        bytes_consumed += 1
+
+        if bytes_consumed > MAX_SDNV_LEN:
+            msg = "SDNV exceeds maximum encodable length (10 bytes)"
+            raise ValueError(msg)
+
         value <<= 7
         value += byte & 0x7F
-
-        bytes_consumed += 1
 
         if (byte & 0x80) == 0:
             break

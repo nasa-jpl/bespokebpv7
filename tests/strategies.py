@@ -39,6 +39,8 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+from typing import Any
+
 import cbor2
 from hypothesis import strategies as st
 
@@ -489,3 +491,35 @@ def st_tcpcl_packet(draw: st.DrawFn) -> TCPCL:  # type: ignore[empty-body]
     pkt.message_type = msg_type
     pkt.message = msg
     return pkt
+
+
+# ==========================================
+# Malformed Input Strategies
+# ==========================================
+
+st_invalid_block_type = st.integers(min_value=0).filter(
+    lambda v: v not in {b.value for b in BlockType}
+)
+
+st_malformed_sdnv = st.binary(min_size=11).map(
+    lambda b: bytes(byte | 0x80 for byte in b)
+)
+
+
+@st.composite
+def st_truncated_list(draw: st.DrawFn, base: st.SearchStrategy) -> list[Any]:
+    """Generate a truncated list from a base strategy.
+
+    Args:
+        draw: Hypothesis draw function.
+        base: The base search strategy to truncate.
+
+    Returns:
+        A truncated version of the list.
+
+    """
+    valid_list = draw(base)
+    if len(valid_list) <= 1:
+        return []
+    trunc_len = draw(st.integers(min_value=0, max_value=len(valid_list) - 1))
+    return list(valid_list[:trunc_len])
