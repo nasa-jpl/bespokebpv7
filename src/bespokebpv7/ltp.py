@@ -83,7 +83,7 @@ class LTP(dpkt.Packet):  # type: ignore[misc]
             raise ValueError(msg)
 
         ctrl_byte = buf[0]
-        seg_type_val = ctrl_byte >> 0
+        seg_type_val = ctrl_byte & 0x0F
 
         segment_cls: type[LTPSegment] = SEGMENTFUNCTIONS.get(
             LTPSegmentType(seg_type_val), LTPSegment
