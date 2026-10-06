@@ -66,6 +66,8 @@ else:
 
     from typing_extensions import Self
 
+MIN_ADMIN_RECORD_LEN = 2
+
 
 @define
 class AdminRecord(CanonicalBlock):
@@ -95,10 +97,16 @@ class BundleStatusReport(AdminRecord):
         Returns:
             Populated Bundle Status Report
 
+        Raises:
+            ValueError: If the admin record CBOR array is too short.
+
         """
         block = super()._structure(data)
 
         admin_record = bundle_converter.loads(block.data, list)
+        if len(admin_record) < MIN_ADMIN_RECORD_LEN:
+            msg = "Admin record CBOR array too short"
+            raise ValueError(msg)
         block.record_type = admin_record[0]
         status_report = admin_record[1]
 

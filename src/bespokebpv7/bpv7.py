@@ -213,6 +213,35 @@ class BPv7(dpkt.Packet):  # type: ignore[misc]
         except KeyError:
             return None
 
+    def _resolve_block_class(
+        self, exts: list[Any], block_type: BlockType
+    ) -> type[CanonicalBlock]:
+        """Resolve the canonical block class from raw CBOR data.
+
+        Handles the admin-record case where `block_type` is the payload
+        block marker and the data field must be inspected to pick the
+        correct ``AdminRecord`` subclass.
+
+        Returns:
+            The resolved canonical block class.
+
+        Raises:
+            ValueError: if the admin record data is too short or empty.
+
+        """
+        if self.primary_block.adu_is_admin and block_type == BlockType.PAYLOAD_BLOCK:
+            if len(exts) <= CanonicalBlock.max_array_len - 1:
+                msg = "Canonical block array too short for admin record data"
+                raise ValueError(msg)
+            admin_record = bundle_converter.loads(exts[4], list)
+            if not admin_record:
+                msg = "Admin record CBOR array is empty"
+                raise ValueError(msg)
+            return ADMINFUNCTIONS.get(
+                AdminRecordType(admin_record[0]), BundleStatusReport
+            )
+        return BLOCKFUNCTIONS.get(block_type, CanonicalBlock)
+
     def unpack(self, buf: bytes) -> None:
         """Unpack indefinite CBOR array into a Bundle.
 
@@ -226,21 +255,19 @@ class BPv7(dpkt.Packet):  # type: ignore[misc]
             errmsg = "CBOR decoding issue"
             raise ValueError(errmsg) from err
 
+        if not bundle_data:
+            msg = "Bundle CBOR array is empty"
+            raise ValueError(msg)
+
         self.primary_block = bundle_converter.structure(bundle_data[0], PrimaryBlock)
 
         ext: CanonicalBlock
         for exts in bundle_data[1:]:
+            if len(exts) < CanonicalBlock.max_array_len:
+                msg = "Canonical block CBOR array too short"
+                raise ValueError(msg)
             block_type = BlockType(exts[0])
-            if (
-                self.primary_block.adu_is_admin
-                and block_type == BlockType.PAYLOAD_BLOCK
-            ):
-                admin_record = bundle_converter.loads(exts[4], list)
-                block = ADMINFUNCTIONS.get(
-                    AdminRecordType(admin_record[0]), BundleStatusReport
-                )
-            else:
-                block = BLOCKFUNCTIONS.get(block_type, CanonicalBlock)
+            block = self._resolve_block_class(exts, block_type)
             ext = bundle_converter.structure(exts, block)
 
             self.blocks[block_type] = ext

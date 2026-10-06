@@ -165,7 +165,13 @@ class CanonicalBlock(BaseBlock):
         Returns:
             Populated Canonical Block
 
+        Raises:
+            ValueError: If the CBOR array is too short to be a canonical block.
+
         """
+        if len(data) < cls.max_array_len:
+            msg = "Canonical block CBOR array too short"
+            raise ValueError(msg)
         block = cls()
         block.block_type = BlockType(data[0])
         block.block_number = data[1]
