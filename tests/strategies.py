@@ -373,23 +373,37 @@ def st_tcpclv4_sess_term() -> st.SearchStrategy[TCPCLv4SessTerm]:
 
 
 def st_tcpclv4_xfer_segment() -> st.SearchStrategy[TCPCLv4XferSegment]:
-    """Generate TCPCL v4 Transfer Segment messages honoring flag and seq constraints.
+    """Generate TCPCL v4 Transfer Segment messages honoring RFC 9174 constraints.
+
+    ``transfer_extension_items`` is only ever serialized by ``__bytes__`` when
+    ``s_flag`` is set (RFC 9174 Sec 5.2.2 places the Transfer Extension Items
+    field only in START segments); if we generated non-empty bytes while
+    ``s_flag=False`` they would be silently dropped on the wire, breaking a
+    straightforward round-trip assertion on that attribute. So the strategy
+    forces ``transfer_extension_items`` to ``b""`` whenever ``s_flag`` is
+    ``False``, via a flatmap over the flag choice.
 
     Returns:
         Strategy of TCPCLv4 Transfer Segments
 
     """
-    return st.builds(
-        TCPCLv4XferSegment,
-        s_flag=st.booleans(),
-        e_flag=st.booleans(),
-        sequence_number=st.integers(min_value=0, max_value=2**32 - 1),
-        payload=st.binary(max_size=512),
-    )
+
+    def _build(s_flag: bool) -> st.SearchStrategy[TCPCLv4XferSegment]:
+        ext_items_strategy = st.binary(max_size=64) if s_flag else st.just(b"")
+        return st.builds(
+            TCPCLv4XferSegment,
+            s_flag=st.just(s_flag),
+            e_flag=st.booleans(),
+            transfer_id=st.integers(min_value=0, max_value=2**64 - 1),
+            transfer_extension_items=ext_items_strategy,
+            payload=st.binary(max_size=512),
+        )
+
+    return st.booleans().flatmap(_build)
 
 
 def st_tcpclv4_xfer_ack() -> st.SearchStrategy[TCPCLv4XferAck]:
-    """Generate TCPCL v4 Transfer Ack messages with valid sequence numbers.
+    """Generate TCPCL v4 Transfer Ack messages honoring RFC 9174 constraints.
 
     Returns:
         Strategy of TCPCLv4 Acks
@@ -397,7 +411,10 @@ def st_tcpclv4_xfer_ack() -> st.SearchStrategy[TCPCLv4XferAck]:
     """
     return st.builds(
         TCPCLv4XferAck,
-        sequence_number=st.integers(min_value=0, max_value=2**32 - 1),
+        s_flag=st.booleans(),
+        e_flag=st.booleans(),
+        transfer_id=st.integers(min_value=0, max_value=2**64 - 1),
+        acknowledged_length=st.integers(min_value=0, max_value=2**64 - 1),
     )
 
 

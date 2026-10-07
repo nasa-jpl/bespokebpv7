@@ -49,6 +49,7 @@ from strategies import (
     st_bpv7_bundle,
     st_tcpcl_packet,
     st_tcpclv3_data_segment,
+    st_tcpclv4_xfer_ack,
     st_tcpclv4_xfer_segment,
 )
 
@@ -111,17 +112,29 @@ def _build_segment_packet_bytes(
 ) -> bytes:
     """Build raw wire bytes for a single v3 DataSegment / v4 XferSegment packet.
 
+    v3 DATA_SEGMENT keeps its RFC 7242 layout (1-byte flags S=0x80/E=0x40 +
+    4-byte sequence number). v4 XFER_SEGMENT uses the RFC 9174 Sec 5.2.2
+    layout (1-byte flags S=0x02/E=0x01 + 8-byte Transfer ID + 8-byte Data
+    length, with no Transfer Extension Items since these tests never need
+    them); `sequence_number` is reused as the Transfer ID in that case.
+
     Returns:
         The serialized TCPCL packet bytes.
 
     """
-    msg_type = (
-        TCPCLv3MessageType.DATA_SEGMENT
-        if version == TCPCLVersion.V3
-        else TCPCLv4MessageType.XFER_SEGMENT
-    )
-    flags = (0x80 if s_flag else 0) | (0x40 if e_flag else 0)
-    seg_payload = struct.pack(">B I", flags, sequence_number) + payload
+    if version == TCPCLVersion.V3:
+        msg_type: int = TCPCLv3MessageType.DATA_SEGMENT
+        flags = (0x80 if s_flag else 0) | (0x40 if e_flag else 0)
+        seg_payload = struct.pack(">B I", flags, sequence_number) + payload
+    else:
+        msg_type = TCPCLv4MessageType.XFER_SEGMENT
+        flags = (0x02 if s_flag else 0) | (0x01 if e_flag else 0)
+        seg_payload = struct.pack(">BQ", flags, sequence_number)
+        if s_flag:
+            # Transfer Extension Items Length (0, no items) -- only present
+            # on START segments per RFC 9174 Sec 5.2.2.
+            seg_payload += struct.pack(">I", 0)
+        seg_payload += struct.pack(">Q", len(payload)) + payload
     length = 1 + len(seg_payload)
     return MAGIC + struct.pack(">B I B", version, length, msg_type) + seg_payload
 
@@ -545,20 +558,139 @@ def test_tcpcl_v3_data_ack_short_buffer_pbt(buf: bytes) -> None:
         msg.unpack(buf)
 
 
-@given(st.binary(max_size=4))
+@given(st.binary(max_size=8))
 def test_tcpcl_v4_xfer_segment_short_header_pbt(buf: bytes) -> None:
-    """TCPCLv4XferSegment.unpack raises ValueError for buffers < 5 bytes."""
+    """TCPCLv4XferSegment.unpack raises ValueError for buffers < 9 bytes.
+
+    9 bytes is the RFC 9174 Sec 5.2.2 flags(1) + Transfer ID(8) prefix.
+    """
     msg = TCPCLv4XferSegment()
     with pytest.raises(ValueError, match="Buffer too short for TCPCLv4XferSegment"):
         msg.unpack(buf)
 
 
-@given(st.binary(max_size=3))
+@given(st.binary(max_size=16))
 def test_tcpcl_v4_xfer_ack_short_buffer_pbt(buf: bytes) -> None:
-    """TCPCLv4XferAck.unpack raises ValueError for buffers < 4 bytes."""
+    """TCPCLv4XferAck.unpack raises ValueError for buffers < 17 bytes.
+
+    17 bytes is the RFC 9174 Sec 5.2.3 flags(1) + Transfer ID(8) +
+    Acknowledged length(8).
+    """
     msg = TCPCLv4XferAck()
     with pytest.raises(ValueError, match="Buffer too short for TCPCLv4XferAck"):
         msg.unpack(buf)
+
+
+def test_v4_xfer_segment_rfc9174_wire_format() -> None:
+    """A hand-built RFC 9174 Figure 22 buffer unpacks into expected fields.
+
+    Direct regression test for the non-compliant 5-byte header previously
+    used by TCPCLv4XferSegment (issue #61): flags=0x03 (S=1,E=1), 8-byte
+    Transfer ID, 4-byte ext-items-length=0, 8-byte data length, data.
+    """
+    transfer_id = 0x0123456789ABCDEF
+    # Not valid CBOR-encoded bundle data (decodes to a bare int, not a
+    # list), so BPv7 auto-extraction raises and is suppressed -- this test
+    # only cares about the TCPCLv4XferSegment framing fields.
+    data = b"\x00" * 14
+    buf = (
+        struct.pack(">B", 0x03)
+        + struct.pack(">Q", transfer_id)
+        + struct.pack(">I", 0)
+        + struct.pack(">Q", len(data))
+        + data
+    )
+
+    result = TCPCLv4XferSegment()
+    result.unpack(buf)
+
+    assert result.s_flag is True
+    assert result.e_flag is True
+    assert result.transfer_id == transfer_id
+    assert result.transfer_extension_items == b""
+    assert result.payload == data
+
+
+@given(st.binary(max_size=32), st.integers(min_value=1, max_value=16))
+def test_v4_xfer_segment_rejects_truncated_data_length(data: bytes, extra: int) -> None:
+    """Unpack rejects a declared Data length longer than the remaining buffer."""
+    buf = (
+        struct.pack(">B", 0x01)
+        + struct.pack(">Q", 1)
+        + struct.pack(">Q", len(data) + extra)
+        + data
+    )
+    msg = TCPCLv4XferSegment()
+    with pytest.raises(
+        ValueError,
+        match="TCPCLv4XferSegment declared Data length does not match",
+    ):
+        msg.unpack(buf)
+
+
+@given(st.binary(min_size=1, max_size=32), st.integers(min_value=1, max_value=16))
+def test_v4_xfer_segment_rejects_undersized_declared_length(
+    data: bytes, shrink: int
+) -> None:
+    """Unpack rejects a declared Data length shorter than the remaining buffer.
+
+    This proves trailing bytes are not silently dropped on a short declared
+    length -- malformed/non-compliant input must surface as an error rather
+    than being masked, consistent with this library's testing philosophy.
+    """
+    declared = max(len(data) - shrink, 0)
+    buf = (
+        struct.pack(">B", 0x01)
+        + struct.pack(">Q", 1)
+        + struct.pack(">Q", declared)
+        + data
+    )
+    msg = TCPCLv4XferSegment()
+    with pytest.raises(
+        ValueError,
+        match="TCPCLv4XferSegment declared Data length does not match",
+    ):
+        msg.unpack(buf)
+
+
+def test_v4_xfer_segment_override_lengths_are_rejected_on_unpack() -> None:
+    """data_length_override/ext_items_length_override build V&V-malformed segments.
+
+    Setting either override produces a buffer whose declared length lies
+    about the actual data; feeding that buffer back into unpack() must
+    raise ValueError, demonstrating the library can still construct and
+    correctly reject non-compliant v4 transfer segments.
+    """
+    seg = TCPCLv4XferSegment()
+    seg.s_flag = True
+    seg.e_flag = True
+    seg.transfer_id = 42
+    seg.payload = b"abc"
+    seg.data_length_override = len(seg.payload) + 5
+
+    malformed = bytes(seg)
+    result = TCPCLv4XferSegment()
+    with pytest.raises(
+        ValueError,
+        match="TCPCLv4XferSegment declared Data length does not match",
+    ):
+        result.unpack(malformed)
+
+    seg2 = TCPCLv4XferSegment()
+    seg2.s_flag = True
+    seg2.e_flag = True
+    seg2.transfer_id = 42
+    seg2.transfer_extension_items = b"xx"
+    seg2.payload = b"abc"
+    seg2.ext_items_length_override = len(seg2.transfer_extension_items) + 5
+
+    malformed2 = bytes(seg2)
+    result2 = TCPCLv4XferSegment()
+    with pytest.raises(
+        ValueError,
+        match="Buffer too short for TCPCLv4XferSegment header",
+    ):
+        result2.unpack(malformed2)
 
 
 def test_tcpcl_v3_update_length_noop() -> None:
@@ -573,7 +705,7 @@ def test_bpv7_extraction_v4_positive_pbt(bundle_bytes: bytes) -> None:
     seg = TCPCLv4XferSegment()
     seg.s_flag = True
     seg.e_flag = True
-    seg.sequence_number = 1
+    seg.transfer_id = 1
     seg.payload = bundle_bytes
 
     serialized = bytes(seg)
@@ -609,7 +741,9 @@ def test_v4_xfer_segment_bpv7_serialization_pbt(msg: TCPCLv4XferSegment) -> None
     assert result.payload == msg.payload
     assert result.s_flag == msg.s_flag
     assert result.e_flag == msg.e_flag
-    assert result.sequence_number == msg.sequence_number
+    assert result.transfer_id == msg.transfer_id
+    if msg.s_flag:
+        assert result.transfer_extension_items == msg.transfer_extension_items
 
 
 @given(
@@ -657,16 +791,17 @@ def test_stream_parser_invalid_packet_skipped() -> None:
     assert len(recovered) == 0
 
 
-def test_v4_xfer_ack_roundtrip() -> None:
-    """A v4 XferAck with sequence_number = 0xFFFFFFFF round-trips."""
-    msg = TCPCLv4XferAck()
-    msg.sequence_number = SEQNUM
-
+@given(st_tcpclv4_xfer_ack())
+def test_v4_xfer_ack_roundtrip(msg: TCPCLv4XferAck) -> None:
+    """A v4 XferAck round-trips s_flag, e_flag, transfer_id, acknowledged_length."""
     serialized = bytes(msg)
     result = TCPCLv4XferAck()
     result.unpack(serialized)
 
-    assert result.sequence_number == SEQNUM
+    assert result.s_flag == msg.s_flag
+    assert result.e_flag == msg.e_flag
+    assert result.transfer_id == msg.transfer_id
+    assert result.acknowledged_length == msg.acknowledged_length
 
 
 @given(st_bpv7_bundle())
@@ -700,7 +835,7 @@ def test_xfer_segment_v4_bpv7_serialization_path_pbt(bundle_bytes: bytes) -> Non
     seg = TCPCLv4XferSegment()
     seg.s_flag = True
     seg.e_flag = True
-    seg.sequence_number = 1
+    seg.transfer_id = 1
     seg.payload = bundle_bytes
 
     # Unpack to set .bpv7
@@ -708,8 +843,14 @@ def test_xfer_segment_v4_bpv7_serialization_path_pbt(bundle_bytes: bytes) -> Non
     assert seg.bpv7 is not None
 
     # Now __bytes__ should use bytes(self.bpv7) since bpv7 is truthy
-    flags_byte = 0x80 | 0x40
-    expected = struct.pack(">B I", flags_byte, 1) + bundle_bytes
+    # RFC 9174 Table 5: START = 0x02, END = 0x01.
+    flags_byte = 0x02 | 0x01
+    expected = (
+        struct.pack(">BQ", flags_byte, 1)
+        + struct.pack(">I", 0)
+        + struct.pack(">Q", len(bundle_bytes))
+        + bundle_bytes
+    )
     assert bytes(seg) == expected
 
 
