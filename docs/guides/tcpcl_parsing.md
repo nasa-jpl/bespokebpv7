@@ -55,19 +55,45 @@ via `del self.buffer[:start_idx]`.
 
 ## BPv7 Bundle Extraction
 
-In TCPCL, a BPv7 bundle can be embedded inside a transfer segment message.
-The extraction invariant is:
+In TCPCL, a BPv7 bundle can be embedded inside a transfer segment message,
+and that bundle can be split across multiple segment messages.
 
-- **`TCPCLv3DataSegment`** (and **`TCPCLv4XferSegment`**): When both the Start
-  flag (`S=1`) and End flag (`E=1`) are set, the message represents a single
-  complete transfer segment. In this case, the parser attempts to interpret
-  the payload as a BPv7 bundle via `BPv7(payload)`. If the payload is not a
-  valid BPv7 bundle, the `ValueError` is silently suppressed and `bpv7`
-  remains `None`.
-
-This means `bpv7` is only set for single-segment (S=1, E=1) messages with
-valid CBOR-encoded BPv7 bundle payloads. Multi-segment transfers (where S=1
-or E=1 but not both) never trigger extraction.
+- **Single-segment case** (`S=1, E=1`): handled directly in
+  `TCPCLv3DataSegment.unpack()`/`TCPCLv4XferSegment.unpack()`. The payload is
+  interpreted as a BPv7 bundle via `BPv7(payload)`; on failure the
+  `ValueError`/`TypeError` is suppressed and `bpv7` remains `None`.
+- **Multi-segment case**: reassembled by `TCPCLStreamParser.feed()`, since
+  only the stream parser sees the full sequence of segments. Rules:
+  - A start segment (`S=1, E=0`) begins a new reassembly buffer. If a
+    transfer is already in progress, it is discarded (implicit abort of a
+    stale transfer, e.g. one whose terminal segment was lost).
+  - A middle segment (`S=0, E=0`) appends to the in-progress buffer. If no
+    transfer is in progress, the segment is an orphan and its payload is
+    discarded (`bpv7` stays `None`); there is no way to safely guess at
+    reassembly from an orphan continuation.
+  - A terminal segment (`S=0, E=1`) appends to the buffer, attempts
+    `BPv7(bytes(buffer))`, and assigns the result to that segment's `bpv7`
+    (suppressing parse failures), then clears the buffer. If no transfer was
+    in progress, the terminal segment is treated as degenerate and its own
+    payload is parsed directly.
+  - The buffer is capped at `MAX_TRANSFER_BUFFER_SIZE` (64 MiB); exceeding it
+    aborts the in-progress transfer rather than growing unbounded.
+  - A `TCPCLv3Shutdown`/`TCPCLv4SessTerm` message clears any in-progress
+    buffer, since a terminated session cannot continue a transfer.
+  - **Known limitation**: neither segment class exposes a transfer/session
+    identifier field, so reassembly cannot distinguish between two
+    interleaved transfers. This relies on the TCPCL spec's guarantee that a
+    connection direction carries only one transfer at a time; the
+    stale-transfer-abort rule above is the safety net if that guarantee is
+    violated by a non-compliant peer. A single `TCPCLStreamParser` instance
+    holds exactly one reassembly buffer, so it must be used for one
+    connection direction at a time; feeding it segments interleaved from
+    multiple flows (e.g. both directions of a capture) will corrupt
+    reassembly.
+  - **Asymmetry**: only the terminal segment's `bpv7` attribute carries the
+    full reassembled bundle; its `payload` attribute still holds only its
+    own final fragment. Re-serializing that message object directly
+    (`bytes(message)`) does not round-trip the full multi-segment bundle.
 
 ## Stream Parser Error Recovery
 

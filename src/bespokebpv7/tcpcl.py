@@ -39,11 +39,13 @@
 *****************************************************************************
 """
 
+import contextlib
 import struct
 from typing import Any
 
 import dpkt
 
+from bespokebpv7.bpv7 import BPv7
 from bespokebpv7.tcpcl_enum import (
     TCPCLv3MessageType,
     TCPCLv4MessageType,
@@ -87,6 +89,9 @@ TCPCL_STREAM_SEARCH_MIN = 3
 TCPCL_STREAM_HEADER_SIZE = 9
 TCPCL_DATA_SEG_FLAGS_S = 0x80
 TCPCL_DATA_SEG_FLAGS_E = 0x40
+
+# Conservative cap on an in-progress multi-segment transfer buffer
+MAX_TRANSFER_BUFFER_SIZE = 64 * 1024 * 1024
 
 
 class TCPCL(dpkt.Packet):  # type: ignore[misc]
@@ -203,11 +208,56 @@ class TCPCL(dpkt.Packet):  # type: ignore[misc]
 
 
 class TCPCLStreamParser:
-    """Helper class for extracting TCPCL packets from a byte stream."""
+    """Helper class for extracting TCPCL packets from a byte stream.
+
+    Also reassembles BPv7 bundles split across multiple data/transfer
+    segments; see docs/guides/tcpcl_parsing.md#bpv7-bundle-extraction for
+    the full reassembly contract and its known limitations.
+    """
 
     def __init__(self) -> None:
         """Initialize the stream parser with an empty buffer."""
         self.buffer = bytearray()
+        self._transfer_buffer: bytearray | None = None
+
+    def _handle_segment(self, message: TCPCLv3DataSegment | TCPCLv4XferSegment) -> None:
+        """Feed one data/transfer segment into the reassembly state machine.
+
+        See docs/guides/tcpcl_parsing.md#bpv7-bundle-extraction for the
+        full set of edge-case rules (stale-transfer abort, orphan
+        discard, buffer cap) this implements.
+        """
+        if message.s_flag and message.e_flag:
+            # Single-segment case already handled by unpack(); nothing to do.
+            return
+
+        if message.s_flag:
+            # New transfer starting; discard any stale in-progress buffer.
+            self._transfer_buffer = bytearray(message.payload)
+            return
+
+        if not message.e_flag:
+            # Middle segment with no transfer in progress is an orphan.
+            if self._transfer_buffer is not None:
+                self._transfer_buffer.extend(message.payload)
+                if len(self._transfer_buffer) > MAX_TRANSFER_BUFFER_SIZE:
+                    self._transfer_buffer = None
+            return
+
+        # Terminal (e_flag-only) segment.
+        if self._transfer_buffer is not None:
+            self._transfer_buffer.extend(message.payload)
+            if len(self._transfer_buffer) > MAX_TRANSFER_BUFFER_SIZE:
+                self._transfer_buffer = None
+                return
+            full_bytes = bytes(self._transfer_buffer)
+            self._transfer_buffer = None
+            with contextlib.suppress(ValueError, TypeError):
+                message.bpv7 = BPv7(full_bytes)
+        else:
+            # Degenerate case: terminal segment with no preceding start.
+            with contextlib.suppress(ValueError, TypeError):
+                message.bpv7 = BPv7(message.payload)
 
     def feed(self, data: bytes) -> list[TCPCL]:
         """Add data to the buffer and return any complete TCPCL packets found.
@@ -246,8 +296,16 @@ class TCPCLStreamParser:
             try:
                 packet = TCPCL()
                 packet.unpack(packet_bytes)
-                packets.append(packet)
             except (ValueError, struct.error):
                 continue
+
+            message = packet.message
+            if isinstance(message, (TCPCLv3DataSegment, TCPCLv4XferSegment)):
+                self._handle_segment(message)
+            elif isinstance(message, (TCPCLv3Shutdown, TCPCLv4SessTerm)):
+                # A terminated session cannot continue a transfer.
+                self._transfer_buffer = None
+
+            packets.append(packet)
 
         return packets

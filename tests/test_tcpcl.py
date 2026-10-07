@@ -54,6 +54,7 @@ from strategies import (
 
 from bespokebpv7 import (
     TCPCL,
+    BPv7,
     TCPCLStreamParser,
     TCPCLv3Contact,
     TCPCLv3DataAck,
@@ -61,18 +62,75 @@ from bespokebpv7 import (
     TCPCLv3MessageType,
     TCPCLVersion,
 )
+from bespokebpv7 import tcpcl as tcpcl_module
 from bespokebpv7.tcpcl import MAGIC, MESSAGE_MAP
 from bespokebpv7.tcpcl_enum import TCPCLv4MessageType
 from bespokebpv7.tcpcl_messages import (
     TCPCLMessage,
+    TCPCLv3Shutdown,
     TCPCLv4Keepalive,
+    TCPCLv4SessTerm,
     TCPCLv4XferAck,
     TCPCLv4XferSegment,
 )
 
+
+def _segment_bpv7(packet: TCPCL) -> BPv7 | None:
+    """Narrow packet.message to a segment type and return its .bpv7.
+
+    Returns:
+        The segment's extracted bpv7 attribute (None if unset).
+
+    """
+    assert isinstance(packet.message, (TCPCLv3DataSegment, TCPCLv4XferSegment))
+    return packet.message.bpv7
+
+
+def _build_simple_bpv7_bundle() -> BPv7:
+    """Build a small, deterministic valid BPv7 bundle for reassembly tests.
+
+    Returns:
+        A fully-populated BPv7 bundle.
+
+    """
+    bundle = BPv7()
+    bundle.primary_block.route.source_eid = "ipn:2.1"
+    bundle.primary_block.route.dest_eid = "ipn:3.1"
+    bundle.primary_block.set_creation(1000, 0)
+    bundle.add_payload_block(b"reassembly-test-payload")
+    return bundle
+
+
+def _build_segment_packet_bytes(
+    *,
+    version: TCPCLVersion,
+    s_flag: bool,
+    e_flag: bool,
+    sequence_number: int,
+    payload: bytes,
+) -> bytes:
+    """Build raw wire bytes for a single v3 DataSegment / v4 XferSegment packet.
+
+    Returns:
+        The serialized TCPCL packet bytes.
+
+    """
+    msg_type = (
+        TCPCLv3MessageType.DATA_SEGMENT
+        if version == TCPCLVersion.V3
+        else TCPCLv4MessageType.XFER_SEGMENT
+    )
+    flags = (0x80 if s_flag else 0) | (0x40 if e_flag else 0)
+    seg_payload = struct.pack(">B I", flags, sequence_number) + payload
+    length = 1 + len(seg_payload)
+    return MAGIC + struct.pack(">B I B", version, length, msg_type) + seg_payload
+
+
 SEQNUM = 0xFFFFFFFF
 TCPMIN = 10
 TCPV3SHORT = 5
+THREE_SEGMENT_PACKETS = 3
+TWO_SEGMENT_PACKETS = 2
 
 # ==========================================
 # Version detection
@@ -684,3 +742,255 @@ def test_stream_parser_noise_before_magic_starts_packet() -> None:
     assert len(recovered) == 1
     assert recovered[0].version == TCPCLVersion.V3
     assert recovered[0].message_type == TCPCLv3MessageType.CONTACT
+
+
+# ==========================================
+# Multi-segment BPv7 reassembly (#37)
+# ==========================================
+
+
+@given(st_bpv7_bundle())
+@settings(max_examples=20)
+def test_stream_parser_reassembles_multi_segment_v3_bundle(
+    bundle_bytes: bytes,
+) -> None:
+    """A bundle split across 3 v3 DATA_SEGMENT messages reassembles correctly."""
+    third = max(1, len(bundle_bytes) // 3)
+    chunks = [
+        bundle_bytes[:third],
+        bundle_bytes[third : 2 * third],
+        bundle_bytes[2 * third :],
+    ]
+
+    raw = (
+        _build_segment_packet_bytes(
+            version=TCPCLVersion.V3,
+            s_flag=True,
+            e_flag=False,
+            sequence_number=0,
+            payload=chunks[0],
+        )
+        + _build_segment_packet_bytes(
+            version=TCPCLVersion.V3,
+            s_flag=False,
+            e_flag=False,
+            sequence_number=1,
+            payload=chunks[1],
+        )
+        + _build_segment_packet_bytes(
+            version=TCPCLVersion.V3,
+            s_flag=False,
+            e_flag=True,
+            sequence_number=2,
+            payload=chunks[2],
+        )
+    )
+
+    parser = TCPCLStreamParser()
+    packets = parser.feed(raw)
+    assert len(packets) == THREE_SEGMENT_PACKETS
+    assert _segment_bpv7(packets[0]) is None
+    assert _segment_bpv7(packets[1]) is None
+    final_bpv7 = _segment_bpv7(packets[2])
+    assert final_bpv7 is not None
+    assert bytes(final_bpv7) == bundle_bytes
+
+
+@given(st_bpv7_bundle())
+@settings(max_examples=20)
+def test_stream_parser_reassembles_multi_segment_v4_bundle(
+    bundle_bytes: bytes,
+) -> None:
+    """A bundle split across 3 v4 XFER_SEGMENT messages reassembles correctly."""
+    third = max(1, len(bundle_bytes) // 3)
+    chunks = [
+        bundle_bytes[:third],
+        bundle_bytes[third : 2 * third],
+        bundle_bytes[2 * third :],
+    ]
+
+    raw = (
+        _build_segment_packet_bytes(
+            version=TCPCLVersion.V4,
+            s_flag=True,
+            e_flag=False,
+            sequence_number=0,
+            payload=chunks[0],
+        )
+        + _build_segment_packet_bytes(
+            version=TCPCLVersion.V4,
+            s_flag=False,
+            e_flag=False,
+            sequence_number=1,
+            payload=chunks[1],
+        )
+        + _build_segment_packet_bytes(
+            version=TCPCLVersion.V4,
+            s_flag=False,
+            e_flag=True,
+            sequence_number=2,
+            payload=chunks[2],
+        )
+    )
+
+    parser = TCPCLStreamParser()
+    packets = parser.feed(raw)
+    assert len(packets) == THREE_SEGMENT_PACKETS
+    assert _segment_bpv7(packets[0]) is None
+    assert _segment_bpv7(packets[1]) is None
+    final_bpv7 = _segment_bpv7(packets[2])
+    assert final_bpv7 is not None
+    assert bytes(final_bpv7) == bundle_bytes
+
+
+def test_stream_parser_discards_orphan_middle_segment() -> None:
+    """A middle segment with no transfer in progress is discarded."""
+    raw = _build_segment_packet_bytes(
+        version=TCPCLVersion.V3,
+        s_flag=False,
+        e_flag=False,
+        sequence_number=0,
+        payload=b"orphan",
+    )
+    parser = TCPCLStreamParser()
+    packets = parser.feed(raw)
+    assert len(packets) == 1
+    assert _segment_bpv7(packets[0]) is None
+    assert parser._transfer_buffer is None
+
+
+def test_stream_parser_new_start_aborts_stale_transfer() -> None:
+    """An S=1 segment mid-transfer discards the stale buffer and restarts."""
+    parser = TCPCLStreamParser()
+
+    start1 = _build_segment_packet_bytes(
+        version=TCPCLVersion.V3,
+        s_flag=True,
+        e_flag=False,
+        sequence_number=0,
+        payload=b"stale-start",
+    )
+    parser.feed(start1)
+    assert parser._transfer_buffer == bytearray(b"stale-start")
+
+    bundle_bytes = bytes(_build_simple_bpv7_bundle())
+    start2 = _build_segment_packet_bytes(
+        version=TCPCLVersion.V3,
+        s_flag=True,
+        e_flag=False,
+        sequence_number=1,
+        payload=bundle_bytes[: len(bundle_bytes) // 2],
+    )
+    end2 = _build_segment_packet_bytes(
+        version=TCPCLVersion.V3,
+        s_flag=False,
+        e_flag=True,
+        sequence_number=2,
+        payload=bundle_bytes[len(bundle_bytes) // 2 :],
+    )
+    packets = parser.feed(start2 + end2)
+    assert len(packets) == TWO_SEGMENT_PACKETS
+    final_bpv7 = _segment_bpv7(packets[1])
+    assert final_bpv7 is not None
+    assert bytes(final_bpv7) == bundle_bytes
+
+
+def test_stream_parser_clears_on_shutdown() -> None:
+    """A SHUTDOWN/SESS_TERM message clears any in-progress reassembly buffer."""
+    parser = TCPCLStreamParser()
+    start = _build_segment_packet_bytes(
+        version=TCPCLVersion.V3,
+        s_flag=True,
+        e_flag=False,
+        sequence_number=0,
+        payload=b"mid-transfer",
+    )
+    parser.feed(start)
+    assert parser._transfer_buffer is not None
+
+    shutdown_msg = TCPCLv3Shutdown()
+    shutdown_msg.payload = b""
+    shutdown_pkt = TCPCL()
+    shutdown_pkt.version = TCPCLVersion.V3
+    shutdown_pkt.message_type = TCPCLv3MessageType.SHUTDOWN
+    shutdown_pkt.message = shutdown_msg
+
+    parser.feed(bytes(shutdown_pkt))
+    assert parser._transfer_buffer is None
+
+
+def test_stream_parser_sess_term_clears_v4_transfer() -> None:
+    """A v4 SESS_TERM message clears any in-progress reassembly buffer."""
+    parser = TCPCLStreamParser()
+    start = _build_segment_packet_bytes(
+        version=TCPCLVersion.V4,
+        s_flag=True,
+        e_flag=False,
+        sequence_number=0,
+        payload=b"mid-transfer",
+    )
+    parser.feed(start)
+    assert parser._transfer_buffer is not None
+
+    term_msg = TCPCLv4SessTerm()
+    term_msg.payload = b""
+    term_pkt = TCPCL()
+    term_pkt.version = TCPCLVersion.V4
+    term_pkt.message_type = TCPCLv4MessageType.SESS_TERM
+    term_pkt.message = term_msg
+
+    parser.feed(bytes(term_pkt))
+    assert parser._transfer_buffer is None
+
+
+def test_stream_parser_buffer_cap_aborts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exceeding MAX_TRANSFER_BUFFER_SIZE aborts the in-progress transfer."""
+    monkeypatch.setattr(tcpcl_module, "MAX_TRANSFER_BUFFER_SIZE", 10)
+
+    parser = TCPCLStreamParser()
+    start = _build_segment_packet_bytes(
+        version=TCPCLVersion.V3,
+        s_flag=True,
+        e_flag=False,
+        sequence_number=0,
+        payload=b"12345",
+    )
+    middle = _build_segment_packet_bytes(
+        version=TCPCLVersion.V3,
+        s_flag=False,
+        e_flag=False,
+        sequence_number=1,
+        payload=b"1234567890",
+    )
+    end = _build_segment_packet_bytes(
+        version=TCPCLVersion.V3,
+        s_flag=False,
+        e_flag=True,
+        sequence_number=2,
+        payload=b"x",
+    )
+
+    packets = parser.feed(start + middle + end)
+    assert len(packets) == THREE_SEGMENT_PACKETS
+    assert parser._transfer_buffer is None
+    # The terminal segment arrives with no transfer in progress (aborted by
+    # the cap), so it is treated as a degenerate single segment.
+    assert _segment_bpv7(packets[2]) is None
+
+
+def test_stream_parser_degenerate_end_only_segment() -> None:
+    """An E=1-only segment with no prior transfer parses directly as single-segment."""
+    bundle_bytes = bytes(_build_simple_bpv7_bundle())
+    raw = _build_segment_packet_bytes(
+        version=TCPCLVersion.V3,
+        s_flag=False,
+        e_flag=True,
+        sequence_number=0,
+        payload=bundle_bytes,
+    )
+    parser = TCPCLStreamParser()
+    packets = parser.feed(raw)
+    assert len(packets) == 1
+    final_bpv7 = _segment_bpv7(packets[0])
+    assert final_bpv7 is not None
+    assert bytes(final_bpv7) == bundle_bytes
