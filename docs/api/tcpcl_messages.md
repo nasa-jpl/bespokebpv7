@@ -120,23 +120,33 @@ TCPCL v4 Session Termination message.
 
 ### `TCPCLv4XferSegment`
 
-TCPCL v4 Transfer Segment message. Handles the Start (S) and End (E) flags
-and encapsulates BPv7 bundles.
+TCPCL v4 Transfer Segment message (RFC 9174 Sec 5.2.2). Handles the Start (S)
+and End (E) flags and encapsulates BPv7 bundles.
 
 - **Attributes:**
-  - `s_flag` (`bool`): Start flag.
-  - `e_flag` (`bool`): End flag.
-  - `sequence_number` (`int`): The sequence number of the segment.
-  - `payload` (`bytes`): The raw data payload.
+  - `s_flag` (`bool`): Start flag (wire bit `0x02`).
+  - `e_flag` (`bool`): End flag (wire bit `0x01`).
+  - `transfer_id` (`int`): The 8-byte Transfer ID of the segment.
+  - `transfer_extension_items` (`bytes`): Opaque Transfer Extension Items
+    blob. Only present/serialized when `s_flag` is True; `b""` otherwise.
+  - `payload` (`bytes`): The raw data contents.
   - `bpv7` (`BPv7 | None`): Extracted BPv7 bundle. Automatically populated during
     `unpack()` if both `s_flag` and `e_flag` are True (single-segment bundle).
     `TCPCLStreamParser.feed()` additionally sets `bpv7` on the terminal
     segment of a multi-segment transfer; see
     [`docs/guides/tcpcl_parsing.md#bpv7-bundle-extraction`](../guides/tcpcl_parsing.md#bpv7-bundle-extraction).
+  - `data_length_override` (`int | None`): When set, `__bytes__` emits this
+    value as the declared Data length instead of the actual data length,
+    letting callers construct wire-malformed segments for V&V testing.
+  - `ext_items_length_override` (`int | None`): Same as above but for the
+    declared Transfer Extension Items Length.
 
 ### `TCPCLv4XferAck`
 
-TCPCL v4 Transfer Acknowledgment message.
+TCPCL v4 Transfer Acknowledgment message (RFC 9174 Sec 5.2.3).
 
 - **Attributes:**
-  - `sequence_number` (`int`): The sequence number being acknowledged.
+  - `s_flag` (`bool`): Start flag (wire bit `0x02`).
+  - `e_flag` (`bool`): End flag (wire bit `0x01`).
+  - `transfer_id` (`int`): The 8-byte Transfer ID being acknowledged.
+  - `acknowledged_length` (`int`): The 8-byte count of bytes acknowledged.
