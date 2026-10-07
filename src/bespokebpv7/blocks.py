@@ -41,6 +41,7 @@ software to foreign countries or providing access to foreign persons.
 
 import datetime
 import sys
+import warnings
 from collections import OrderedDict
 from typing import Any, TypedDict
 
@@ -332,8 +333,23 @@ class PrimaryBlock(BaseBlock):
 class ExtensionBlocks(OrderedDict[BlockType, CanonicalBlock]):
     """Store items in the order the keys were last added."""
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize the dict and the duplicate-block overflow store."""
+        super().__init__(*args, **kwargs)
+        self.duplicate_blocks: dict[BlockType, list[CanonicalBlock]] = {}
+
     def __setitem__(self, key: BlockType, value: CanonicalBlock) -> None:
-        """Override ordered dict to ensure payload block is always last."""
+        """Set a block by type; see docs/api/core.md#extensionblocks.
+
+        Duplicate keys warn and are preserved in ``duplicate_blocks``.
+        """
+        if key in self:
+            self.duplicate_blocks.setdefault(key, []).append(self[key])
+            warnings.warn(
+                f"Duplicate canonical block type {key!r}; "
+                "previous block preserved in duplicate_blocks.",
+                stacklevel=2,
+            )
         super().__setitem__(key, value)
         if BlockType.PAYLOAD_BLOCK in self.keys():
             self.move_to_end(BlockType.PAYLOAD_BLOCK)

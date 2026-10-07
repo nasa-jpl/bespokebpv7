@@ -146,3 +146,20 @@ A specialized `OrderedDict` that manages `CanonicalBlock` instances keyed by
 - `__setitem__(key: BlockType, value: CanonicalBlock) -> None`: Overrides the
   standard dictionary set item to ensure that the `PAYLOAD_BLOCK` is always
   maintained as the last item in the order.
+
+### Duplicate Block Types
+
+Assigning a `CanonicalBlock` under a `BlockType` key that is already present
+(whether via `BPv7.add_canonical_block()`, `BPv7.add_payload_block()`, or
+during `BPv7.unpack()` of a wire-format bundle with two canonical blocks of
+the same type) does not raise. It emits a `UserWarning` and preserves the
+previously-assigned block in the `duplicate_blocks: dict[BlockType,
+list[CanonicalBlock]]` instance attribute, appending each successive
+collision for that key. `self[key]` lookup is unaffected and continues to
+return the most-recently-assigned block. `BPv7.duplicate_blocks` exposes the
+same data via `bundle.blocks.duplicate_blocks` for convenience.
+
+This warn-and-preserve design (rather than raising) is deliberate: the
+library must remain able to parse intentionally non-RFC-compliant bundles
+captured for V&V testing, including bundles with duplicate canonical block
+types, without rejecting them outright.
