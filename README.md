@@ -78,6 +78,57 @@ print(bundle.primary_block.route.source_eid)
 print(bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK))
 ```
 
+### Create and Parse an LTP Segment
+
+```python
+from bespokebpv7 import BPv7, LTP
+from bespokebpv7.segment_enum import LTPSegmentType
+from bespokebpv7.segments import DataSegment
+
+bundle = BPv7()
+bundle.primary_block.route.source_eid = "ipn:2.1"
+bundle.primary_block.route.dest_eid = "ipn:3.1"
+bundle.add_payload_block(b"Hello, World!")
+bundle_bytes = bytes(bundle)
+
+data_seg = DataSegment()
+data_seg.segment_type = LTPSegmentType.DATA_RED_CP_EORP_EOB
+data_seg.session_originator = 1
+data_seg.session_number = 1
+data_seg.client_service_id = 1  # 1 == Bundle Protocol
+data_seg.client_length = len(bundle_bytes)
+data_seg.data = bundle_bytes
+
+ltp_packet = LTP()
+ltp_packet.segment = data_seg
+ltp_packet.bpv7 = bundle
+
+raw: bytes = bytes(ltp_packet)
+received = LTP(raw)
+print(received.bpv7.primary_block.route.source_eid)
+```
+
+### Parse a TCPCL Byte Stream
+
+```python
+from bespokebpv7 import TCPCL, TCPCLStreamParser
+from bespokebpv7.tcpcl_enum import TCPCLv3MessageType
+from bespokebpv7.tcpcl_messages import TCPCLv3Keepalive
+
+keepalive = TCPCL()
+keepalive.message = TCPCLv3Keepalive()
+keepalive.version = TCPCLv3Keepalive.version
+keepalive.message_type = TCPCLv3MessageType.KEEPALIVE
+incoming_bytes = bytes(keepalive)
+
+parser = TCPCLStreamParser()
+# Feed bytes as they arrive off the socket; a single feed() call may
+# return zero, one, or many fully-reassembled TCPCL packets.
+packets = parser.feed(incoming_bytes)
+for packet in packets:
+    print(packet.message)
+```
+
 ## Documentation
 
 Full API reference and operational guides are available in the
