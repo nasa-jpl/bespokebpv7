@@ -27,6 +27,53 @@ RFC 9174):
 
 The payload follows the 10-byte fixed header.
 
+## TCPCLv4 Transfer Segment and Transfer Ack Wire Format
+
+`TCPCLv4XferSegment` (XFER_SEGMENT) and `TCPCLv4XferAck` (XFER_ACK) bodies
+follow RFC 9174 §5.2.2 and §5.2.3 exactly:
+
+```text
+XFER_SEGMENT (RFC 9174 Figure 22):
++--------+--------------+------------------+------------------+------+
+| Flags  | Transfer ID  | [Ext Items Len   | Data length      | Data |
+| 1 byte | 8 bytes      |  + Items] (START | 8 bytes          | ...  |
+|        |              |  only)           |                  |      |
++--------+--------------+------------------+------------------+------+
+
+XFER_ACK (RFC 9174 Figure 23):
++--------+--------------+----------------------+
+| Flags  | Transfer ID  | Acknowledged length  |
+| 1 byte | 8 bytes      | 8 bytes              |
++--------+--------------+----------------------+
+```
+
+- **Flags**: Bit `0x02` is the Start (`S`) flag, bit `0x01` is the End (`E`)
+  flag (RFC 9174 Table 5). These bit positions are easy to confuse with
+  TCPCLv3's `DataSegment`/`DataAck`, which use `S=0x80`/`E=0x40` instead —
+  the two versions do **not** share flag encodings.
+- **Transfer ID**: An 8-byte big-endian unsigned integer (`transfer_id`
+  attribute), not the 4-byte sequence number used by TCPCLv3.
+- **Transfer Extension Items**: Present only on `TCPCLv4XferSegment` when
+  `S=1`: a 4-byte big-endian length followed by that many bytes. Parsed/
+  emitted as an opaque `transfer_extension_items: bytes` blob — this
+  library does not interpret specific IANA-registered extension item
+  types.
+- **Data length**: An 8-byte big-endian unsigned integer giving the exact
+  length of the segment's data contents. `unpack()` requires the declared
+  Data length to equal the number of bytes actually remaining in the
+  buffer, raising `ValueError` otherwise; this is a strict equality check
+  (not just a minimum), so truncated or over-declared segments are
+  rejected rather than silently masked.
+- **Acknowledged length**: An 8-byte big-endian unsigned integer on
+  `TCPCLv4XferAck` (`acknowledged_length` attribute).
+
+`TCPCLv4XferSegment` also exposes `data_length_override` and
+`ext_items_length_override` (both default `None`). Setting either to an
+`int` makes `__bytes__` emit that value as the declared length instead of
+the real one, letting callers deliberately construct wire-malformed
+segments for V&V testing of peer robustness, consistent with this
+project's general support for intentionally non-compliant wire data.
+
 ## MESSAGE_MAP and Reverse Lookup
 
 The `MESSAGE_MAP` dictionary in `tcpcl.py` maps `(version, message_type)` tuples
