@@ -213,6 +213,14 @@ class BPv7(dpkt.Packet):  # type: ignore[misc]
         except KeyError:
             return None
 
+    @property
+    def duplicate_blocks(self) -> dict[BlockType, list[CanonicalBlock]]:
+        """Canonical blocks overwritten by a later duplicate.
+
+        See docs/api/core.md#extensionblocks.
+        """
+        return self.blocks.duplicate_blocks
+
     def _resolve_block_class(
         self, exts: list[Any], block_type: BlockType
     ) -> type[CanonicalBlock]:

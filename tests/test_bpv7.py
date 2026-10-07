@@ -42,6 +42,7 @@ software to foreign countries or providing access to foreign persons.
 import cbor2
 import pytest
 from hypothesis import given
+from hypothesis import strategies as st
 from strategies import st_data, st_eid
 
 from bespokebpv7 import (
@@ -122,6 +123,79 @@ def test_bpv7_pack_unpack_roundtrip(src: str, dst: str, payload: bytes) -> None:
     bae_blk = b2.get_block_by_type(BlockType.BUNDLE_AGE)
     assert isinstance(bae_blk, BundleAgeExt)
     assert bae_blk.age == age
+
+
+@given(st.integers(min_value=1, max_value=200), st.integers(min_value=1, max_value=200))
+def test_add_canonical_block_replaces_existing(first_age: int, second_age: int) -> None:
+    """Calling add_canonical_block twice for the same type replaces the block,
+    warns, and preserves the first block in duplicate_blocks.
+    """
+    bundle = BPv7()
+    block_parms: CanonicalBlockInit = {"block_type": BlockType.BUNDLE_AGE}
+    bundle.add_canonical_block(block_parms, cbor2.dumps(first_age))
+    first = bundle.get_block_by_type(BlockType.BUNDLE_AGE)
+
+    with pytest.warns(UserWarning, match="Duplicate canonical block type"):
+        bundle.add_canonical_block(block_parms, cbor2.dumps(second_age))
+
+    second = bundle.get_block_by_type(BlockType.BUNDLE_AGE)
+    assert isinstance(second, BundleAgeExt)
+    assert second.age == second_age
+    assert bundle.duplicate_blocks[BlockType.BUNDLE_AGE] == [first]
+
+
+def test_add_payload_block_replaces_existing() -> None:
+    """Calling add_payload_block twice replaces the payload, warns, and
+    preserves the first payload block in duplicate_blocks.
+    """
+    bundle = BPv7()
+    bundle.add_payload_block(b"first")
+    first = bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK)
+
+    with pytest.warns(UserWarning, match="Duplicate canonical block type"):
+        bundle.add_payload_block(b"second")
+
+    second = bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK)
+    assert second is not None
+    assert second.data == b"second"
+    assert bundle.duplicate_blocks[BlockType.PAYLOAD_BLOCK] == [first]
+    # Payload block ordering invariant is unchanged.
+    assert list(bundle.blocks.keys())[-1] == BlockType.PAYLOAD_BLOCK
+
+
+@given(st.integers(min_value=1, max_value=200), st.integers(min_value=1, max_value=200))
+def test_bpv7_unpack_preserves_duplicate_block_type(
+    first_age: int, second_age: int
+) -> None:
+    """Unpacking a wire-format bundle with two canonical blocks of the same
+    BlockType must not raise (non-compliant bundles remain parseable), and
+    the overwritten block's data is recoverable via duplicate_blocks.
+    """
+    primary = PrimaryBlock()
+    primary.route.source_eid = "ipn:2.1"
+    primary.route.dest_eid = "ipn:3.1"
+    primary.set_creation(1000, 0)
+    primary_list = bundle_converter.unstructure(primary)
+
+    first_data = cbor2.dumps(first_age)
+    second_data = cbor2.dumps(second_age)
+    cb1 = [int(BlockType.BUNDLE_AGE), 1, 0, int(CRCType.NONE), first_data]
+    cb2 = [int(BlockType.BUNDLE_AGE), 2, 0, int(CRCType.NONE), second_data]
+    payload_cb = [int(BlockType.PAYLOAD_BLOCK), 3, 0, int(CRCType.NONE), b"payload"]
+
+    raw = cbor2.dumps([primary_list, cb1, cb2, payload_cb])
+
+    with pytest.warns(UserWarning, match="Duplicate canonical block type"):
+        bundle = BPv7(raw)
+
+    age_blk = bundle.get_block_by_type(BlockType.BUNDLE_AGE)
+    assert isinstance(age_blk, BundleAgeExt)
+    assert age_blk.age == second_age
+
+    duplicates = bundle.duplicate_blocks[BlockType.BUNDLE_AGE]
+    assert len(duplicates) == 1
+    assert isinstance(duplicates[0], BundleAgeExt)
+    assert duplicates[0].age == first_age
 
 
 def test_bpv7_unpack_crc_check() -> None:

@@ -56,6 +56,7 @@ from bespokebpv7 import (
 from bespokebpv7.blocks import (
     CanonicalBlock,
     CanonicalBlockInit,
+    ExtensionBlocks,
     PrimaryBlock,
 )
 from bespokebpv7.utils import bundle_converter
@@ -221,3 +222,43 @@ def test_canonical_block_structure_raises_on_truncated_list() -> None:
 
     with pytest.raises(ValueError, match="Canonical block CBOR array too short"):
         bundle_converter.structure(truncated_data, CanonicalBlock)
+
+
+def _make_canonical_block(data: bytes) -> CanonicalBlock:
+    cb = CanonicalBlock()
+    cb.block_type = BlockType.HOP_COUNT
+    cb.data = data
+    return cb
+
+
+def test_extension_blocks_warns_and_preserves_on_duplicate_key() -> None:
+    """Reassigning an existing BlockType key warns and preserves the old block."""
+    blocks = ExtensionBlocks()
+    first = _make_canonical_block(b"first")
+    second = _make_canonical_block(b"second")
+
+    blocks[BlockType.HOP_COUNT] = first
+    assert blocks.duplicate_blocks == {}
+
+    with pytest.warns(UserWarning, match="Duplicate canonical block type"):
+        blocks[BlockType.HOP_COUNT] = second
+
+    assert blocks[BlockType.HOP_COUNT] is second
+    assert blocks.duplicate_blocks[BlockType.HOP_COUNT] == [first]
+
+
+def test_extension_blocks_duplicate_blocks_accumulate() -> None:
+    """A third collision for the same key appends rather than replacing."""
+    blocks = ExtensionBlocks()
+    first = _make_canonical_block(b"first")
+    second = _make_canonical_block(b"second")
+    third = _make_canonical_block(b"third")
+
+    blocks[BlockType.HOP_COUNT] = first
+    with pytest.warns(UserWarning, match="Duplicate canonical block type"):
+        blocks[BlockType.HOP_COUNT] = second
+    with pytest.warns(UserWarning, match="Duplicate canonical block type"):
+        blocks[BlockType.HOP_COUNT] = third
+
+    assert blocks[BlockType.HOP_COUNT] is third
+    assert blocks.duplicate_blocks[BlockType.HOP_COUNT] == [first, second]
