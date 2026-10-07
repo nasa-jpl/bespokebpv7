@@ -82,6 +82,9 @@ and encapsulates BPv7 bundles.
   - `payload` (`bytes`): The raw data payload.
   - `bpv7` (`BPv7 | None`): Extracted BPv7 bundle. Automatically populated during
     `unpack()` if both `s_flag` and `e_flag` are True (single-segment bundle).
+    `TCPCLStreamParser.feed()` additionally sets `bpv7` on the terminal
+    segment of a multi-segment transfer; see
+    [`docs/guides/tcpcl_parsing.md#bpv7-bundle-extraction`](../guides/tcpcl_parsing.md#bpv7-bundle-extraction).
 
 ### `TCPCLv3DataAck`
 
@@ -127,6 +130,9 @@ and encapsulates BPv7 bundles.
   - `payload` (`bytes`): The raw data payload.
   - `bpv7` (`BPv7 | None`): Extracted BPv7 bundle. Automatically populated during
     `unpack()` if both `s_flag` and `e_flag` are True (single-segment bundle).
+    `TCPCLStreamParser.feed()` additionally sets `bpv7` on the terminal
+    segment of a multi-segment transfer; see
+    [`docs/guides/tcpcl_parsing.md#bpv7-bundle-extraction`](../guides/tcpcl_parsing.md#bpv7-bundle-extraction).
 
 ### `TCPCLv4XferAck`
 

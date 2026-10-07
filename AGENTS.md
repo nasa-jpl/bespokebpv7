@@ -180,7 +180,7 @@ A BPv7 bundle consists of:
 
 - `TCPCLMessage` (base), `TCPCLv3Message`/`TCPCLv4Message` (version bases).
 - 10 concrete subclasses: `TCPCLv3Contact`, `TCPCLv3Keepalive`, `TCPCLv3Shutdown`, `TCPCLv3DataSegment`, `TCPCLv3DataAck`, `TCPCLv4SessInit`, `TCPCLv4Keepalive`, `TCPCLv4SessTerm`, `TCPCLv4XferSegment`, `TCPCLv4XferAck`.
-- Data segment classes (`TCPCLv3DataSegment`, `TCPCLv4XferSegment`) extract embedded `BPv7` when S=1 and E=1 flags are set.
+- Data segment classes (`TCPCLv3DataSegment`, `TCPCLv4XferSegment`) extract embedded `BPv7` when S=1 and E=1 flags are set; `TCPCLStreamParser` additionally reassembles bundles split across multiple segments (see `docs/guides/tcpcl_parsing.md`).
 
 **tcpcl_enum.py** - TCPCL enumerations
 
