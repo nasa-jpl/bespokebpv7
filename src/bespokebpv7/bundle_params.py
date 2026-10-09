@@ -39,6 +39,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+import copy
 import datetime
 import sys
 
@@ -84,7 +85,7 @@ class BundleRoute:
     @source_eid.setter
     def source_eid(self, value: str | list[Any]) -> None:
         if isinstance(value, list):
-            self._source_eid = value
+            self._source_eid = copy.deepcopy(value)
         else:
             self._source_eid = parse_eid_string(value)
 
@@ -96,7 +97,7 @@ class BundleRoute:
     @dest_eid.setter
     def dest_eid(self, value: str | list[Any]) -> None:
         if isinstance(value, list):
-            self._dest_eid = value
+            self._dest_eid = copy.deepcopy(value)
         else:
             self._dest_eid = parse_eid_string(value)
 
@@ -108,7 +109,7 @@ class BundleRoute:
     @report_to.setter
     def report_to(self, value: str | list[Any]) -> None:
         if isinstance(value, list):
-            self._report_to_eid = value
+            self._report_to_eid = copy.deepcopy(value)
         else:
             self._report_to_eid = parse_eid_string(value)
 

@@ -39,6 +39,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+import copy
 import datetime
 import io
 import struct
@@ -111,7 +112,7 @@ def parse_eid_string(eid_str: str | list[Any]) -> list[Any]:
                 if allocator == 0 and node == 0
                 else [int(SchemeCode.IPN), [allocator, node, service]]
             )
-        return eid_str
+        return copy.deepcopy(eid_str)
 
     if ":" not in eid_str:
         return [int(SchemeCode.DTN), eid_str]
