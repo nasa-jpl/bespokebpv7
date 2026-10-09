@@ -1,6 +1,6 @@
 # Examples
 
-This folder contains example scenarios to demostrate *bespokebpv7* in use.
+This folder contains example scenarios to demonstrate *bespokebpv7* in use.
 
 ## Prerequisites
 
@@ -44,11 +44,11 @@ mechanism, which speeds up the test aslog files do not need to be parsed during
 the test. In a real V&V setup, assert statements and some sort of test harness,
 like *pytest*, are recommended to eliminate manual verification of
 success/failure. Sending uncompliant CBOR data is more difficult than sending
-uncompliant bundle data with *bespokepv7*, but the malformed Hop Count
-Extension test shows how one could do it. *bundle_converter* what handles the
-final conversion to bytes so patching in-place is going to be the best method
-of modifiying data. Another method would be, assuming the byte location is
-know, insert or modify the bundle string directly. This is more difficult
+uncompliant bundle data with *bespokebpv7*, but the malformed Hop Count
+Extension test shows how one could do it. *bundle_converter* handles the
+final conversion to bytes, so patching in place is going to be the best method
+of modifying data. Another method would be, assuming the byte location is
+known, to insert or modify the bundle string directly. This is more difficult
 because it requires knowledge of the byte structure and is fragile to changes
 in other bundle parameters.
 
@@ -71,8 +71,8 @@ Run [./dotest](mitm_test/dotest) to execute this scenario against a real ION
 deployment; it drives [mitm_test.py](mitm_test/mitm_test.py), which is not
 intended to be run standalone.
 
-[mitm_test.py](mitm_test/mitm_test.py) provides a server that help simulate a
-MITM attack between two nodes by modifiy intransit bundles. Only modification
+[mitm_test.py](mitm_test/mitm_test.py) provides a server that helps simulate a
+MITM attack between two nodes by modifying in-transit bundles. Only modification
 that happens is setting the deliv_report flag to true and updating the primary
 block CRC to ensure that the BIB fails. This has been tested with
 *bping/bpecho*, but should work with other bi-directional bundle flows. The
