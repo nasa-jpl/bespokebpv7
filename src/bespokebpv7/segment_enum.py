@@ -20,7 +20,7 @@
  Company: JPL
  Date:   03/24/2026
 
- File: ext_functions
+ File: segment_enum
  Description:
            Classes defining LTP segment types and cancel reason codes
 

@@ -39,6 +39,8 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+from typing import Any
+
 import cbor2
 import pytest
 from hypothesis import given
@@ -59,6 +61,7 @@ from bespokebpv7.blocks import (
     ExtensionBlocks,
     PrimaryBlock,
 )
+from bespokebpv7.bundle_params import BundleRoute
 from bespokebpv7.utils import bundle_converter
 
 
@@ -262,3 +265,59 @@ def test_extension_blocks_duplicate_blocks_accumulate() -> None:
 
     assert blocks[BlockType.HOP_COUNT] is third
     assert blocks.duplicate_blocks[BlockType.HOP_COUNT] == [first, second]
+
+
+EID_ATTRS = [
+    ("source_eid", "source_eid"),
+    ("dest_eid", "dest_eid"),
+    ("report_to", "report_to_eid"),
+]
+
+
+@pytest.mark.parametrize(("attr", "_keyword"), EID_ATTRS)
+def test_route_setter_does_not_alias_the_callers_list(attr: str, _keyword: str) -> None:
+    """A list given to an EID setter is copied, so later edits do not leak in."""
+    route = BundleRoute()
+    eid: list[Any] = [2, [0, 3, 1]]
+    setattr(route, attr, eid)
+    assert getattr(route, attr) == "ipn:3.1"
+
+    eid[1][1] = 99  # mutate the nested list the caller still holds
+    eid.append("extra")
+    assert getattr(route, attr) == "ipn:3.1"
+
+
+def test_route_setter_does_not_alias_a_dtn_list() -> None:
+    """The same holds for a dtn EID, whose ssp is a string inside the list."""
+    route = BundleRoute()
+    eid: list[Any] = [1, "//node/service"]
+    route.dest_eid = eid
+    eid[1] = "//changed"
+    assert route.dest_eid == "dtn://node/service"
+
+
+@pytest.mark.parametrize(("attr", "keyword"), EID_ATTRS)
+def test_route_constructor_does_not_alias_the_callers_list(
+    attr: str, keyword: str
+) -> None:
+    """A list passed to the constructor is copied as well."""
+    eid: list[Any] = [2, [0, 3, 1]]
+    route = BundleRoute(**{keyword: eid})
+    eid[1][1] = 99
+    assert getattr(route, attr) == "ipn:3.1"
+
+
+def test_parse_eid_string_returns_an_independent_list() -> None:
+    """parse_eid_string must not hand back the list it was given."""
+    eid: list[Any] = [2, [0, 3, 1]]
+    parsed = parse_eid_string(eid)
+    assert parsed == eid
+    eid[1][1] = 99
+    assert parsed == [2, [0, 3, 1]]
+
+
+def test_route_setter_still_accepts_strings() -> None:
+    """Strings are still parsed as before."""
+    route = BundleRoute()
+    route.source_eid = "ipn:2.7"
+    assert route.source_eid == "ipn:2.7"
