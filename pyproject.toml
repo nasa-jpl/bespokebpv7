@@ -1,7 +1,7 @@
 [project]
 name = "bespokebpv7"
 version = "0.5.0"
-description = "Generate whatever format of BPv7 bundles"
+description = "Python library for BPv7 (RFC 9171) and LTP (RFC 5326) packet manipulation, designed for DTN application development and comprehensive V&V testing."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
