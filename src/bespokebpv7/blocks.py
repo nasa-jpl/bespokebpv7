@@ -39,7 +39,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-import datetime
+import datetime as dt
 import sys
 import warnings
 from collections import OrderedDict
@@ -243,8 +243,8 @@ class PrimaryBlock(BaseBlock):
     def set_creation(self, ms: int | None = None, seq: int = 0) -> None:
         """Set primary block creation time."""
         if not ms:
-            dt = datetime.datetime.now(datetime.timezone.utc)
-            dt_now = int((dt - DTN_EPOCH).total_seconds() * 1000)
+            dtime = dt.datetime.now(dt.timezone.utc)
+            dt_now = int((dtime - DTN_EPOCH).total_seconds() * 1000)
             self.life.timestamp_ms = dt_now
         else:
             self.life.timestamp_ms = ms

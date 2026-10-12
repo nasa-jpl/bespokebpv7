@@ -39,7 +39,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-import datetime
+import datetime as dt
 import sys
 
 from attrs import Converter, define, field
@@ -121,9 +121,9 @@ class CreationTime:
     sequence: int = field(default=0)
 
     @property
-    def creation_dt(self) -> datetime.datetime:
+    def creation_dt(self) -> dt.datetime:
         """Creation time as datetime object, does not use sequence number."""
-        return DTN_EPOCH + datetime.timedelta(milliseconds=self.timestamp_ms)
+        return DTN_EPOCH + dt.timedelta(milliseconds=self.timestamp_ms)
 
     def _unstructure(self) -> list[Any]:
         """Convert CreationTime to list for CBOR encoding.
@@ -177,14 +177,14 @@ class StatusAssertion:
     def set_asserted_time(self, ms: int | None = None) -> None:
         """Set status report asserted time."""
         if not ms:
-            dt = datetime.datetime.now(datetime.timezone.utc)
-            dt_now = int((dt - DTN_EPOCH).total_seconds() * 1000)
+            dtime = dt.datetime.now(dt.timezone.utc)
+            dt_now = int((dtime - DTN_EPOCH).total_seconds() * 1000)
             self.asserted_time = dt_now
         else:
             self.asserted_time = ms
 
     @property
-    def asserted_dt(self) -> datetime.datetime | None:
+    def asserted_dt(self) -> dt.datetime | None:
         """Creation time as datetime object, does not use sequence number.
 
         Returns:
@@ -192,7 +192,7 @@ class StatusAssertion:
 
         """
         if self.asserted_time is not None:
-            return DTN_EPOCH + datetime.timedelta(milliseconds=self.asserted_time)
+            return DTN_EPOCH + dt.timedelta(milliseconds=self.asserted_time)
         return None
 
     def _unstructure(self) -> list[Any | bool]:

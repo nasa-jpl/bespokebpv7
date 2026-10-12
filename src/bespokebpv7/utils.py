@@ -39,7 +39,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-import datetime
+import datetime as dt
 import io
 import struct
 from typing import Any
@@ -53,7 +53,7 @@ from bespokebpv7.block_enum import CRCType, SchemeCode
 
 __all__ = ["DTN_EPOCH", "calculate_crc", "format_eid", "parse_eid_string"]
 
-DTN_EPOCH = datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc)
+DTN_EPOCH = dt.datetime(2000, 1, 1, tzinfo=dt.timezone.utc)
 LOCAL_NODE = 2**32 - 1
 LEGACY_LIST = 2
 ALLOCATOR_LIST = 3

@@ -39,7 +39,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
-import datetime
+import datetime as dt
 
 import pytest
 from hypothesis import given
@@ -80,7 +80,7 @@ def test_bundle_life() -> None:
     """Verify bundle lifetime information is stored correctly in BundleLife."""
     life = BundleLife()
     life.timestamp_ms = 1000
-    expected_dt = DTN_EPOCH + datetime.timedelta(milliseconds=1000)
+    expected_dt = DTN_EPOCH + dt.timedelta(milliseconds=1000)
     assert life.creation_dt == expected_dt
 
 
@@ -96,7 +96,7 @@ def test_status_assertion_methods() -> None:
     ms = 1000
     sa.set_asserted_time(ms)
     assert sa.asserted_time == ms
-    assert sa.asserted_dt == DTN_EPOCH + datetime.timedelta(milliseconds=ms)
+    assert sa.asserted_dt == DTN_EPOCH + dt.timedelta(milliseconds=ms)
 
     # Set current time (auto)
     sa.set_asserted_time()
