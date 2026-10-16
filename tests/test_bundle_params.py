@@ -53,6 +53,8 @@ from bespokebpv7.bundle_params import (
     BundleRoute,
     CRBundleSequence,
     CreationTime,
+    CTBundleSequence,
+    EndpointID,
     StatusAssertion,
 )
 
@@ -157,3 +159,30 @@ def test_eid_constructor_does_not_alias_the_callers_list(cls: type, attr: str) -
     obj = cls(**{attr: eid})
     eid[1][1] = 99
     assert getattr(obj, attr) == "ipn:3.1"
+
+
+@pytest.mark.parametrize(
+    ("uri", "cbor"),
+    [
+        ("ipn:10.1", [2, [10, 1]]),
+        ("ipn:977000.100.1", [2, [977000, 100, 1]]),
+        ("dtn:none", [1, 0]),
+        ("dtn://node/app", [1, "//node/app"]),
+    ],
+)
+def test_endpoint_id_round_trip(uri: str, cbor: list[Any]) -> None:
+    """EndpointID converts between URI, CBOR list and itself without loss."""
+    eid = EndpointID.from_value(uri)
+    assert eid.to_cbor() == cbor
+    assert EndpointID.from_value(cbor) == eid
+    assert EndpointID.from_value(eid) is eid
+    assert str(eid) == uri
+
+
+def test_ct_bundle_sequence_dest_seq_is_an_endpoint_id() -> None:
+    """dest_seq is converted to an EndpointID on init and on assignment."""
+    seq = CTBundleSequence(dest_seq="ipn:10.1", first_seq_num=5, seq_range=2)
+    assert isinstance(seq.dest_seq, EndpointID)
+    assert str(seq.dest_seq) == "ipn:10.1"
+    seq.dest_seq = [2, [(0 << 32) | 20, 3]]  # decoded 2-element CBOR form
+    assert str(seq.dest_seq) == "ipn:20.3"

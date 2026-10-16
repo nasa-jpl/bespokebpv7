@@ -42,11 +42,17 @@ software to foreign countries or providing access to foreign persons.
 import datetime as dt
 import sys
 
-from attrs import Converter, define, field
+from attrs import Converter, define, field, frozen
 from attrs.converters import optional
 
 from bespokebpv7.block_enum import AdminReasonCode
-from bespokebpv7.utils import DTN_EPOCH, bundle_converter, format_eid, parse_eid_string
+from bespokebpv7.utils import (
+    DTN_EPOCH,
+    bundle_converter,
+    format_eid,
+    parse_eid_string,
+    unstructure_eid_list,
+)
 
 if sys.version_info >= (3, 11):
     from typing import Any, Self
@@ -313,11 +319,68 @@ class BaseStatusReport:
         return block
 
 
+@frozen
+class EndpointID:
+    """Endpoint ID in its CBOR form ``[scheme, ssp]`` (RFC 9171, section 4.2.5.1).
+
+    Build one from a URI string (``"ipn:10.1"``, ``"dtn:none"``) or from a decoded
+    CBOR list with :meth:`from_value`; ``str()`` gives the URI and :meth:`to_cbor`
+    the list to encode.
+    """
+
+    scheme: int
+    ssp: Any
+
+    @classmethod
+    def from_value(cls, value: "EndpointID | str | list[Any]") -> "EndpointID":
+        """Endpoint ID from a URI string, a CBOR list or another EndpointID.
+
+        Returns:
+            The endpoint ID
+
+        """
+        if isinstance(value, EndpointID):
+            return value
+        scheme, ssp = parse_eid_string(value)
+        return cls(int(scheme), ssp)
+
+    def to_cbor(self) -> list[Any]:
+        """CBOR list for encoding (2-element IPN form for the default allocator).
+
+        Returns:
+            The endpoint ID as a CBOR list
+
+        """
+        return unstructure_eid_list([self.scheme, self.ssp])
+
+    def __str__(self) -> str:
+        """URI form of the endpoint ID.
+
+        Returns:
+            The endpoint ID as a URI string
+
+        """
+        return format_eid([self.scheme, self.ssp])
+
+
+def _endpoint_id(value: EndpointID | str | list[Any]) -> EndpointID:
+    """Attrs converter: any accepted endpoint ID form to an EndpointID.
+
+    Returns:
+        The endpoint ID
+
+    """
+    return EndpointID.from_value(value)
+
+
 @define
 class CTBundleSequence:
     """Bundle sequence definition for Compressed Custody Signal adminstrative record."""
 
-    dest_seq: int | list[Any] = field(default=0)
+    dest_seq: EndpointID = field(
+        factory=lambda: EndpointID.from_value("dtn:none"),
+        converter=_endpoint_id,
+    )
     first_seq_num: int = field(default=0)
     seq_range: int | list[int] = field(default=0)
 

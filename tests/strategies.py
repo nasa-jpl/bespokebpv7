@@ -109,7 +109,7 @@ def ct_sequence_strategy() -> st.SearchStrategy:
     """
     return st.builds(
         CTBundleSequence,
-        dest_seq=st.integers(min_value=0),
+        dest_seq=st_eid,
         first_seq_num=st.integers(min_value=0),
         seq_range=st.one_of(
             st.integers(min_value=0), st.lists(st.integers(min_value=0), min_size=1)
@@ -126,7 +126,7 @@ def cr_sequence_strategy() -> st.SearchStrategy:
     """
     return st.builds(
         CRBundleSequence,
-        dest_seq=st.integers(min_value=0),
+        dest_seq=st_eid,
         first_seq_num=st.integers(min_value=0),
         seq_range=st.one_of(
             st.integers(min_value=0), st.lists(st.integers(min_value=0), min_size=1)

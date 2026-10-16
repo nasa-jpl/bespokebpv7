@@ -222,7 +222,7 @@ class CompressedCustodySignal(AdminRecord):
         for key, seq_list in self.custody_signal.items():
             encoded_collection = []
             for seq in seq_list:
-                encoded_seq = [seq.dest_seq, seq.first_seq_num, seq.seq_range]
+                encoded_seq = [seq.dest_seq.to_cbor(), seq.first_seq_num, seq.seq_range]
                 encoded_collection.append(encoded_seq)
             cbor_map[int(key)] = encoded_collection
 
@@ -291,7 +291,7 @@ class CompressedReportSignal(AdminRecord):
         for key, seq_list in self.reports.items():
             encoded_collection = []
             for seq in seq_list:
-                encoded_seq = [seq.dest_seq, seq.first_seq_num, seq.seq_range]
+                encoded_seq = [seq.dest_seq.to_cbor(), seq.first_seq_num, seq.seq_range]
                 if seq.block_src_admin_eid is not None:
                     parsed_eid = parse_eid_string(seq.block_src_admin_eid)
                     encoded_seq.append(unstructure_eid_list(parsed_eid))
