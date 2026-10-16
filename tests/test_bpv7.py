@@ -371,3 +371,34 @@ def test_bpv7_unpack_raises_on_truncated_admin_record() -> None:
 
     with pytest.raises(ValueError, match="Admin record CBOR array is empty"):
         BPv7(raw_bytes)
+
+
+_PB_LIST = [7, 0, 0, [1, "dest"], [1, "src"], [1, "report"], [1000, 0], 100]
+
+
+@pytest.mark.parametrize(
+    ("bundle_item", "message"),
+    [
+        (5, "Bundle CBOR item is not an array"),
+        ([5], "Primary block CBOR item is not an array"),
+        ([[7, 0, 0]], "Primary block CBOR array too short"),
+        ([[*_PB_LIST[:6], 1000, 100]], "creation timestamp must be a 2-element array"),
+        ([_PB_LIST, 7], "Canonical block CBOR item is not an array"),
+    ],
+)
+def test_bpv7_unpack_raises_value_error_on_malformed_shapes(
+    bundle_item: object, message: str
+) -> None:
+    """Verify that BPv7.unpack() rejects malformed CBOR shapes with ValueError."""
+    with pytest.raises(ValueError, match=message):
+        BPv7(bundle_converter.dumps(bundle_item))
+
+
+def test_bpv7_unpack_raises_on_truncated_fragment_fields() -> None:
+    """Verify that a fragmented primary block without fragment fields raises."""
+    # IS_FRAGMENT flag (1 << 0 = 1), but no offset/total ADU length follow
+    pb_list = [7, 1, 0, [1, "dest"], [1, "src"], [1, "report"], [1000, 0], 100]
+    with pytest.raises(
+        ValueError, match="Fragmented primary block CBOR array too short"
+    ):
+        BPv7(bundle_converter.dumps([pb_list]))

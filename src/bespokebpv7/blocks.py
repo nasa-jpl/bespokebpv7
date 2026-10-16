@@ -72,6 +72,8 @@ else:
     from typing_extensions import NotRequired, Self
 
 BPVERSION = 7
+CREATION_TIME_LEN = 2
+FRAGMENT_FIELDS_LEN = 2
 
 
 class CanonicalBlockInit(TypedDict):
@@ -229,6 +231,7 @@ class PrimaryBlock(BaseBlock):
     list_override: list[Any] | None = field(default=None)
     extra_elements: list[Any] = field(factory=list)
     raw_override: bytes | None = field(default=None)
+    _min_array_len = 8
 
     is_fragment = flag_property(BundleFlags.IS_FRAGMENT)
     adu_is_admin = flag_property(BundleFlags.ADU_IS_ADMIN_RECORD)
@@ -258,7 +261,17 @@ class PrimaryBlock(BaseBlock):
         Returns:
             Populated Primary Block
 
+        Raises:
+            ValueError: If the CBOR array is too short to be a primary block.
+
         """
+        if len(data) < cls._min_array_len:
+            msg = "Primary block CBOR array too short"
+            raise ValueError(msg)
+        creation = data[6]
+        if not isinstance(creation, list) or len(creation) < CREATION_TIME_LEN:
+            msg = "Primary block creation timestamp must be a 2-element array"
+            raise ValueError(msg)
         block = cls()
         block.version = data[0]
         block.flags = BundleFlags(data[1])
@@ -268,7 +281,6 @@ class PrimaryBlock(BaseBlock):
         block.route.source_eid = data[4]
         block.route.report_to = data[5]
 
-        creation = data[6]
         block.life.timestamp_ms = creation[0]
         block.life.sequence = creation[1]
         block.life.lifetime = data[7]
@@ -276,6 +288,9 @@ class PrimaryBlock(BaseBlock):
         # Fragmentation
         idx = 8
         if block.is_fragment:
+            if len(data) < idx + FRAGMENT_FIELDS_LEN:
+                msg = "Fragmented primary block CBOR array too short"
+                raise ValueError(msg)
             block.fragmentation = BundleFragmentation(
                 fragment_offset=data[idx], total_adu_len=data[idx + 1]
             )
