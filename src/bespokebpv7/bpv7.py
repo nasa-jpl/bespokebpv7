@@ -250,6 +250,29 @@ class BPv7(dpkt.Packet):  # type: ignore[misc]
             )
         return BLOCKFUNCTIONS.get(block_type, CanonicalBlock)
 
+    def _unpack_block(self, exts: Any) -> tuple[BlockType, CanonicalBlock]:
+        """Structure one canonical block from its decoded CBOR item.
+
+        Returns:
+            The block type and the structured canonical block.
+
+        Raises:
+            ValueError: if the item is not an array or is too short.
+
+        """
+        try:
+            too_short = len(exts) < CanonicalBlock.max_array_len
+        except TypeError as err:
+            msg = "Canonical block CBOR item is not an array"
+            raise ValueError(msg) from err
+        if too_short:
+            msg = "Canonical block CBOR array too short"
+            raise ValueError(msg)
+        block_type = BlockType(exts[0])
+        block = self._resolve_block_class(exts, block_type)
+        ext: CanonicalBlock = bundle_converter.structure(exts, block)
+        return block_type, ext
+
     def unpack(self, buf: bytes) -> None:
         """Unpack indefinite CBOR array into a Bundle.
 
@@ -262,22 +285,24 @@ class BPv7(dpkt.Packet):  # type: ignore[misc]
         except cbor2.CBORDecodeError as err:
             errmsg = "CBOR decoding issue"
             raise ValueError(errmsg) from err
+        except TypeError as err:
+            errmsg = "Bundle CBOR item is not an array"
+            raise ValueError(errmsg) from err
 
         if not bundle_data:
             msg = "Bundle CBOR array is empty"
             raise ValueError(msg)
 
-        self.primary_block = bundle_converter.structure(bundle_data[0], PrimaryBlock)
+        try:
+            self.primary_block = bundle_converter.structure(
+                bundle_data[0], PrimaryBlock
+            )
+        except TypeError as err:
+            msg = "Primary block CBOR item is not an array"
+            raise ValueError(msg) from err
 
-        ext: CanonicalBlock
         for exts in bundle_data[1:]:
-            if len(exts) < CanonicalBlock.max_array_len:
-                msg = "Canonical block CBOR array too short"
-                raise ValueError(msg)
-            block_type = BlockType(exts[0])
-            block = self._resolve_block_class(exts, block_type)
-            ext = bundle_converter.structure(exts, block)
-
+            block_type, ext = self._unpack_block(exts)
             self.blocks[block_type] = ext
             if self.debug:
                 self._debug(exts, block_type, "block")
