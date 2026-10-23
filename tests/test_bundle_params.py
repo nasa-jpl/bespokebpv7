@@ -44,6 +44,7 @@ from typing import Any
 
 import pytest
 from hypothesis import given
+from hypothesis import strategies as st
 from strategies import st_eid
 
 from bespokebpv7 import DTN_EPOCH, format_eid, parse_eid_string
@@ -53,8 +54,11 @@ from bespokebpv7.bundle_params import (
     BundleRoute,
     CRBundleSequence,
     CreationTime,
+    CTBundleSequence,
+    EndpointID,
     StatusAssertion,
 )
+from bespokebpv7.utils import LOCAL_NODE
 
 
 # ==========================================
@@ -157,3 +161,51 @@ def test_eid_constructor_does_not_alias_the_callers_list(cls: type, attr: str) -
     obj = cls(**{attr: eid})
     eid[1][1] = 99
     assert getattr(obj, attr) == "ipn:3.1"
+
+
+@pytest.mark.parametrize(
+    ("uri", "cbor"),
+    [
+        ("ipn:10.1", [2, [10, 1]]),
+        ("ipn:977000.100.1", [2, [977000, 100, 1]]),
+        ("ipn:!.7", [2, [LOCAL_NODE, 7]]),
+        ("dtn:none", [1, 0]),
+        ("dtn://node/app", [1, "//node/app"]),
+    ],
+)
+def test_endpoint_id_round_trip(uri: str, cbor: list[Any]) -> None:
+    """EndpointID converts between URI, CBOR list and itself without loss."""
+    eid = EndpointID.from_value(uri)
+    assert eid.to_cbor() == cbor
+    assert EndpointID.from_value(cbor) == eid
+    assert EndpointID.from_value(eid) is eid
+    assert str(eid) == uri
+
+
+@given(st.integers(min_value=0, max_value=2**64 - 1))
+def test_endpoint_id_local_node_round_trip(service: int) -> None:
+    """ipn:!.<service> (local node) survives the URI -> CBOR -> URI round trip."""
+    eid = EndpointID.from_value(f"ipn:!.{service}")
+    assert eid.ssp == [0, LOCAL_NODE, service]
+    assert eid.to_cbor() == [2, [LOCAL_NODE, service]]
+    assert EndpointID.from_value(eid.to_cbor()) == eid
+    assert str(eid) == f"ipn:!.{service}"
+
+
+@pytest.mark.parametrize("value", ["ipn:0.0", "ipn:0.0.0", [2, [0, 0]]])
+def test_endpoint_id_ipn_null_is_dtn_none(value: str | list[Any]) -> None:
+    """The ipn null endpoint (ipn:0.0) converts to dtn:none."""
+    eid = EndpointID.from_value(value)
+    assert eid == EndpointID.from_value("dtn:none")
+    assert eid.to_cbor() == [1, 0]
+    assert str(eid) == "dtn:none"
+
+
+def test_ct_bundle_sequence_dest_seq_is_an_endpoint_id() -> None:
+    """dest_seq is converted to an EndpointID on init and on assignment."""
+    seq = CTBundleSequence(dest_seq="ipn:10.1", first_seq_num=5, seq_range=2)
+    assert isinstance(seq.dest_seq, EndpointID)
+    assert str(seq.dest_seq) == "ipn:10.1"
+    # decoded 2-element CBOR form; mypy types the setter as EndpointID only
+    seq.dest_seq = [2, [(0 << 32) | 20, 3]]  # type: ignore[assignment]
+    assert str(seq.dest_seq) == "ipn:20.3"
