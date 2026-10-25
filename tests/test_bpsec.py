@@ -39,6 +39,10 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+import hashlib
+import hmac
+
+import cbor2
 from hypothesis import given
 from strategies import (
     st_auth_tag,
@@ -48,7 +52,7 @@ from strategies import (
     st_security_targets,
 )
 
-from bespokebpv7 import BlockType
+from bespokebpv7 import BlockType, BPv7
 from bespokebpv7.block_enum import (
     BIBParmEnum,
     BIBResultEnum,
@@ -182,3 +186,60 @@ def test_bib_additional_flags(initial_flags: int) -> None:
             assert not bib.integrity_scope_flags & flag_enum
 
     assert IntegrityScopeFlags(0) <= bib.integrity_scope_flags <= IntegrityScopeFlags(7)
+
+
+# RFC 9173 Appendix A.1: BIB-HMAC-SHA2 (HMAC 512/512) over the payload block
+RFC9173_A1_KEY = bytes.fromhex("1a2b1a2b1a2b1a2b1a2b1a2b1a2b1a2b")
+RFC9173_A1_PAYLOAD = b"Ready to generate a 32-byte payload"
+RFC9173_A1_BUNDLE = bytes.fromhex(
+    "9f88070000820282010282028202018202820201820018281a000f4240850b0200"
+    "005856810101018202820201828201078203008181820158403bdc69b3a34a2b5d3a"
+    "8554368bd1e808f606219d2a10a846eae3886ae4ecc83c4ee550fdfb1cc636b904e2"
+    "f1a73e303dcd4b6ccece003e95e8164dcc89a156e185010100005823526561647920"
+    "746f2067656e657261746520612033322d62797465207061796c6f6164ff"
+)
+
+
+def test_bib_rfc9173_a1_create() -> None:
+    """The Security Workflow in docs/api/security.md reproduces RFC 9173 A.1."""
+    bundle = BPv7()
+    bundle.primary_block.route.dest_eid = "ipn:1.2"
+    bundle.primary_block.route.source_eid = "ipn:2.1"
+    bundle.primary_block.route.report_to = "ipn:2.1"
+    bundle.primary_block.life.timestamp_ms = 0
+    bundle.primary_block.life.sequence = 40
+    bundle.primary_block.life.lifetime = 1000000
+
+    scope = IntegrityScopeFlags(0)
+    ippt = cbor2.dumps(int(scope)) + cbor2.dumps(RFC9173_A1_PAYLOAD)
+    mac = hmac.new(RFC9173_A1_KEY, ippt, hashlib.sha512).digest()
+
+    bib = BlockIntegrityBlock(block_number=2)
+    bib.security_targets = [1]
+    bib.security_source = [2, [2, 1]]
+    bib.set_sha_variant(BIBSHAVariant.HMAC_512_512)
+    bib.integrity_scope_flags = scope
+    bib.add_integrity_scope()
+    bib.add_security_result(mac)
+
+    bundle.blocks[BlockType.BIB] = bib
+    bundle.add_payload_block(RFC9173_A1_PAYLOAD)
+
+    assert bytes(bundle) == RFC9173_A1_BUNDLE
+
+
+def test_bib_rfc9173_a1_verify() -> None:
+    """A parsed RFC 9173 A.1 BIB verifies against the recomputed HMAC."""
+    bundle = BPv7(RFC9173_A1_BUNDLE)
+    bib = bundle.get_block_by_type(BlockType.BIB)
+    payload = bundle.get_block_by_type(BlockType.PAYLOAD_BLOCK)
+    assert isinstance(bib, BlockIntegrityBlock)
+    assert payload is not None
+
+    assert bib.security_targets == [1]
+    assert bib.security_parameters[0].value == BIBSHAVariant.HMAC_512_512
+    assert bib.security_parameters[1].value == 0
+
+    ippt = cbor2.dumps(0) + cbor2.dumps(payload.data)
+    mac = hmac.new(RFC9173_A1_KEY, ippt, hashlib.sha512).digest()
+    assert hmac.compare_digest(mac, bib.security_results[0].value)
