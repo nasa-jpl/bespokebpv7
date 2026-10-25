@@ -49,6 +49,9 @@ import dpkt
 
 from bespokebpv7 import BPv7
 
+# The example PCAP holds 4 bundles, 2 of which share a timestamp
+EXPECTED_TIMESTAMP_COUNT = 3
+
 
 def bp_parse(ts: float, buff: bytes, record: dict[float, list[BPv7]]) -> None:
     """Extract Bundle data from PCAP data.
@@ -102,13 +105,15 @@ if __name__ == "__main__":
 
     bundled = pcap_extract(args.pcap)
 
-    # expect 4 bundles with 2 with duplicate timestamps
-    if bundled and len(bundled) == 3:  # ruff: ignore[magic-value-comparison]
+    if len(bundled) == EXPECTED_TIMESTAMP_COUNT:
         for tstamp, bundles in bundled.items():
             timestamp = datetime.fromtimestamp(tstamp, tz=timezone.utc).strftime(FSTR)
             for bundle in bundles:
                 print(f"Bundle Received: {timestamp}\n{bundle}\n")
         sys.exit(0)
     else:
-        print("No bundles in PCAP.")
+        print(
+            f"Expected bundles at {EXPECTED_TIMESTAMP_COUNT} timestamps,"
+            f" found {len(bundled)}."
+        )
         sys.exit(1)
