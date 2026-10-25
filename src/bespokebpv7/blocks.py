@@ -244,8 +244,12 @@ class PrimaryBlock(BaseBlock):
     del_report = flag_property(BundleFlags.STATUS_REPORT_DEL)
 
     def set_creation(self, ms: int | None = None, seq: int = 0) -> None:
-        """Set primary block creation time."""
-        if not ms:
+        """Set primary block creation time.
+
+        A creation time of 0 is valid: RFC 9171 Section 4.2.7 uses it when the
+        source node has no accurate clock. Only None selects the current time.
+        """
+        if ms is None:
             dtime = dt.datetime.now(dt.timezone.utc)
             dt_now = int((dtime - DTN_EPOCH).total_seconds() * 1000)
             self.life.timestamp_ms = dt_now

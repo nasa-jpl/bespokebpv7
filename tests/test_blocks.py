@@ -113,6 +113,11 @@ def test_primary_block_creation_time() -> None:
     pb.set_creation()
     assert pb.life.timestamp_ms > 0
 
+    # 0 means "no accurate clock" (RFC 9171 4.2.7), not "use the current time"
+    pb.set_creation(0, bseq)
+    assert pb.life.timestamp_ms == 0
+    assert pb.life.sequence == bseq
+
 
 def test_canonical_block_logic() -> None:
     """Verify canonical block creation"""
