@@ -128,7 +128,9 @@ Parameter definitions for the Primary Block. Inherits from `BaseBlock`.
 ### Methods
 
 - `set_creation(ms: int | None = None, seq: int = 0) -> None`: Sets the primary
-  block creation time. If `ms` is None, current UTC time is used.
+  block creation time. If `ms` is None, current UTC time is used. A creation
+  time of 0 is kept as is: RFC 9171 Section 4.2.7 uses it when the source node
+  has no accurate clock.
 - `_structure(data: list[Any]) -> Self`: Class method that populates a
   `PrimaryBlock` from a CBOR list.
 - `_unstructure() -> list[Any]`: Converts the `PrimaryBlock` instance to a
