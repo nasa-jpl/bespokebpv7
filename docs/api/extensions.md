@@ -99,6 +99,14 @@ Implementation of the ION Quality of Service (QoS) extension block.
 - `ordinal` (int): Ordinal value for priority.
 - `data_label` (int): Data label for traffic identification.
 
+### `IMCExt`
+
+Implementation of the ION IPN Multicast (IMC) extension block.
+
+**Attributes:**
+
+- `destinations` (list[int]): Destination node numbers.
+
 ## Constants
 
 ### `BLOCKFUNCTIONS` (dict)
@@ -114,4 +122,5 @@ Maps `BlockType` to the corresponding extension block class:
 - `BlockType.CTEB` $\rightarrow$ `CustodyTransferExt`
 - `BlockType.CREB` $\rightarrow$ `CompressedReportingExt`
 - `BlockType.QOS` $\rightarrow$ `BPQExt`
+- `BlockType.IMC` $\rightarrow$ `IMCExt`
 - `BlockType.UNKNOWN_BLOCK` $\rightarrow$ `CanonicalBlock`

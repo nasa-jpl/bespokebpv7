@@ -430,6 +430,39 @@ class BPQExt(CanonicalBlock):
         return super()._unstructure()
 
 
+@define
+class IMCExt(CanonicalBlock):
+    """Class definition for the ION IPN Multicast (IMC) extension block."""
+
+    destinations: list[int] = field(factory=list)
+
+    def __attrs_post_init__(self) -> None:
+        """Set block type"""
+        self.block_type = BlockType.IMC
+
+    @classmethod
+    def _structure(cls, data: list[Any]) -> Self:
+        """Structure IMCExt from CBOR list.
+
+        Returns:
+            Populated IMC Extension
+
+        """
+        block = super()._structure(data)
+        block.destinations = bundle_converter.loads(block.data, list)
+        return block
+
+    def _unstructure(self) -> list[Any]:
+        """Unstructure IMCExt to CBOR list.
+
+        Returns:
+            Converted class to list
+
+        """
+        self.data = bundle_converter.dumps(list(self.destinations))
+        return super()._unstructure()
+
+
 BLOCKFUNCTIONS = {
     BlockType.BIB: BlockIntegrityBlock,
     BlockType.BCB: BlockConfidentialityBlock,
@@ -440,5 +473,6 @@ BLOCKFUNCTIONS = {
     BlockType.CTEB: CustodyTransferExt,
     BlockType.CREB: CompressedReportingExt,
     BlockType.QOS: BPQExt,
+    BlockType.IMC: IMCExt,
     BlockType.UNKNOWN_BLOCK: CanonicalBlock,
 }

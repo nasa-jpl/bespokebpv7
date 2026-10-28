@@ -88,6 +88,20 @@ forwarding behavior within the ION network.
 In `bespokebpv7`, this is implemented in the `BPQExt` class within
 `ext_functions.py`.
 
+### IPN Multicast Extension (IMC)
+
+The **IPN Multicast (IMC) Extension Block** carries the list of destination
+node numbers for a bundle sent to an ION multicast group. ION rewrites the list
+at each forwarding node so that downstream nodes know which members still need
+a copy.
+
+* **Block Type:** `195`
+* **Structure:** The IMC extension block data is a CBOR array of unsigned
+  integers, one per destination node number.
+
+In `bespokebpv7`, this is implemented in the `IMCExt` class within
+`ext_functions.py`. Its `destinations` attribute is a `list[int]`.
+
 ## Compressed Admin Records
 
 ION utilizes compressed versions of administrative records to reduce bandwidth
