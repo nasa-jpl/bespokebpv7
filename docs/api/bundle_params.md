@@ -105,9 +105,11 @@ Endpoint ID in its CBOR form `[scheme, ssp]` (RFC 9171, section 4.2.5.1).
 
 **Methods:**
 
-- `from_value(value)`: Build from a URI string (`"ipn:10.1"`), a CBOR list or another `EndpointID`.
+- `from_value(value)`: Build from a URI string (`"ipn:10.1"`), a CBOR list or
+  another `EndpointID`.
 - `to_cbor()`: CBOR list for encoding (2-element IPN form for the default allocator).
-- `str(eid)`: URI form.
+- `to_cbor()`: CBOR list for encoding (2-element IPN form for the default
+  allocator).
 
 ---
 
@@ -117,7 +119,8 @@ Bundle sequence definition for Compressed Custody Signal administrative records.
 
 **Attributes:**
 
-- `dest_seq` (EndpointID): Destination endpoint ID. Accepts a URI string, a CBOR list or an `EndpointID`.
+- `dest_seq` (EndpointID): Destination endpoint ID. Accepts a URI string, a
+  CBOR list or an `EndpointID`.
 - `first_seq_num` (int): First sequence number in the range.
 - `seq_range` (int | list[int]): Range of sequence numbers.
 
