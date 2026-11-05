@@ -57,6 +57,7 @@ from bespokebpv7.ext_functions import (
     CompressedReportingExt,
     CustodyTransferExt,
     HopCountExt,
+    IMCExt,
     PreviousNodeExt,
 )
 from bespokebpv7.utils import (
@@ -275,6 +276,35 @@ def test_qos_ext(
     assert qos_new.class_of_service == class_of_service
     assert qos_new.ordinal == ordinal
     assert qos_new.data_label == data_label
+
+
+@given(st.lists(st.integers(min_value=0, max_value=2**64 - 1)))
+def test_imc_ext(destinations: list[int]) -> None:
+    """Verify IPN Multicast (IMC) extension creation and roundtrip."""
+    imc_block = IMCExt(block_type=BlockType.IMC)
+    imc_block.destinations = destinations
+
+    out_list = bundle_converter.unstructure(imc_block)
+
+    assert out_list[0] == BlockType.IMC
+    assert cbor2.loads(out_list[4]) == destinations
+
+    imc_new = bundle_converter.structure(out_list, IMCExt)
+
+    assert imc_new.block_type == BlockType.IMC
+    assert imc_new.destinations == destinations
+
+
+def test_imc_ext_matches_ion_encoding() -> None:
+    """IMC block data is a definite-length CBOR array of node numbers, as
+    written by imc_serialize() in ION's bpv7/library/ext/imc/imc.c.
+    """
+    imc_block = IMCExt(destinations=[1, 24, 65536])
+
+    out_list = bundle_converter.unstructure(imc_block)
+
+    # array(3), 1, 24, 65536
+    assert out_list[4] == bytes.fromhex("830118181a00010000")
 
 
 def test_compressed_reporting_ext_structure_raises_on_overlong_list() -> None:

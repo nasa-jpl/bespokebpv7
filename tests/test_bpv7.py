@@ -57,7 +57,7 @@ from bespokebpv7.blocks import CanonicalBlock, CanonicalBlockInit, PrimaryBlock
 from bespokebpv7.bundle_params import (
     BundleFragmentation,
 )
-from bespokebpv7.ext_functions import BundleAgeExt
+from bespokebpv7.ext_functions import BundleAgeExt, IMCExt
 from bespokebpv7.utils import bundle_converter
 
 
@@ -93,6 +93,22 @@ def test_bpv7_add_blocks() -> None:
     # Verify returns None on non-existing block
     no_blk = bundle.get_block_by_type(BlockType.BCB)
     assert no_blk is None
+
+
+def test_bpv7_imc_block_roundtrip() -> None:
+    """An IMC block survives serialization and is parsed back as IMCExt."""
+    destinations = [2, 3, 70000]
+    b1 = BPv7()
+    b1.primary_block.set_creation(1000, 0)
+    b1.add_payload_block(b"payload")
+    block_parms: CanonicalBlockInit = {"block_type": BlockType.IMC}
+    b1.add_canonical_block(block_parms, cbor2.dumps(destinations))
+
+    b2 = BPv7(bytes(b1))
+
+    imc_blk = b2.get_block_by_type(BlockType.IMC)
+    assert isinstance(imc_blk, IMCExt)
+    assert imc_blk.destinations == destinations
 
 
 @given(st_eid, st_eid, st_data)
