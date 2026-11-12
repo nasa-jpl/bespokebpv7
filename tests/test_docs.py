@@ -88,3 +88,22 @@ def test_readme_quickstart_snippets_execute() -> None:
     for block in blocks:
         namespace: dict[str, object] = {}
         exec(block, namespace)  # ruff: ignore[exec-builtin]
+
+
+def test_vnv_comments_present() -> None:
+    """The intentional V&V scenarios are marked in the examples."""
+    root = Path(__file__).resolve().parent.parent
+    expected = {
+        "examples/mitm_test/mitm_test.py": (
+            "# V&V Test Scenario: Intentionally modify flag to verify BIB failure"
+        ),
+        "examples/mitm_test/dotest": (
+            "# V&V Test Scenario: The MITM proxy invalidates the BIB, "
+            "so a bping failure is the expected result."
+        ),
+        "examples/vnv_ion/vnv_test.py": (
+            "# V&V Test Scenario: Requires ION node configured for echo behavior."
+        ),
+    }
+    for rel, comment in expected.items():
+        assert comment in (root / rel).read_text(encoding="utf-8"), rel
