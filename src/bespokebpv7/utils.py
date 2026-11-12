@@ -63,7 +63,8 @@ MAX_SDNV_LEN = 10
 
 def calculate_crc(block_list: list[Any], crc_type: CRCType) -> bytes | None:
     """Calculate CRC per RFC 9171.
-    The CRC field (last element) is replaced by an empty byte string for calculation.
+    The CRC field (last element) is replaced by its null fill for calculation,
+    so a stale CRC value in the block does not change the result.
 
     Returns:
         CRC as bytes or None if unexpected type or type NONE
@@ -72,7 +73,7 @@ def calculate_crc(block_list: list[Any], crc_type: CRCType) -> bytes | None:
     if crc_type == CRCType.NONE:
         return None
 
-    data_to_hash = cbor2.dumps(block_list)
+    data_to_hash = cbor2.dumps([*block_list[:-1], crc_type.fill_value])
 
     if crc_type == CRCType.CRC16:
         # CRC-16/X-25
@@ -84,6 +85,83 @@ def calculate_crc(block_list: list[Any], crc_type: CRCType) -> bytes | None:
         crc_int = fastcrc.crc32.iscsi(data_to_hash)
         return struct.pack(">L", crc_int)
     return None
+
+
+def _ipn_from_legacy_list(fqnn: int, service: Any) -> list[Any]:
+    """Unpack a 2-element legacy IPN SSP into the logical 3-element form.
+
+    Returns:
+        ``[dtn, 0]`` when the address is the local node (allocator and
+        node both zero), else ``[ipn, [allocator, node, service]]``.
+
+    """
+    allocator = fqnn >> 32
+    node = fqnn & 0xFFFFFFFF
+    if allocator == 0 and node == 0:
+        return [int(SchemeCode.DTN), 0]
+    return [int(SchemeCode.IPN), [allocator, node, service]]
+
+
+def _ipn_from_string(ssp: str) -> list[Any]:
+    """Parse an ``ipn:<allocator>.<node>.<service>`` (or legacy
+    ``ipn:<node>.<service>``) SSP into its logical list form.
+
+    Returns:
+        Logical IPN list ``[ipn, [allocator, node, service]]``, or
+        ``[dtn, 0]`` for the local node.
+
+    Raises:
+        ValueError: if the SSP is not a valid IPN address.
+
+    """
+    parts = ssp.split(".")
+    if len(parts) == LEGACY_LIST:
+        allocator = 0
+        node_str = parts[0]
+        service = int(parts[1])
+    elif len(parts) == ALLOCATOR_LIST:
+        allocator = int(parts[0])
+        node_str = parts[1]
+        service = int(parts[2])
+    else:
+        msg = "Invalid ipn URI format."
+        raise ValueError(msg)
+
+    node = LOCAL_NODE if node_str == "!" else int(node_str)
+    # 32-bit wire components; wider values would be masked on encode.
+    if not (0 <= allocator <= LOCAL_NODE and 0 <= node <= LOCAL_NODE):
+        msg = "IPN allocator and node must fit in 32 bits."
+        raise ValueError(msg)
+
+    if allocator == 0 and node == 0:
+        return [int(SchemeCode.DTN), 0]
+    return [int(SchemeCode.IPN), [allocator, node, service]]
+
+
+def _parse_ipn_list(eid_str: list[Any]) -> list[Any]:
+    """Parse a list-form IPN EID, normalizing legacy 2-element SSPs.
+
+    Returns:
+        The normalized logical IPN list.
+
+    Raises:
+        ValueError: if the list is empty or contains out-of-range values.
+
+    """
+    if not eid_str:
+        msg = "EID list is empty."
+        raise ValueError(msg)
+    if not isinstance(eid_str[1], list):
+        return copy.deepcopy(eid_str)
+    if len(eid_str[1]) == LEGACY_LIST:
+        fqnn, service = eid_str[1]
+        return _ipn_from_legacy_list(fqnn, service)
+    if len(eid_str[1]) == ALLOCATOR_LIST:
+        allocator, node, service = eid_str[1]
+        if not (0 <= allocator <= LOCAL_NODE and 0 <= node <= LOCAL_NODE):
+            msg = "IPN allocator and node must fit in 32 bits."
+            raise ValueError(msg)
+    return copy.deepcopy(eid_str)
 
 
 def parse_eid_string(eid_str: str | list[Any]) -> list[Any]:
@@ -98,20 +176,16 @@ def parse_eid_string(eid_str: str | list[Any]) -> list[Any]:
         ValueError: if given format does not match a valid scheme
 
     """
+    if not isinstance(eid_str, (str, list)):
+        msg = "EID must be a string or a list."
+        raise ValueError(msg)  # ruff: ignore[type-check-without-type-error] - decode contract requires ValueError
+
     if isinstance(eid_str, list):
-        if (
-            eid_str[0] == SchemeCode.IPN
-            and isinstance(eid_str[1], list)
-            and len(eid_str[1]) == LEGACY_LIST
-        ):
-            fqnn, service = eid_str[1]
-            allocator = fqnn >> 32
-            node = fqnn & 0xFFFFFFFF
-            return (
-                [int(SchemeCode.DTN), 0]
-                if allocator == 0 and node == 0
-                else [int(SchemeCode.IPN), [allocator, node, service]]
-            )
+        if not eid_str:
+            msg = "EID list is empty."
+            raise ValueError(msg)
+        if eid_str[0] == SchemeCode.IPN:
+            return _parse_ipn_list(eid_str)
         return copy.deepcopy(eid_str)
 
     if ":" not in eid_str:
@@ -120,26 +194,7 @@ def parse_eid_string(eid_str: str | list[Any]) -> list[Any]:
     scheme, ssp = eid_str.split(":", 1)
 
     if scheme.lower() == "ipn":
-        parts = ssp.split(".")
-        if len(parts) == LEGACY_LIST:
-            allocator = 0
-            node_str = parts[0]
-            service = int(parts[1])
-        elif len(parts) == ALLOCATOR_LIST:
-            allocator = int(parts[0])
-            node_str = parts[1]
-            service = int(parts[2])
-        else:
-            errmsg = "Invalid ipn URI format."
-            raise ValueError(errmsg)
-
-        node = LOCAL_NODE if node_str == "!" else int(node_str)
-
-        return (
-            [int(SchemeCode.DTN), 0]
-            if allocator == 0 and node == 0
-            else [int(SchemeCode.IPN), [allocator, node, service]]
-        )
+        return _ipn_from_string(ssp)
 
     return [int(SchemeCode.DTN), 0 if ssp in {"0", "none"} else ssp]
 

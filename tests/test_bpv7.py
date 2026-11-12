@@ -39,6 +39,8 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+import warnings
+
 import cbor2
 import pytest
 from hypothesis import given
@@ -212,6 +214,33 @@ def test_bpv7_unpack_crc_check() -> None:
         BPv7(tampered)
 
 
+def test_update_crc_ignores_stale_crc_value() -> None:
+    """update_crc yields the same CRC for a stale value as for the null fill."""
+    bundle = BPv7()
+    pb = bundle.primary_block
+    pb.crc_type = CRCType.CRC16
+    pb.crc = CRCType.CRC16.fill_value
+    pb.update_crc()
+    expected = pb.crc
+
+    pb.crc = b"\xab\xcd"
+    pb.update_crc()
+    assert pb.crc == expected
+
+
+def test_unpack_crc_verification_unchanged() -> None:
+    """A valid CRC16 primary block unpacks without a mismatch warning."""
+    bundle = BPv7()
+    bundle.primary_block.crc_type = CRCType.CRC16
+    bundle.primary_block.update_crc()
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        BPv7(bytes(bundle))
+
+    assert not [w for w in caught if "CRC mismatch" in str(w.message)]
+
+
 def test_unpack_decode_errors() -> None:
     """Test robustness against bad data."""
     with pytest.raises(ValueError, match="CBOR decoding issue"):
@@ -349,6 +378,21 @@ def test_bpv7_unpack_raises_on_truncated_block_array() -> None:
         BPv7(raw_bytes)
 
 
+def test_bpv7_unpack_error_names_block_index() -> None:
+    """A malformed canonical block error names its bundle array index."""
+    pb_list = [7, 0, 0, [1, "dest"], [1, "src"], [1, "report"], [1000, 0], 100]
+    truncated_block = [1, 2, 0, 0]
+    raw_bytes = (
+        b"\x9f"
+        + bundle_converter.dumps(pb_list)
+        + bundle_converter.dumps(truncated_block)
+        + b"\xff"
+    )
+
+    with pytest.raises(ValueError, match="bundle index 1"):
+        BPv7(raw_bytes)
+
+
 def test_bpv7_unpack_raises_on_truncated_admin_record() -> None:
     """Verify that BPv7.unpack() raises ValueError on truncated admin records in ADU."""
     # Set ADU_IS_ADMIN_RECORD flag (1 << 1 = 2)
@@ -373,6 +417,26 @@ def test_bpv7_unpack_raises_on_truncated_admin_record() -> None:
         BPv7(raw_bytes)
 
 
+@pytest.mark.parametrize(
+    "admin_data",
+    [cbor2.dumps(5), b"\xff"],
+    ids=["non-array-cbor", "undecodable-cbor"],
+)
+def test_bpv7_unpack_wraps_admin_record_decode_errors(admin_data: bytes) -> None:
+    """Admin records that are not a CBOR array raise ValueError, not a decode error."""
+    pb_list = [7, 2, 0, [1, "dest"], [1, "src"], [1, "report"], [1000, 0], 100]
+    admin_block = [1, 2, 0, 0, admin_data]
+    raw_bytes = (
+        b"\x9f"
+        + bundle_converter.dumps(pb_list)
+        + bundle_converter.dumps(admin_block)
+        + b"\xff"
+    )
+
+    with pytest.raises(ValueError, match="Admin record payload is not a CBOR array"):
+        BPv7(raw_bytes)
+
+
 _PB_LIST = [7, 0, 0, [1, "dest"], [1, "src"], [1, "report"], [1000, 0], 100]
 
 
@@ -384,6 +448,8 @@ _PB_LIST = [7, 0, 0, [1, "dest"], [1, "src"], [1, "report"], [1000, 0], 100]
         ([[7, 0, 0]], "Primary block CBOR array too short"),
         ([[*_PB_LIST[:6], 1000, 100]], "creation timestamp must be a 2-element array"),
         ([_PB_LIST, 7], "Canonical block CBOR item is not an array"),
+        ([_PB_LIST, "abcdefgh"], "Canonical block CBOR item is not an array"),
+        ([_PB_LIST, b"abcdefgh"], "Canonical block CBOR item is not an array"),
     ],
 )
 def test_bpv7_unpack_raises_value_error_on_malformed_shapes(
@@ -402,3 +468,18 @@ def test_bpv7_unpack_raises_on_truncated_fragment_fields() -> None:
         ValueError, match="Fragmented primary block CBOR array too short"
     ):
         BPv7(bundle_converter.dumps([pb_list]))
+
+
+def test_bpv7_unpack_wraps_block_field_type_errors() -> None:
+    """A block field with the wrong CBOR type raises ValueError, not TypeError."""
+    pb_list = [7, 0, 0, [1, "dest"], [1, "src"], [1, "report"], [1000, 0], 100]
+    bad_block = [1, [1, 2], 0, 0, b"payload"]
+    raw_bytes = (
+        b"\x9f"
+        + bundle_converter.dumps(pb_list)
+        + bundle_converter.dumps(bad_block)
+        + b"\xff"
+    )
+
+    with pytest.raises(ValueError, match="malformed field types"):
+        BPv7(raw_bytes)

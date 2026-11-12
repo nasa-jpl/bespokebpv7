@@ -6,8 +6,8 @@ a endpoint ipn:3.2 x
 a endpoint ipn:3.64 x
 a endpoint ipn:3.65 x
 a protocol udp 1400 100
-a induct udp 127.0.0.1:3113 udpcli
-a outduct udp 127.0.0.1:5115 udpclo
+a induct udp 127.0.0.1:2868 udpcli
+a outduct udp 127.0.0.1:2719 udpclo
 r 'ipnadmin ipn.ipnrc'
 w 1
 s

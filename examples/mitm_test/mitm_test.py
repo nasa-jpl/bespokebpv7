@@ -161,7 +161,7 @@ class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
             Modified bundle
 
         """
-        # Modify primary block, so BIB fails
+        # V&V Test Scenario: Intentionally modify flag to verify BIB failure
         if not bundle.primary_block.deliv_report:
             print("   [MOD] Requesting delivery report (invalidating BIB)...")
             bundle.primary_block.deliv_report = True

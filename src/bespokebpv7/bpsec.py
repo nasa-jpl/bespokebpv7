@@ -55,6 +55,7 @@ from bespokebpv7.block_enum import (
     SecurityContextFlags,
 )
 from bespokebpv7.blocks import CanonicalBlock
+from bespokebpv7.bundle_params import EndpointID
 from bespokebpv7.utils import (
     bundle_converter,
     decode_cbor_sequence,
@@ -190,6 +191,16 @@ class SecurityResult:
         return [self.result_id, self.value]
 
 
+def _endpoint_id(value: Any) -> EndpointID:
+    """Attrs converter: a URI string or decoded CBOR value to an EndpointID.
+
+    Returns:
+        The endpoint ID
+
+    """
+    return EndpointID.from_value(value)
+
+
 @define
 class AbstractSecurityBlock(CanonicalBlock):
     """Represents the Abstract Security Block (ASB)."""
@@ -200,7 +211,10 @@ class AbstractSecurityBlock(CanonicalBlock):
         default=SecurityContextFlags(0),
         converter=SecurityContextFlags,
     )
-    security_source: list[Any] = field(factory=lambda: [1, "none"])
+    security_source: EndpointID = field(
+        factory=lambda: EndpointID.from_value("dtn:none"),
+        converter=_endpoint_id,
+    )
     security_parameters: list[SecurityParameter] = field(factory=list)
     security_results: list[SecurityResult] = field(factory=list)
 
@@ -285,30 +299,42 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
         Returns:
             Populated Block Integrity Block
 
+        Raises:
+            ValueError: if the inner security data is malformed.
+
         """
         # Parse the outer CanonicalBlock fields
         block = super()._structure(data)
 
         # Parse the inner security specific fields from the data bytes
         bib_data = decode_cbor_sequence(block.data)
+        try:  # ruff: ignore[too-many-statements-in-try-clause] - the whole inner parse must map to ValueError
+            block.security_targets = bib_data[0]
+            block.security_context_id = bib_data[1]
+            block.security_context_flags = SecurityContextFlags(bib_data[2])
+            block.security_source = bib_data[3]
+            next_idx = 4
 
-        block.security_targets = bib_data[0]
-        block.security_context_id = bib_data[1]
-        block.security_context_flags = SecurityContextFlags(bib_data[2])
-        block.security_source = bib_data[3]
-        next_idx = 4
+            if block.parm_present:
+                for parm in bib_data[next_idx]:
+                    block.security_parameters.append(
+                        bundle_converter.structure(parm, SecurityParameter)
+                    )
+                next_idx += 1
+                # Restore the wire scope so flag properties reflect the decoded block.
+                for parm in block.security_parameters:
+                    if parm.parm_id == BIBParmEnum.INTEGRITY_SCOPE_FLAGS:
+                        block.integrity_scope_flags = IntegrityScopeFlags(
+                            int(parm.value)
+                        )
 
-        if block.parm_present:
-            for parm in bib_data[next_idx]:
-                block.security_parameters.append(
-                    bundle_converter.structure(parm, SecurityParameter)
+            for result in bib_data[next_idx][0]:
+                block.security_results.append(
+                    bundle_converter.structure(result, SecurityResult)
                 )
-            next_idx += 1
-
-        for result in bib_data[next_idx][0]:
-            block.security_results.append(
-                bundle_converter.structure(result, SecurityResult)
-            )
+        except (IndexError, TypeError, KeyError) as err:
+            msg = "BIB security data is malformed"
+            raise ValueError(msg) from err
 
         return block
 
@@ -324,7 +350,7 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
             self.security_targets,
             self.security_context_id,
             int(self.security_context_flags),
-            self.security_source,
+            self.security_source.to_cbor(),
         ]
         if self.parm_present:
             parm_list = [
@@ -415,30 +441,40 @@ class BlockConfidentialityBlock(AbstractSecurityBlock):
         Returns:
             Populated Block Confidentiality Block
 
+        Raises:
+            ValueError: if the inner security data is malformed.
+
         """
         # Parse the outer CanonicalBlock fields
         block = super()._structure(data)
 
         # Parse the inner security specific fields from the data bytes
         bcb_data = decode_cbor_sequence(block.data)
+        try:  # ruff: ignore[too-many-statements-in-try-clause] - the whole inner parse must map to ValueError
+            block.security_targets = bcb_data[0]
+            block.security_context_id = bcb_data[1]
+            block.security_context_flags = SecurityContextFlags(bcb_data[2])
+            block.security_source = bcb_data[3]
+            next_idx = 4
 
-        block.security_targets = bcb_data[0]
-        block.security_context_id = bcb_data[1]
-        block.security_context_flags = SecurityContextFlags(bcb_data[2])
-        block.security_source = bcb_data[3]
-        next_idx = 4
+            if block.parm_present:
+                for parm in bcb_data[next_idx]:
+                    block.security_parameters.append(
+                        bundle_converter.structure(parm, SecurityParameter)
+                    )
+                next_idx += 1
+                # Restore the wire scope so flag properties reflect the decoded block.
+                for parm in block.security_parameters:
+                    if parm.parm_id == BCBParmEnum.AAD_SCOPE_FLAGS:
+                        block.aad_scope_flags = AADScopeFlags(int(parm.value))
 
-        if block.parm_present:
-            for parm in bcb_data[next_idx]:
-                block.security_parameters.append(
-                    bundle_converter.structure(parm, SecurityParameter)
+            for result in bcb_data[next_idx][0]:
+                block.security_results.append(
+                    bundle_converter.structure(result, SecurityResult)
                 )
-            next_idx += 1
-
-        for result in bcb_data[next_idx][0]:
-            block.security_results.append(
-                bundle_converter.structure(result, SecurityResult)
-            )
+        except (IndexError, TypeError, KeyError) as err:
+            msg = "BCB security data is malformed"
+            raise ValueError(msg) from err
 
         return block
 
@@ -454,7 +490,7 @@ class BlockConfidentialityBlock(AbstractSecurityBlock):
             self.security_targets,
             self.security_context_id,
             int(self.security_context_flags),
-            self.security_source,
+            self.security_source.to_cbor(),
         ]
         if self.parm_present:
             parm_list = [
