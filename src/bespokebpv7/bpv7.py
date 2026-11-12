@@ -238,10 +238,11 @@ class BPv7(dpkt.Packet):  # type: ignore[misc]
 
         """
         if self.primary_block.adu_is_admin and block_type == BlockType.PAYLOAD_BLOCK:
-            if len(exts) <= CanonicalBlock.max_array_len - 1:
-                msg = "Canonical block array too short for admin record data"
-                raise ValueError(msg)
-            admin_record = bundle_converter.loads(exts[4], list)
+            try:
+                admin_record = bundle_converter.loads(exts[4], list)
+            except (cbor2.CBORDecodeError, TypeError) as err:
+                msg = "Admin record payload is not a CBOR array"
+                raise ValueError(msg) from err
             if not admin_record:
                 msg = "Admin record CBOR array is empty"
                 raise ValueError(msg)
@@ -249,6 +250,24 @@ class BPv7(dpkt.Packet):  # type: ignore[misc]
                 AdminRecordType(admin_record[0]), BundleStatusReport
             )
         return BLOCKFUNCTIONS.get(block_type, CanonicalBlock)
+
+    def _unpack_indexed_block(
+        self, index: int, exts: Any
+    ) -> tuple[BlockType, CanonicalBlock]:
+        """Unpack one canonical block, naming its bundle array index on error.
+
+        Returns:
+            The block type and the structured canonical block.
+
+        Raises:
+            ValueError: if the block is malformed, naming its bundle array index.
+
+        """
+        try:
+            return self._unpack_block(exts)
+        except ValueError as err:
+            msg = f"Canonical block at bundle index {index}: {err}"
+            raise ValueError(msg) from err
 
     def _unpack_block(self, exts: Any) -> tuple[BlockType, CanonicalBlock]:
         """Structure one canonical block from its decoded CBOR item.
@@ -260,17 +279,19 @@ class BPv7(dpkt.Packet):  # type: ignore[misc]
             ValueError: if the item is not an array or is too short.
 
         """
-        try:
-            too_short = len(exts) < CanonicalBlock.max_array_len
-        except TypeError as err:
+        if not isinstance(exts, list):
             msg = "Canonical block CBOR item is not an array"
-            raise ValueError(msg) from err
-        if too_short:
+            raise ValueError(msg)  # ruff: ignore[type-check-without-type-error] - decode contract requires ValueError
+        if len(exts) < CanonicalBlock.max_array_len:
             msg = "Canonical block CBOR array too short"
             raise ValueError(msg)
         block_type = BlockType(exts[0])
         block = self._resolve_block_class(exts, block_type)
-        ext: CanonicalBlock = bundle_converter.structure(exts, block)
+        try:
+            ext: CanonicalBlock = bundle_converter.structure(exts, block)
+        except (TypeError, IndexError, KeyError) as err:
+            msg = f"Canonical block {block_type.name} has malformed field types"
+            raise ValueError(msg) from err
         return block_type, ext
 
     def unpack(self, buf: bytes) -> None:
@@ -301,8 +322,8 @@ class BPv7(dpkt.Packet):  # type: ignore[misc]
             msg = "Primary block CBOR item is not an array"
             raise ValueError(msg) from err
 
-        for exts in bundle_data[1:]:
-            block_type, ext = self._unpack_block(exts)
+        for index, exts in enumerate(bundle_data[1:], start=1):
+            block_type, ext = self._unpack_indexed_block(index, exts)
             self.blocks[block_type] = ext
             if self.debug:
                 self._debug(exts, block_type, "block")
