@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- **Wire format:** The default BPSec `security_source` now encodes as `[1, 0]` (`dtn:none`) instead of `[1, "none"]`, and `ipn:2.1` encodes as `[2, [2, 1]]`. Legacy decoded `[1, "none"]` values are kept and re-encoded unchanged. Fixes #90.
+- **Public API:** `EndpointID` (in `bundle_params`) is exported from `bespokebpv7`. `CTBundleSequence.dest_seq` is an `EndpointID` (was `int | list[Any]`). Encoding is unchanged.
+- **EID setters:** The EID setters on `BundleRoute`, `BaseStatusReport`, `CRBundleSequence`, and the extension classes (`PreviousNodeExt`, `CustodyTransferExt`, `CompressedReportingExt`) accept `EndpointID` as well as `str` and list input. Getters still return `str`.
+- **`calculate_crc`:** Replaces the CRC field with its null fill (`CRCType.fill_value`) before hashing, as its docstring stated. Callers in `bpv7.py` already passed the fill, so their output is unchanged. `blocks.py` `update_crc` output changes only when the stored CRC was not the null fill. Refs #44.
+
+### Fixed
+
+- `BPv7.unpack` errors for a malformed canonical block name its bundle array index. Refs #45.
+- `DataSegment` raises `ValueError` when the payload is shorter than declared. Refs #44.
+- `TCPCL.unpack` raises `ValueError` for a zero length. Refs #44.
+
 ## [0.6.0] 2026-09-28
 
 ### Added
