@@ -225,11 +225,21 @@ def test_parse_ipn_null_uri() -> None:
     [
         ("ipn:0.4294967296.1", "fit in 32 bits"),
         ("ipn:4294967296.1.1", "fit in 32 bits"),
+        ([2, [0, 4294967296, 1]], "fit in 32 bits"),
+        ([2, [4294967296, 0, 1]], "fit in 32 bits"),
         (5, "must be a string or a list"),
         ([], "EID list is empty"),
         (None, "must be a string or a list"),
     ],
-    ids=["node-too-large", "allocator-too-large", "int", "empty-list", "none"],
+    ids=[
+        "node-too-large",
+        "allocator-too-large",
+        "node-too-large-list",
+        "allocator-too-large-list",
+        "int",
+        "empty-list",
+        "none",
+    ],
 )
 def test_parse_eid_string_rejects_invalid_input(bad_eid: object, message: str) -> None:
     """Out-of-range or non-EID input raises ValueError, never masks or TypeError."""

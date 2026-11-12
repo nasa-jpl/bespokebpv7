@@ -52,6 +52,7 @@ from bespokebpv7.bundle_params import (
     BaseStatusReport,
     BundleLife,
     BundleRoute,
+    BundleStatusInformation,
     CRBundleSequence,
     CreationTime,
     CTBundleSequence,
@@ -133,6 +134,18 @@ def test_base_status_report_structure_raises_on_short_list() -> None:
         ValueError, match="BaseStatusReport requires at least 4 elements"
     ):
         BaseStatusReport._structure(truncated_data)
+
+
+def test_bundle_status_information_structure_rejects_short_list() -> None:
+    """Verify that BundleStatusInformation._structure() raises ValueError on lists
+    shorter than 4 instead of raising IndexError when indexing missing elements.
+    """
+    # BundleStatusInformation requires 4 status assertion sub-lists
+    truncated_data: list[list[Any]] = [[], []]
+    with pytest.raises(
+        ValueError, match="BundleStatusInformation requires at least 4 elements"
+    ):
+        BundleStatusInformation._structure(truncated_data)
 
 
 @pytest.mark.parametrize(
