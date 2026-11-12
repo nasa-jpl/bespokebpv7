@@ -46,6 +46,7 @@ from attrs.converters import optional
 from bespokebpv7.block_enum import BlockType, CREBFlags
 from bespokebpv7.blocks import CanonicalBlock
 from bespokebpv7.bpsec import BlockConfidentialityBlock, BlockIntegrityBlock
+from bespokebpv7.bundle_params import EndpointID, eid_list_from_value
 from bespokebpv7.utils import (
     bundle_converter,
     format_eid,
@@ -110,8 +111,8 @@ class PreviousNodeExt(CanonicalBlock):
         return format_eid(self._previous_node)
 
     @previous_node.setter
-    def previous_node(self, value: str | list[Any]) -> None:
-        self._previous_node = parse_eid_string(value)
+    def previous_node(self, value: "EndpointID | str | list[Any]") -> None:
+        self._previous_node = eid_list_from_value(value)
 
     @classmethod
     def _structure(cls, data: list[Any]) -> Self:
@@ -196,8 +197,8 @@ class CustodyTransferExt(CanonicalBlock):
         return format_eid(self._block_src_admin_eid)
 
     @block_src_admin_eid.setter
-    def block_src_admin_eid(self, value: str | list[Any]) -> None:
-        self._block_src_admin_eid = parse_eid_string(value)
+    def block_src_admin_eid(self, value: "EndpointID | str | list[Any]") -> None:
+        self._block_src_admin_eid = eid_list_from_value(value)
 
     @classmethod
     def _structure(cls, data: list[Any]) -> Self:
@@ -301,8 +302,8 @@ class CompressedReportingExt(CanonicalBlock):
         return None
 
     @block_src_admin_eid.setter
-    def block_src_admin_eid(self, value: str | list[Any]) -> None:
-        self._block_src_admin_eid = parse_eid_string(value)
+    def block_src_admin_eid(self, value: "EndpointID | str | list[Any]") -> None:
+        self._block_src_admin_eid = eid_list_from_value(value)
 
     @property
     def report_to_eid(self) -> str | None:
@@ -317,8 +318,8 @@ class CompressedReportingExt(CanonicalBlock):
         return None
 
     @report_to_eid.setter
-    def report_to_eid(self, value: str | list[Any]) -> None:
-        self._report_to_eid = parse_eid_string(value)
+    def report_to_eid(self, value: "EndpointID | str | list[Any]") -> None:
+        self._report_to_eid = eid_list_from_value(value)
 
     def set_status_flag(self, status_flag: CREBFlags) -> None:
         """Set an individual security context flag."""

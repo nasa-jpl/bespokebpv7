@@ -256,7 +256,13 @@ class BundleStatusInformation:
         Returns:
             Completed BundleStatusInformation class
 
+        Raises:
+            ValueError: if the data list contains fewer than 4 elements.
+
         """
+        if len(data) < MIN_BASE_STATUS_REPORT_LEN:
+            msg = "BundleStatusInformation requires at least 4 elements"
+            raise ValueError(msg)
         return cls(
             recv_bundle=bundle_converter.structure(data[0], StatusAssertion),
             fwd_bundle=bundle_converter.structure(data[1], StatusAssertion),
