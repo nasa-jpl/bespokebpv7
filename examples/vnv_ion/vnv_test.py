@@ -52,6 +52,7 @@ from bespokebpv7 import BlockType, BPv7, CRCType
 received_responses: list[bytes] = []
 
 
+# V&V Test Scenario: Requires ION node configured for echo behavior.
 def udp_receiver(stop: threading.Event, rport: int = 2113) -> None:
     """Listen for incoming UDP packets and parses them as BPv7 bundles."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:

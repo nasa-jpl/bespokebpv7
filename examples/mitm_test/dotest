@@ -95,6 +95,7 @@ cd ../2.ipn.udp
 echo "Sending bping..."
 echo
 bping -c 3 ipn:2.1 ipn:3.1
+# V&V Test Scenario: The MITM proxy invalidates the BIB, so a bping failure is the expected result.
 TEST_RESULT=$?
 
 if [ $TEST_RESULT -eq 1 ]; then
