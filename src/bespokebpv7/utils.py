@@ -63,7 +63,8 @@ MAX_SDNV_LEN = 10
 
 def calculate_crc(block_list: list[Any], crc_type: CRCType) -> bytes | None:
     """Calculate CRC per RFC 9171.
-    The CRC field (last element) is replaced by an empty byte string for calculation.
+    The CRC field (last element) is replaced by its null fill for calculation,
+    so a stale CRC value in the block does not change the result.
 
     Returns:
         CRC as bytes or None if unexpected type or type NONE
@@ -72,7 +73,7 @@ def calculate_crc(block_list: list[Any], crc_type: CRCType) -> bytes | None:
     if crc_type == CRCType.NONE:
         return None
 
-    data_to_hash = cbor2.dumps(block_list)
+    data_to_hash = cbor2.dumps([*block_list[:-1], crc_type.fill_value])
 
     if crc_type == CRCType.CRC16:
         # CRC-16/X-25
@@ -98,7 +99,14 @@ def parse_eid_string(eid_str: str | list[Any]) -> list[Any]:
         ValueError: if given format does not match a valid scheme
 
     """
+    if not isinstance(eid_str, (str, list)):
+        errmsg = "EID must be a string or a list."
+        raise ValueError(errmsg)  # ruff: ignore[type-check-without-type-error] - decode contract requires ValueError
+
     if isinstance(eid_str, list):
+        if not eid_str:
+            errmsg = "EID list is empty."
+            raise ValueError(errmsg)
         if (
             eid_str[0] == SchemeCode.IPN
             and isinstance(eid_str[1], list)
@@ -134,6 +142,10 @@ def parse_eid_string(eid_str: str | list[Any]) -> list[Any]:
             raise ValueError(errmsg)
 
         node = LOCAL_NODE if node_str == "!" else int(node_str)
+        # 32-bit wire components; wider values would be masked on encode.
+        if not (0 <= allocator <= LOCAL_NODE and 0 <= node <= LOCAL_NODE):
+            errmsg = "IPN allocator and node must fit in 32 bits."
+            raise ValueError(errmsg)
 
         return (
             [int(SchemeCode.DTN), 0]

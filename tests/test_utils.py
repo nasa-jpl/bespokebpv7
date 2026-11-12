@@ -160,6 +160,14 @@ def test_calculate_crc() -> None:
     assert calculate_crc(data, CRCType.NONE) is None
 
 
+@pytest.mark.parametrize("crc_type", [CRCType.CRC16, CRCType.CRC32])
+def test_calculate_crc_uses_fill_value(crc_type: CRCType) -> None:
+    """Hash the CRC field as its null fill, ignoring any stale value."""
+    stale = [1, 2, b"\x12\x34\x56\x78"]
+    filled = [1, 2, crc_type.fill_value]
+    assert calculate_crc(stale, crc_type) == calculate_crc(filled, crc_type)
+
+
 # ==========================================
 # Tests for SDNV Utilities
 # ==========================================
@@ -210,3 +218,20 @@ def test_parse_ipn_null_uri() -> None:
 
     # Case with 2-element CBOR input (FQNN=0)
     assert parse_eid_string([int(SchemeCode.IPN), [0, 1]]) == [int(SchemeCode.DTN), 0]
+
+
+@pytest.mark.parametrize(
+    ("bad_eid", "message"),
+    [
+        ("ipn:0.4294967296.1", "fit in 32 bits"),
+        ("ipn:4294967296.1.1", "fit in 32 bits"),
+        (5, "must be a string or a list"),
+        ([], "EID list is empty"),
+        (None, "must be a string or a list"),
+    ],
+    ids=["node-too-large", "allocator-too-large", "int", "empty-list", "none"],
+)
+def test_parse_eid_string_rejects_invalid_input(bad_eid: object, message: str) -> None:
+    """Out-of-range or non-EID input raises ValueError, never masks or TypeError."""
+    with pytest.raises(ValueError, match=message):
+        parse_eid_string(bad_eid)  # type: ignore[arg-type]

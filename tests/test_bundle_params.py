@@ -209,3 +209,30 @@ def test_ct_bundle_sequence_dest_seq_is_an_endpoint_id() -> None:
     # decoded 2-element CBOR form; mypy types the setter as EndpointID only
     seq.dest_seq = [2, [(0 << 32) | 20, 3]]  # type: ignore[assignment]
     assert str(seq.dest_seq) == "ipn:20.3"
+
+
+@pytest.mark.parametrize(
+    ("make", "attr"),
+    [
+        (BundleRoute, "dest_eid"),
+        (BundleRoute, "source_eid"),
+        (BundleRoute, "report_to"),
+        (BaseStatusReport, "status_src_eid"),
+        (CRBundleSequence, "block_src_admin_eid"),
+    ],
+)
+def test_eid_setter_copies_list(make: Any, attr: str) -> None:
+    """Mutating a list passed to an EID setter leaves the stored EID unchanged."""
+    obj = make()
+    value: list[Any] = [2, [2, 1]]
+    setattr(obj, attr, value)
+    stored = getattr(obj, attr)
+    value[1][0] = 99
+    assert getattr(obj, attr) == stored
+    assert getattr(obj, attr) == "ipn:2.1"
+
+
+def test_status_assertion_structure_rejects_empty_array() -> None:
+    """An empty status assertion array raises ValueError, not IndexError."""
+    with pytest.raises(ValueError, match="Status assertion array is empty"):
+        StatusAssertion._structure([])
