@@ -39,13 +39,14 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+import copy
 import datetime as dt
 import sys
 
 from attrs import Converter, define, field, frozen
 from attrs.converters import optional
 
-from bespokebpv7.block_enum import AdminReasonCode
+from bespokebpv7.block_enum import AdminReasonCode, SchemeCode
 from bespokebpv7.utils import (
     DTN_EPOCH,
     bundle_converter,
@@ -88,8 +89,8 @@ class BundleRoute:
         return format_eid(self._source_eid)
 
     @source_eid.setter
-    def source_eid(self, value: str | list[Any]) -> None:
-        self._source_eid = parse_eid_string(value)
+    def source_eid(self, value: "EndpointID | str | list[Any]") -> None:
+        self._source_eid = eid_list_from_value(value)
 
     @property
     def dest_eid(self) -> str:
@@ -97,8 +98,8 @@ class BundleRoute:
         return format_eid(self._dest_eid)
 
     @dest_eid.setter
-    def dest_eid(self, value: str | list[Any]) -> None:
-        self._dest_eid = parse_eid_string(value)
+    def dest_eid(self, value: "EndpointID | str | list[Any]") -> None:
+        self._dest_eid = eid_list_from_value(value)
 
     @property
     def report_to(self) -> str:
@@ -106,8 +107,8 @@ class BundleRoute:
         return format_eid(self._report_to_eid)
 
     @report_to.setter
-    def report_to(self, value: str | list[Any]) -> None:
-        self._report_to_eid = parse_eid_string(value)
+    def report_to(self, value: "EndpointID | str | list[Any]") -> None:
+        self._report_to_eid = eid_list_from_value(value)
 
 
 @define
@@ -211,7 +212,13 @@ class StatusAssertion:
         Returns:
             Completed StatusAssertion structure
 
+        Raises:
+            ValueError: if the status assertion array is empty.
+
         """
+        if not data:
+            errmsg = "Status assertion array is empty."
+            raise ValueError(errmsg)
         asserted = cls()
         asserted.status_indicator = data[0]
         if len(data) == asserted._max_array_len and data[1] is not None:
@@ -249,7 +256,13 @@ class BundleStatusInformation:
         Returns:
             Completed BundleStatusInformation class
 
+        Raises:
+            ValueError: if the data list contains fewer than 4 elements.
+
         """
+        if len(data) < MIN_BASE_STATUS_REPORT_LEN:
+            msg = "BundleStatusInformation requires at least 4 elements"
+            raise ValueError(msg)
         return cls(
             recv_bundle=bundle_converter.structure(data[0], StatusAssertion),
             fwd_bundle=bundle_converter.structure(data[1], StatusAssertion),
@@ -278,8 +291,8 @@ class BaseStatusReport:
         return format_eid(self._status_src_eid)
 
     @status_src_eid.setter
-    def status_src_eid(self, value: str | list[Any]) -> None:
-        self._status_src_eid = parse_eid_string(value)
+    def status_src_eid(self, value: "EndpointID | str | list[Any]") -> None:
+        self._status_src_eid = eid_list_from_value(value)
 
     def _unstructure(self) -> list[Any]:
         """Convert status report to list for CBOR encoding.
@@ -319,38 +332,73 @@ class BaseStatusReport:
         return block
 
 
+_PAIR_LEN = 2
+
+
+def _is_rfc_endpoint_list(value: Any) -> bool:
+    """Whether a decoded CBOR value is an RFC 9171 ``[scheme, ssp]`` pair.
+
+    Returns:
+        True if the value is typed; False if it must be kept as a raw passthrough
+
+    """
+    if not isinstance(value, list) or len(value) != _PAIR_LEN:
+        return False
+    scheme, ssp = value
+    if isinstance(scheme, bool) or not isinstance(scheme, int):
+        return False
+    if scheme == SchemeCode.DTN:
+        return ssp == 0 or (isinstance(ssp, str) and ssp != "none")
+    if scheme == SchemeCode.IPN:
+        # 2-element FQNN form, or 3-element form with a non-default allocator.
+        return (
+            isinstance(ssp, list)
+            and len(ssp) in {2, 3}
+            and all(isinstance(x, int) and not isinstance(x, bool) for x in ssp)
+            and (len(ssp) == _PAIR_LEN or ssp[0] != 0)
+        )
+    return False
+
+
 @frozen
 class EndpointID:
     """Endpoint ID in its CBOR form ``[scheme, ssp]`` (RFC 9171, section 4.2.5.1).
 
     Build one from a URI string (``"ipn:10.1"``, ``"dtn:none"``) or from a decoded
     CBOR list with :meth:`from_value`; ``str()`` gives the URI and :meth:`to_cbor`
-    the list to encode.
+    the list to encode. A CBOR value that is not an RFC-shaped pair (for example
+    the legacy ``[1, "none"]``) is kept in ``raw`` and re-encoded unchanged, because
+    the library produces non-RFC packets for V&V testing.
     """
 
-    scheme: int
-    ssp: Any
+    scheme: int | None = None
+    ssp: Any = None
+    raw: Any = None
 
     @classmethod
     def from_value(cls, value: "EndpointID | str | list[Any]") -> "EndpointID":
         """Endpoint ID from a URI string, a CBOR list or another EndpointID.
 
         Returns:
-            The endpoint ID
+            The endpoint ID; a malformed CBOR value is stored as ``raw``
 
         """
         if isinstance(value, EndpointID):
             return value
-        scheme, ssp = parse_eid_string(value)
-        return cls(int(scheme), ssp)
+        if isinstance(value, str) or _is_rfc_endpoint_list(value):
+            scheme, ssp = parse_eid_string(value)
+            return cls(int(scheme), ssp)
+        return cls(raw=copy.deepcopy(value))
 
-    def to_cbor(self) -> list[Any]:
-        """CBOR list for encoding (2-element IPN form for the default allocator).
+    def to_cbor(self) -> Any:
+        """CBOR value for encoding (2-element IPN form for the default allocator).
 
         Returns:
-            The endpoint ID as a CBOR list
+            The endpoint ID as a CBOR value
 
         """
+        if self.scheme is None:
+            return copy.deepcopy(self.raw)
         return unstructure_eid_list([self.scheme, self.ssp])
 
     def __str__(self) -> str:
@@ -360,7 +408,21 @@ class EndpointID:
             The endpoint ID as a URI string
 
         """
+        if self.scheme is None:
+            return str(self.raw)
         return format_eid([self.scheme, self.ssp])
+
+
+def eid_list_from_value(value: EndpointID | str | list[Any]) -> list[Any]:
+    """Setter input to the stored list form; an EndpointID is first re-encoded.
+
+    Returns:
+        A fresh list in the form stored by the EID fields
+
+    """
+    if isinstance(value, EndpointID):
+        return parse_eid_string(value.to_cbor())
+    return parse_eid_string(value)
 
 
 def _endpoint_id(value: EndpointID | str | list[Any]) -> EndpointID:
@@ -402,5 +464,5 @@ class CRBundleSequence(CTBundleSequence):
         return None
 
     @block_src_admin_eid.setter
-    def block_src_admin_eid(self, value: str | list[Any]) -> None:
-        self._block_src_admin_eid = parse_eid_string(value)
+    def block_src_admin_eid(self, value: EndpointID | str | list[Any]) -> None:
+        self._block_src_admin_eid = eid_list_from_value(value)

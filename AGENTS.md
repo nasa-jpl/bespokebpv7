@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Last verified: 2026-10-12
+Last verified: 2026-11-11
 
 This file provides guidance for working with the **bespokebpv7** repository.
 
@@ -82,10 +82,10 @@ cd examples/<dir> && ./dotest  # Run specific example tests
 ### Encoding & Format
 - **CBOR**: All bundle data is CBOR-encoded (via `cbor2`) per RFC 9171.
 - **SDNV**: LTP uses Self-Delimiting Numeric Values (via `utils.py`) for variable-length integers.
-- **EIDs**: Stored as `[scheme, scheme-specific-part]`. Use `parse_eid_string()` / `format_eid()`.
+- **EIDs**: `EndpointID` (`bundle_params.py`) is the typed form; its CBOR wire form is `[scheme, ssp]`. Build one with `EndpointID.from_value()` (URI string or decoded CBOR), read it with `str()`, and encode with `to_cbor()`. Malformed CBOR is kept verbatim in `raw` and re-encoded unchanged (V&V passthrough). `parse_eid_string()` / `format_eid()` still use the list form.
 
 ### Implementation Details
-- **CRC**: Not automatic. Explicitly call `block.update_crc()` after modifications.
+- **CRC**: Not automatic. Explicitly call `block.update_crc()` after modifications. `calculate_crc` hashes the CRC field as its null fill (`CRCType.fill_value`), so a stale CRC value does not change the result.
 - **Ordering**: Canonical blocks use `OrderedDict`; payload should typically be last.
 - **dpkt**: `BPv7` implements `__bool__` and `__len__` for seamless `dpkt` integration.
 

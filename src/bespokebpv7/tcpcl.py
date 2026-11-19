@@ -126,6 +126,11 @@ class TCPCL(dpkt.Packet):  # type: ignore[misc]
         length = struct.unpack(">I", buf[5:9])[0]
         self.message_type = buf[9]
 
+        # The length counts the message type byte, so zero cannot be a valid message.
+        if length < 1:
+            err_msg = "TCPCL length must include the message type byte"
+            raise ValueError(err_msg)
+
         # Payload length excludes the message type byte per RFC.
         payload = buf[10 : 10 + length - 1]
 

@@ -46,6 +46,7 @@ from bespokebpv7.block_enum import (
     SchemeCode,
 )
 from bespokebpv7.bpv7 import BPv7
+from bespokebpv7.bundle_params import EndpointID
 from bespokebpv7.ltp import LTP
 from bespokebpv7.segment_enum import CancelReasonCode, LTPSegmentType
 from bespokebpv7.tcpcl import TCPCL, TCPCLStreamParser
@@ -75,6 +76,7 @@ __all__ = [
     "BundleFlags",
     "CRCType",
     "CancelReasonCode",
+    "EndpointID",
     "LTPSegmentType",
     "SchemeCode",
     "TCPCLMessage",

@@ -39,6 +39,8 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+from typing import Any
+
 import cbor2
 import pytest
 from hypothesis import given
@@ -293,3 +295,22 @@ def test_bundle_status_report_structure_raises_on_truncated_admin_record() -> No
 
     with pytest.raises(ValueError, match="Admin record CBOR array too short"):
         bundle_converter.structure(canonical_list, BundleStatusReport)
+
+
+@pytest.mark.parametrize(
+    ("dest", "dest_cbor"),
+    [("ipn:2.1", [2, [2, 1]]), ("dtn:none", [1, 0])],
+)
+def test_dest_seq_admin_encoding_stable(dest: str, dest_cbor: list[Any]) -> None:
+    """dest_seq encodes to the same CBOR as before the EndpointID change."""
+    ccs = CompressedCustodySignal()
+    ccs.set_custody_acceptance(
+        CTBundleSequence(dest_seq=dest, first_seq_num=5, seq_range=3)
+    )
+    ccs._unstructure()
+    expected_payload = [
+        ccs.record_type,
+        {int(CustodyAcceptanceCode.CT_ACCEPTED): [[dest_cbor, 5, 3]]},
+    ]
+    assert cbor2.loads(ccs.data) == expected_payload
+    assert ccs.data == cbor2.dumps(expected_payload)

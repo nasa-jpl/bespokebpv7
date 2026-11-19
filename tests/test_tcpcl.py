@@ -1135,3 +1135,10 @@ def test_stream_parser_degenerate_end_only_segment() -> None:
     final_bpv7 = _segment_bpv7(packets[0])
     assert final_bpv7 is not None
     assert bytes(final_bpv7) == bundle_bytes
+
+
+def test_tcpcl_zero_length_raises() -> None:
+    """A TCPCL length of zero cannot include the message type byte."""
+    buf = MAGIC + struct.pack(">B I B", 4, 0, 0x01)
+    with pytest.raises(ValueError, match="message type byte"):
+        TCPCL().unpack(buf)

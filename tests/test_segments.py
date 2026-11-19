@@ -237,3 +237,16 @@ def test_report_segment_rejects_wrong_type() -> None:
 
     with pytest.raises(ValueError, match="Expected REPORT"):
         ReportSegment._structure(ra_seg._unstructure())
+
+
+def test_datasegment_short_payload_raises() -> None:
+    """A payload shorter than the declared client length is rejected."""
+    raw = (
+        bytes([int(LTPSegmentType.DATA_RED)])
+        + encode_sdnv(1)
+        + encode_sdnv(0)
+        + encode_sdnv(200)
+        + b"x" * 10
+    )
+    with pytest.raises(ValueError, match="Data Segment payload is"):
+        DataSegment._structure(raw)

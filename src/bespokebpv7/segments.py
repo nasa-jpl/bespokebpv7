@@ -425,6 +425,12 @@ class DataSegment(LTPSegment):
             offset += consumed
 
         block.data = data[offset : offset + block.client_length]
+        if len(block.data) < block.client_length:
+            msg = (
+                f"Data Segment payload is {len(block.data)} bytes, "
+                f"declared {block.client_length}"
+            )
+            raise ValueError(msg)
         block.increment_offset(offset + len(block.data))
 
         return block
