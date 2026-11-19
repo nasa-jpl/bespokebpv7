@@ -46,6 +46,7 @@ import cbor2
 import pytest
 from hypothesis import given
 from strategies import (
+    st_aad_scope_flags,
     st_auth_tag,
     st_bib_sha_variant,
     st_crypto_key,
@@ -55,6 +56,7 @@ from strategies import (
 
 from bespokebpv7 import BlockType, BPv7
 from bespokebpv7.block_enum import (
+    BCBAESVariant,
     BIBParmEnum,
     BIBResultEnum,
     BIBSHAVariant,
@@ -209,6 +211,46 @@ def test_bib_decode_raises_value_error_on_truncated_security_data(
 
 @pytest.mark.parametrize(
     "inner_items",
+    [
+        # CONTAIN_SECURITY_PARM set, parameters present, results missing:
+        # len(sec_data) == 5 with parm_present.
+        [[1], 1, 1, [2, [2, 1]], [[3, 3]]],
+    ],
+    ids=["parm-present-missing-results"],
+)
+def test_bib_decode_raises_value_error_on_truncated_parm_present_security_data(
+    inner_items: list[object],
+) -> None:
+    """Truncated inner BIB security data with parm_present set raises ValueError."""
+    inner = encode_cbor_sequence(inner_items)
+    canonical = [BlockType.BIB.value, 2, 0, 0, inner]
+
+    with pytest.raises(ValueError, match="BIB security data is malformed"):
+        bundle_converter.structure(canonical, BlockIntegrityBlock)
+
+
+@pytest.mark.parametrize(
+    "inner_items",
+    [
+        # CONTAIN_SECURITY_PARM set, parameters present, results missing:
+        # len(sec_data) == 5 with parm_present.
+        [[1], 2, 1, [2, [2, 1]], [[4, 7]]],
+    ],
+    ids=["parm-present-missing-results"],
+)
+def test_bcb_decode_raises_value_error_on_truncated_parm_present_security_data(
+    inner_items: list[object],
+) -> None:
+    """Truncated inner BCB security data with parm_present set raises ValueError."""
+    inner = encode_cbor_sequence(inner_items)
+    canonical = [BlockType.BCB.value, 3, 0, 0, inner]
+
+    with pytest.raises(ValueError, match="BCB security data is malformed"):
+        bundle_converter.structure(canonical, BlockConfidentialityBlock)
+
+
+@pytest.mark.parametrize(
+    "inner_items",
     [[], [1], [1, 1, 1]],
     ids=["empty", "one-item", "three-items"],
 )
@@ -237,6 +279,22 @@ def test_bib_decode_restores_integrity_scope(scope: int) -> None:
     )
 
     assert int(decoded.integrity_scope_flags) == scope
+
+
+@given(scope=st_aad_scope_flags)
+def test_bcb_decode_restores_aad_scope(scope: int) -> None:
+    """A decoded BCB reports the AAD scope stored in its security parameters."""
+    bcb = BlockConfidentialityBlock(block_number=3)
+    bcb.security_targets = [1]
+    bcb.set_aes_variant(BCBAESVariant.AES_GCM_256)
+    bcb.add_aad_scope(scope)
+    bcb.add_security_result(b"\x00" * 32)
+
+    decoded = bundle_converter.structure(
+        bundle_converter.unstructure(bcb), BlockConfidentialityBlock
+    )
+
+    assert int(decoded.aad_scope_flags) == scope
 
 
 # RFC 9173 Appendix A.1: BIB-HMAC-SHA2 (HMAC 512/512) over the payload block

@@ -16,6 +16,8 @@ All notable changes to this project will be documented in this file.
 - `BPv7.unpack` errors for a malformed canonical block name its bundle array index. Refs #45.
 - `DataSegment` raises `ValueError` when the payload is shorter than declared. Refs #44.
 - `TCPCL.unpack` raises `ValueError` for a zero length. Refs #44.
+- Wrong-type input to a canonical block item now raises `TypeError` instead of `ValueError`; at the `BPv7(...)` boundary this is wrapped as `ValueError` with the bundle-index context, so the public malformed-bundle contract is unchanged.
+- `parse_eid_string` raises `TypeError` instead of `ValueError` when the input is not a string or list.
 
 ## [0.6.0] 2026-09-28
 

@@ -39,6 +39,7 @@ software to foreign countries or providing access to foreign persons.
 *****************************************************************************
 """
 
+import re
 import warnings
 
 import cbor2
@@ -447,17 +448,45 @@ _PB_LIST = [7, 0, 0, [1, "dest"], [1, "src"], [1, "report"], [1000, 0], 100]
         ([5], "Primary block CBOR item is not an array"),
         ([[7, 0, 0]], "Primary block CBOR array too short"),
         ([[*_PB_LIST[:6], 1000, 100]], "creation timestamp must be a 2-element array"),
-        ([_PB_LIST, 7], "Canonical block CBOR item is not an array"),
-        ([_PB_LIST, "abcdefgh"], "Canonical block CBOR item is not an array"),
-        ([_PB_LIST, b"abcdefgh"], "Canonical block CBOR item is not an array"),
+        (
+            [_PB_LIST, 7],
+            (
+                r"Canonical block at bundle index 1: "
+                r"Canonical block CBOR item is not an array"
+            ),
+        ),
+        (
+            [_PB_LIST, "abcdefgh"],
+            (
+                r"Canonical block at bundle index 1: "
+                r"Canonical block CBOR item is not an array"
+            ),
+        ),
+        (
+            [_PB_LIST, b"abcdefgh"],
+            (
+                r"Canonical block at bundle index 1: "
+                r"Canonical block CBOR item is not an array"
+            ),
+        ),
     ],
 )
-def test_bpv7_unpack_raises_value_error_on_malformed_shapes(
+def test_bpv7_unpack_raises_error_on_malformed_shapes(
     bundle_item: object, message: str
 ) -> None:
-    """Verify that BPv7.unpack() rejects malformed CBOR shapes with ValueError."""
+    """Verify malformed shapes raise ValueError, with block-index context for blocks."""
     with pytest.raises(ValueError, match=message):
         BPv7(bundle_converter.dumps(bundle_item))
+
+
+def test_bpv7_unpack_wraps_wrong_typed_eid_in_primary_block() -> None:
+    """A non-list, non-string EID raises ValueError naming the root cause."""
+    pb_list = [7, 2, 0, 5, [1, "src"], [1, "report"], [1000, 0], 100]
+    pattern = re.escape("Primary block CBOR item is not an array: ") + re.escape(
+        "EID must be a string or a list"
+    )
+    with pytest.raises(ValueError, match=pattern):
+        BPv7(bundle_converter.dumps([pb_list]))
 
 
 def test_bpv7_unpack_raises_on_truncated_fragment_fields() -> None:

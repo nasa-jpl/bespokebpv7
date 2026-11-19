@@ -260,12 +260,13 @@ class BPv7(dpkt.Packet):  # type: ignore[misc]
             The block type and the structured canonical block.
 
         Raises:
-            ValueError: if the block is malformed, naming its bundle array index.
+            ValueError: if the block is malformed or wrongly typed,
+                naming its bundle array index.
 
         """
         try:
             return self._unpack_block(exts)
-        except ValueError as err:
+        except (ValueError, TypeError) as err:
             msg = f"Canonical block at bundle index {index}: {err}"
             raise ValueError(msg) from err
 
@@ -276,12 +277,13 @@ class BPv7(dpkt.Packet):  # type: ignore[misc]
             The block type and the structured canonical block.
 
         Raises:
-            ValueError: if the item is not an array or is too short.
+            ValueError: if the array is too short.
+            TypeError: if the CBOR item is not an array.
 
         """
         if not isinstance(exts, list):
             msg = "Canonical block CBOR item is not an array"
-            raise ValueError(msg)  # ruff: ignore[type-check-without-type-error] - decode contract requires ValueError
+            raise TypeError(msg)
         if len(exts) < CanonicalBlock.max_array_len:
             msg = "Canonical block CBOR array too short"
             raise ValueError(msg)
@@ -319,7 +321,7 @@ class BPv7(dpkt.Packet):  # type: ignore[misc]
                 bundle_data[0], PrimaryBlock
             )
         except TypeError as err:
-            msg = "Primary block CBOR item is not an array"
+            msg = f"Primary block CBOR item is not an array: {err}"
             raise ValueError(msg) from err
 
         for index, exts in enumerate(bundle_data[1:], start=1):

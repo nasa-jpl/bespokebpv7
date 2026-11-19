@@ -173,12 +173,13 @@ def parse_eid_string(eid_str: str | list[Any]) -> list[Any]:
         or a DTN scheme list.
 
     Raises:
-        ValueError: if given format does not match a valid scheme
+        ValueError: for invalid scheme or format.
+        TypeError: if the input is not a string or a list.
 
     """
     if not isinstance(eid_str, (str, list)):
         msg = "EID must be a string or a list."
-        raise ValueError(msg)  # ruff: ignore[type-check-without-type-error] - decode contract requires ValueError
+        raise TypeError(msg)
 
     if isinstance(eid_str, list):
         if not eid_str:

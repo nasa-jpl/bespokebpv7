@@ -39,6 +39,7 @@ software to foreign countries or providing access to foreign persons.
 """
 
 import sys
+from operator import index as _index
 
 from attrs import define, field
 
@@ -63,9 +64,9 @@ from bespokebpv7.utils import (
 )
 
 if sys.version_info >= (3, 11):
-    from typing import Any, Self
+    from typing import Any, NamedTuple, Self
 else:
-    from typing import Any
+    from typing import Any, NamedTuple
 
     from typing_extensions import Self
 
@@ -229,6 +230,123 @@ class AbstractSecurityBlock(CanonicalBlock):
         self.security_context_flags &= ~int(security_flag)
 
 
+_SEC_DATA_MIN_FIELDS = 4
+_SEC_DATA_WITHOUT_PARM = 5
+_SEC_DATA_WITH_PARM = 6
+_SEC_DATA_PARMS_INDEX = 4
+
+
+def _validate_security_data_header(sec_data: Any, kind: str) -> int:
+    """Validate the fixed prefix of the inner security data.
+
+    Returns:
+        int: the raw security context flags.
+
+    Raises:
+        ValueError: if the inner security data is malformed.
+
+    """
+    msg = f"{kind} security data is malformed"
+    if not isinstance(sec_data, list) or len(sec_data) < _SEC_DATA_MIN_FIELDS:
+        raise ValueError(msg)
+    try:
+        flags = _index(sec_data[2])
+    except TypeError as err:
+        raise ValueError(msg) from err
+    parm_present = bool(flags & int(SecurityContextFlags.CONTAIN_SECURITY_PARM))
+    required = _SEC_DATA_WITH_PARM if parm_present else _SEC_DATA_WITHOUT_PARM
+    if len(sec_data) < required:
+        raise ValueError(msg)
+    return flags
+
+
+class _ScopeRestoreConfig(NamedTuple):
+    """Configuration for restoring the wire scope flags after decoding."""
+
+    parm_id: BIBParmEnum | BCBParmEnum
+    scope_enum: type[IntegrityScopeFlags] | type[AADScopeFlags]
+    scope_attr: str
+
+
+def _restore_scope_flags(
+    block: AbstractSecurityBlock,
+    config: _ScopeRestoreConfig,
+    msg: str,
+) -> None:
+    """Restore the scope flags from the decoded scope parameter, if present.
+
+    Raises:
+        ValueError: if a scope parameter value is not an integer.
+
+    """
+    for parm in block.security_parameters:
+        if parm.parm_id != config.parm_id:
+            continue
+        scope_operand: Any = parm.value
+        try:
+            scope_value = _index(scope_operand)
+        except TypeError as err:
+            raise ValueError(msg) from err
+        setattr(block, config.scope_attr, config.scope_enum(scope_value))
+
+
+def _structure_security_body(
+    block: AbstractSecurityBlock,
+    sec_data: Any,
+    *,
+    kind: str,
+    scope_restore: _ScopeRestoreConfig,
+) -> None:
+    """Populate the inner security-specific fields of a BIB/BCB in place.
+
+    A results slot of ``[[]]`` (one empty list) is accepted as an empty
+    results set, yielding no SecurityResults; this keeps "no results" distinct
+    from a malformed slot.
+
+    Raises:
+        ValueError: if the inner security data is malformed.
+
+    """
+    msg = f"{kind} security data is malformed"
+    flags = _validate_security_data_header(sec_data, kind)
+    try:
+        block.security_targets = sec_data[0]
+        block.security_context_id = sec_data[1]
+        block.security_context_flags = SecurityContextFlags(flags)
+        block.security_source = sec_data[3]
+    except (IndexError, TypeError, KeyError) as err:
+        raise ValueError(msg) from err
+    next_idx = _SEC_DATA_PARMS_INDEX
+    if block.parm_present:
+        parm_items = sec_data[next_idx]
+        if not isinstance(parm_items, list):
+            raise ValueError(msg)
+        try:
+            for parm in parm_items:
+                block.security_parameters.append(
+                    bundle_converter.structure(parm, SecurityParameter),
+                )
+            next_idx += 1
+            # Restore the wire scope so flag properties reflect the decoded block.
+            _restore_scope_flags(block, scope_restore, msg)
+        except (IndexError, TypeError, KeyError) as err:
+            raise ValueError(msg) from err
+    results_slot = sec_data[next_idx]
+    if not (
+        isinstance(results_slot, list)
+        and results_slot
+        and isinstance(results_slot[0], list)
+    ):
+        raise ValueError(msg)
+    try:
+        for result in results_slot[0]:
+            block.security_results.append(
+                bundle_converter.structure(result, SecurityResult),
+            )
+    except (IndexError, TypeError, KeyError) as err:
+        raise ValueError(msg) from err
+
+
 @define
 class BlockIntegrityBlock(AbstractSecurityBlock):
     """Block Integrity Block (BIB)."""
@@ -299,42 +417,23 @@ class BlockIntegrityBlock(AbstractSecurityBlock):
         Returns:
             Populated Block Integrity Block
 
-        Raises:
-            ValueError: if the inner security data is malformed.
+        Note: ``ValueError`` is raised (via ``_structure_security_body``) if the
+        inner security data is malformed.
 
         """
-        # Parse the outer CanonicalBlock fields
         block = super()._structure(data)
 
-        # Parse the inner security specific fields from the data bytes
         bib_data = decode_cbor_sequence(block.data)
-        try:  # ruff: ignore[too-many-statements-in-try-clause] - the whole inner parse must map to ValueError
-            block.security_targets = bib_data[0]
-            block.security_context_id = bib_data[1]
-            block.security_context_flags = SecurityContextFlags(bib_data[2])
-            block.security_source = bib_data[3]
-            next_idx = 4
-
-            if block.parm_present:
-                for parm in bib_data[next_idx]:
-                    block.security_parameters.append(
-                        bundle_converter.structure(parm, SecurityParameter)
-                    )
-                next_idx += 1
-                # Restore the wire scope so flag properties reflect the decoded block.
-                for parm in block.security_parameters:
-                    if parm.parm_id == BIBParmEnum.INTEGRITY_SCOPE_FLAGS:
-                        block.integrity_scope_flags = IntegrityScopeFlags(
-                            int(parm.value)
-                        )
-
-            for result in bib_data[next_idx][0]:
-                block.security_results.append(
-                    bundle_converter.structure(result, SecurityResult)
-                )
-        except (IndexError, TypeError, KeyError) as err:
-            msg = "BIB security data is malformed"
-            raise ValueError(msg) from err
+        _structure_security_body(
+            block,
+            bib_data,
+            kind="BIB",
+            scope_restore=_ScopeRestoreConfig(
+                parm_id=BIBParmEnum.INTEGRITY_SCOPE_FLAGS,
+                scope_enum=IntegrityScopeFlags,
+                scope_attr="integrity_scope_flags",
+            ),
+        )
 
         return block
 
@@ -441,40 +540,23 @@ class BlockConfidentialityBlock(AbstractSecurityBlock):
         Returns:
             Populated Block Confidentiality Block
 
-        Raises:
-            ValueError: if the inner security data is malformed.
+        Note: ``ValueError`` is raised (via ``_structure_security_body``) if the
+        inner security data is malformed.
 
         """
-        # Parse the outer CanonicalBlock fields
         block = super()._structure(data)
 
-        # Parse the inner security specific fields from the data bytes
         bcb_data = decode_cbor_sequence(block.data)
-        try:  # ruff: ignore[too-many-statements-in-try-clause] - the whole inner parse must map to ValueError
-            block.security_targets = bcb_data[0]
-            block.security_context_id = bcb_data[1]
-            block.security_context_flags = SecurityContextFlags(bcb_data[2])
-            block.security_source = bcb_data[3]
-            next_idx = 4
-
-            if block.parm_present:
-                for parm in bcb_data[next_idx]:
-                    block.security_parameters.append(
-                        bundle_converter.structure(parm, SecurityParameter)
-                    )
-                next_idx += 1
-                # Restore the wire scope so flag properties reflect the decoded block.
-                for parm in block.security_parameters:
-                    if parm.parm_id == BCBParmEnum.AAD_SCOPE_FLAGS:
-                        block.aad_scope_flags = AADScopeFlags(int(parm.value))
-
-            for result in bcb_data[next_idx][0]:
-                block.security_results.append(
-                    bundle_converter.structure(result, SecurityResult)
-                )
-        except (IndexError, TypeError, KeyError) as err:
-            msg = "BCB security data is malformed"
-            raise ValueError(msg) from err
+        _structure_security_body(
+            block,
+            bcb_data,
+            kind="BCB",
+            scope_restore=_ScopeRestoreConfig(
+                parm_id=BCBParmEnum.AAD_SCOPE_FLAGS,
+                scope_enum=AADScopeFlags,
+                scope_attr="aad_scope_flags",
+            ),
+        )
 
         return block
 

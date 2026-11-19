@@ -44,7 +44,8 @@ Convert 'ipn:allocator.node.service',
 
 **Raises:**
 
-- `ValueError`: if the given format does not match a valid scheme.
+- `ValueError`: if the value is an out-of-range, empty, or malformed EID.
+- `TypeError`: if the input is not a string or a list.
 
 ---
 
