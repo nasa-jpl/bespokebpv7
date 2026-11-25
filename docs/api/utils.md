@@ -34,13 +34,15 @@ calculation.
 parse_eid_string(eid_str: str | list[Any]) -> list[Any]
 ```
 
-Convert 'ipn:allocator.node.service',
- 'ipn:node.service' or 'dtn:name' into CBOR list format.
+Convert 'ipn:allocator.node.service', 'ipn:node.service',
+ 'imc:allocator.group.service', 'imc:group.service' or 'dtn:name' into CBOR
+ list format.
 
 **Returns:**
 
 - A logical 3-element list for IPN `[SchemeCode.IPN, [allocator, node,
-  service]]` or a DTN scheme list.
+  service]]` or IMC `[SchemeCode.IMC, [allocator, group, service]]`, or a DTN
+  scheme list.
 
 **Raises:**
 

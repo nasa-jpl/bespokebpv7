@@ -45,10 +45,11 @@ import cbor2
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from strategies import st_creb_params, st_eid
+from strategies import st_creb_params, st_eid, st_imc_eid
 
 from bespokebpv7 import (
     BlockType,
+    BPv7,
 )
 from bespokebpv7.block_enum import CREBFlags
 from bespokebpv7.ext_functions import (
@@ -57,6 +58,8 @@ from bespokebpv7.ext_functions import (
     CompressedReportingExt,
     CustodyTransferExt,
     HopCountExt,
+    IMCExt,
+    IMCGroupView,
     PreviousNodeExt,
 )
 from bespokebpv7.utils import (
@@ -275,6 +278,83 @@ def test_qos_ext(
     assert qos_new.class_of_service == class_of_service
     assert qos_new.ordinal == ordinal
     assert qos_new.data_label == data_label
+
+
+@given(st.lists(st.integers(min_value=0, max_value=2**64 - 1)))
+def test_imc_ext(destinations: list[int]) -> None:
+    """Verify IPN Multicast (IMC) extension creation and roundtrip."""
+    imc_block = IMCExt(block_type=BlockType.IMC)
+    imc_block.destinations = destinations
+
+    out_list = bundle_converter.unstructure(imc_block)
+
+    assert out_list[0] == BlockType.IMC
+    assert cbor2.loads(out_list[4]) == destinations
+
+    imc_new = bundle_converter.structure(out_list, IMCExt)
+
+    assert imc_new.block_type == BlockType.IMC
+    assert imc_new.destinations == destinations
+
+
+def test_imc_ext_matches_ion_encoding() -> None:
+    """IMC block data is a definite-length CBOR array of node numbers, as
+    written by imc_serialize() in ION's bpv7/library/ext/imc/imc.c.
+    """
+    imc_block = IMCExt(destinations=[1, 24, 65536])
+
+    out_list = bundle_converter.unstructure(imc_block)
+
+    # 0x83 opens a 3-item array, followed by the integers 1, 24 and 65536
+    assert out_list[4] == bytes.fromhex("830118181a00010000")
+
+
+def test_imc_ext_empty_list_is_still_serialized() -> None:
+    """An empty IMCExt is kept in the bundle as an empty CBOR array (0x80).
+
+    ION's imc_serialize() writes no block when the list is empty; bespokebpv7
+    keeps the block so V&V tests can send that case on purpose.
+    """
+    bundle = BPv7()
+    bundle.primary_block.route.dest_eid = "imc:5.1"
+    bundle.add_payload_block(b"payload")
+    bundle.add_canonical_block({"block_type": BlockType.IMC}, cbor2.dumps([]))
+
+    raw_blocks = cbor2.loads(bytes(bundle))
+    imc_raw = [blk for blk in raw_blocks[1:] if blk[0] == BlockType.IMC]
+    assert len(imc_raw) == 1
+    assert imc_raw[0][4] == b"\x80"
+
+    parsed = BPv7(bytes(bundle)).get_block_by_type(BlockType.IMC)
+    assert isinstance(parsed, IMCExt)
+    assert parsed.destinations == []
+
+
+@given(st_imc_eid, st.lists(st.integers(min_value=0, max_value=2**64 - 1)))
+def test_imc_ext_group_view(group_eid: str, destinations: list[int]) -> None:
+    """group_view pairs the primary-block group EID with the member nodes."""
+    imc_block = IMCExt(destinations=destinations)
+
+    view = imc_block.group_view(group_eid)
+
+    assert view == IMCGroupView(group_eid, tuple(destinations))
+    # Same view from the CBOR list form of the destination
+    assert imc_block.group_view(parse_eid_string(group_eid)) == view
+
+
+def test_imc_group_view_str() -> None:
+    """The view prints the group EID followed by the member nodes."""
+    assert str(IMCExt(destinations=[2, 3]).group_view("imc:5.1")) == (
+        "imc:5.1 -> nodes 2, 3"
+    )
+    assert str(IMCExt().group_view("imc:5.1")) == "imc:5.1 -> nodes none"
+
+
+@pytest.mark.parametrize("dest_eid", ["ipn:5.1", "dtn:none", "dtn://group/1"])
+def test_imc_group_view_rejects_non_imc_destination(dest_eid: str) -> None:
+    """A group view needs an imc destination; ipn or dtn ones are refused."""
+    with pytest.raises(ValueError, match=r"must be an imc EID"):
+        IMCExt(destinations=[2]).group_view(dest_eid)
 
 
 def test_compressed_reporting_ext_structure_raises_on_overlong_list() -> None:

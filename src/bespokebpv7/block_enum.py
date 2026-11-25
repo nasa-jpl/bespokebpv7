@@ -75,10 +75,11 @@ class BlockFlags(IntFlag):
 
 
 class SchemeCode(IntEnum):
-    """BPv7 EID Scheme Codes per IANA registry"""
+    """BPv7 EID Scheme Codes per IANA registry, plus ION's IMC scheme"""
 
     DTN = 1
     IPN = 2
+    IMC = 3  # ION IPN Multicast; matches `imc = 3` in ION's bp.h
 
 
 class BlockType(IntEnum):

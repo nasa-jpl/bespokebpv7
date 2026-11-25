@@ -43,7 +43,7 @@ import cbor2
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from strategies import st_data, st_eid
+from strategies import st_data, st_eid, st_imc_eid
 
 from bespokebpv7 import (
     BlockType,
@@ -57,7 +57,7 @@ from bespokebpv7.blocks import CanonicalBlock, CanonicalBlockInit, PrimaryBlock
 from bespokebpv7.bundle_params import (
     BundleFragmentation,
 )
-from bespokebpv7.ext_functions import BundleAgeExt
+from bespokebpv7.ext_functions import BundleAgeExt, IMCExt
 from bespokebpv7.utils import bundle_converter
 
 
@@ -93,6 +93,58 @@ def test_bpv7_add_blocks() -> None:
     # Verify returns None on non-existing block
     no_blk = bundle.get_block_by_type(BlockType.BCB)
     assert no_blk is None
+
+
+def test_bpv7_imc_block_roundtrip() -> None:
+    """An IMC block survives serialization and is parsed back as IMCExt."""
+    destinations = [2, 3, 70000]
+    b1 = BPv7()
+    b1.primary_block.set_creation(1000, 0)
+    b1.add_payload_block(b"payload")
+    block_parms: CanonicalBlockInit = {"block_type": BlockType.IMC}
+    b1.add_canonical_block(block_parms, cbor2.dumps(destinations))
+
+    b2 = BPv7(bytes(b1))
+
+    imc_blk = b2.get_block_by_type(BlockType.IMC)
+    assert isinstance(imc_blk, IMCExt)
+    assert imc_blk.destinations == destinations
+
+
+@pytest.mark.parametrize(
+    ("group_eid", "wire_eid"),
+    [
+        # Default allocator: 2-element [fqgn, service]
+        ("imc:5.1", [3, [5, 1]]),
+        # Non-default allocator: 3-element [allocator, group, service]
+        ("imc:977000.5.1", [3, [977000, 5, 1]]),
+    ],
+)
+def test_bpv7_imc_primary_destination(group_eid: str, wire_eid: list[object]) -> None:
+    """An IMC group destination survives dest_eid, __str__, __repr__ and the wire."""
+    b1 = BPv7()
+    b1.primary_block.set_creation(1000, 0)
+    b1.primary_block.route.dest_eid = group_eid
+    b1.add_payload_block(b"payload")
+
+    raw = bytes(b1)
+    assert cbor2.loads(raw)[0][3] == wire_eid
+
+    b2 = BPv7(raw)
+    assert b2.primary_block.route.dest_eid == group_eid
+    assert f"Destination: {group_eid}" in str(b2)
+    assert f"dst='{group_eid}'" in repr(b2)
+
+
+@given(st_imc_eid)
+def test_bpv7_imc_destination_roundtrip(group_eid: str) -> None:
+    """Any IMC group destination parses back to the same URI."""
+    b1 = BPv7()
+    b1.primary_block.route.dest_eid = group_eid
+    b1.add_payload_block(b"payload")
+
+    b2 = BPv7(bytes(b1))
+    assert b2.primary_block.route.dest_eid == group_eid
 
 
 @given(st_eid, st_eid, st_data)

@@ -42,7 +42,7 @@ software to foreign countries or providing access to foreign persons.
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from strategies import st_eid
+from strategies import st_eid, st_imc_eid
 
 from bespokebpv7 import CRCType
 from bespokebpv7.block_enum import SchemeCode
@@ -210,3 +210,82 @@ def test_parse_ipn_null_uri() -> None:
 
     # Case with 2-element CBOR input (FQNN=0)
     assert parse_eid_string([int(SchemeCode.IPN), [0, 1]]) == [int(SchemeCode.DTN), 0]
+
+
+def test_parse_imc_eid() -> None:
+    """Verify parsing of ION's IMC (IPN Multicast) group scheme."""
+    # Default allocator
+    assert parse_eid_string("imc:5.1") == [int(SchemeCode.IMC), [0, 5, 1]]
+
+    # Explicit non-default allocator
+    assert parse_eid_string("imc:977000.5.1") == [
+        int(SchemeCode.IMC),
+        [977000, 5, 1],
+    ]
+
+    # Scheme name is case-insensitive, like ipn
+    assert parse_eid_string("IMC:5.1") == [int(SchemeCode.IMC), [0, 5, 1]]
+
+    # Unpacking FQGN from 2-element CBOR lists
+    fqgn = (977000 << 32) | 5
+    assert parse_eid_string([int(SchemeCode.IMC), [fqgn, 1]]) == [
+        int(SchemeCode.IMC),
+        [977000, 5, 1],
+    ]
+
+    # Invalid formats
+    with pytest.raises(ValueError, match=r"Invalid imc URI format."):
+        parse_eid_string("imc:5")
+
+
+def test_imc_group_zero_is_not_null_eid() -> None:
+    """imc:0.0 is ION's IMC admin endpoint, so unlike ipn:0.0 it stays imc."""
+    assert parse_eid_string("imc:0.0") == [int(SchemeCode.IMC), [0, 0, 0]]
+    assert parse_eid_string([int(SchemeCode.IMC), [0, 0]]) == [
+        int(SchemeCode.IMC),
+        [0, 0, 0],
+    ]
+    assert format_eid([int(SchemeCode.IMC), [0, 0]]) == "imc:0.0"
+
+
+def test_format_imc_eid() -> None:
+    """Verify formatting of ION's IMC group scheme."""
+    # Default allocator is omitted
+    assert format_eid([int(SchemeCode.IMC), [0, 5, 1]]) == "imc:5.1"
+
+    # Explicit non-default allocator
+    assert format_eid([int(SchemeCode.IMC), [977000, 5, 1]]) == "imc:977000.5.1"
+
+    # 2^32 - 1 is an ordinary group number; "!" is ipn-only
+    assert format_eid([int(SchemeCode.IMC), [0, 4294967295, 7]]) == "imc:4294967295.7"
+
+    # Formatting from 2-element CBOR lists directly
+    fqgn = (977000 << 32) | 5
+    assert format_eid([int(SchemeCode.IMC), [fqgn, 1]]) == "imc:977000.5.1"
+
+
+def test_unstructure_imc_eid_list() -> None:
+    """IMC EIDs use the same 2- and 3-element wire forms as ipn."""
+    # Default allocator packs into 2 elements: [fqgn, service]
+    assert unstructure_eid_list([int(SchemeCode.IMC), [0, 5, 1]]) == [
+        int(SchemeCode.IMC),
+        [5, 1],
+    ]
+
+    # Non-default allocator stays as 3 elements: [allocator, group, service]
+    assert unstructure_eid_list([int(SchemeCode.IMC), [977000, 5, 1]]) == [
+        int(SchemeCode.IMC),
+        [977000, 5, 1],
+    ]
+
+
+@given(st_imc_eid)
+def test_imc_eid_roundtrip(eid_str: str) -> None:
+    """IMC URIs survive string -> list -> wire -> list -> string unchanged."""
+    parsed = parse_eid_string(eid_str)
+    assert parsed[0] == SchemeCode.IMC
+    assert format_eid(parsed) == eid_str
+
+    wire = unstructure_eid_list(parsed)
+    assert parse_eid_string(wire) == parsed
+    assert format_eid(wire) == eid_str

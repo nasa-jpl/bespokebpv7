@@ -59,6 +59,10 @@ LOCAL_NODE = 2**32 - 1
 LEGACY_LIST = 2
 ALLOCATOR_LIST = 3
 MAX_SDNV_LEN = 10
+# Schemes whose SSP is [allocator, number, service], where number is the node
+# (ipn) or group (imc) number. A tuple, not a set: membership tests then use ==
+# and never hash arbitrary list elements.
+NUMBERED_SCHEMES = (SchemeCode.IPN, SchemeCode.IMC)
 
 
 def calculate_crc(block_list: list[Any], crc_type: CRCType) -> bytes | None:
@@ -86,13 +90,47 @@ def calculate_crc(block_list: list[Any], crc_type: CRCType) -> bytes | None:
     return None
 
 
+def _expand_legacy_ssp(eid: list[Any]) -> list[Any]:
+    """Expand a 2-element ipn/imc SSP ``[fqn, service]`` to 3 elements.
+
+    The fully qualified node (ipn) or group (imc) number packs the allocator
+    into its upper 32 bits and the node or group number into its lower 32 bits.
+
+    Returns:
+        ``[scheme, [allocator, number, service]]``, or the Null EID for ipn:0.0
+
+    """
+    scheme = int(eid[0])
+    fqn, service = eid[1]
+    allocator = fqn >> 32
+    number = fqn & 0xFFFFFFFF
+    # Only ipn has a null form; ION uses imc:0.0 as a real (admin) endpoint.
+    if scheme == SchemeCode.IPN and allocator == 0 and number == 0:
+        return [int(SchemeCode.DTN), 0]
+    return [scheme, [allocator, number, service]]
+
+
+def _split_numbered_ssp(parts: list[str]) -> tuple[int, str, int]:
+    """Split the 2 or 3 dot-separated parts of an ipn/imc URI's SSP.
+
+    Returns:
+        The allocator (0 when omitted), the node or group number as text,
+        and the service
+
+    """
+    if len(parts) == LEGACY_LIST:
+        return 0, parts[0], int(parts[1])
+    return int(parts[0]), parts[1], int(parts[2])
+
+
 def parse_eid_string(eid_str: str | list[Any]) -> list[Any]:
-    """Convert 'ipn:allocator.node.service', 'ipn:node.service' or 'dtn:name'
+    """Convert 'ipn:allocator.node.service', 'ipn:node.service',
+    'imc:allocator.group.service', 'imc:group.service' or 'dtn:name'
     into CBOR list format.
 
     Returns:
         A logical 3-element list for IPN [SchemeCode.IPN, [allocator, node, service]]
-        or a DTN scheme list.
+        or IMC [SchemeCode.IMC, [allocator, group, service]], or a DTN scheme list.
 
     Raises:
         ValueError: if given format does not match a valid scheme
@@ -100,40 +138,30 @@ def parse_eid_string(eid_str: str | list[Any]) -> list[Any]:
     """
     if isinstance(eid_str, list):
         if (
-            eid_str[0] == SchemeCode.IPN
+            eid_str[0] in NUMBERED_SCHEMES
             and isinstance(eid_str[1], list)
             and len(eid_str[1]) == LEGACY_LIST
         ):
-            fqnn, service = eid_str[1]
-            allocator = fqnn >> 32
-            node = fqnn & 0xFFFFFFFF
-            return (
-                [int(SchemeCode.DTN), 0]
-                if allocator == 0 and node == 0
-                else [int(SchemeCode.IPN), [allocator, node, service]]
-            )
+            return _expand_legacy_ssp(eid_str)
         return copy.deepcopy(eid_str)
 
     if ":" not in eid_str:
         return [int(SchemeCode.DTN), eid_str]
 
     scheme, ssp = eid_str.split(":", 1)
+    scheme = scheme.lower()
 
-    if scheme.lower() == "ipn":
+    if scheme in {"ipn", "imc"}:
         parts = ssp.split(".")
-        if len(parts) == LEGACY_LIST:
-            allocator = 0
-            node_str = parts[0]
-            service = int(parts[1])
-        elif len(parts) == ALLOCATOR_LIST:
-            allocator = int(parts[0])
-            node_str = parts[1]
-            service = int(parts[2])
-        else:
-            errmsg = "Invalid ipn URI format."
+        if len(parts) not in {LEGACY_LIST, ALLOCATOR_LIST}:
+            errmsg = f"Invalid {scheme} URI format."
             raise ValueError(errmsg)
+        allocator, number_str, service = _split_numbered_ssp(parts)
 
-        node = LOCAL_NODE if node_str == "!" else int(node_str)
+        if scheme == "imc":
+            return [int(SchemeCode.IMC), [allocator, int(number_str), service]]
+
+        node = LOCAL_NODE if number_str == "!" else int(number_str)
 
         return (
             [int(SchemeCode.DTN), 0]
@@ -153,22 +181,25 @@ def format_eid(eid: list[Any]) -> str:
     """
     scheme = SchemeCode(eid[0])
 
-    if scheme == SchemeCode.IPN:
+    if scheme in NUMBERED_SCHEMES:
         ssp = eid[1]
         if len(ssp) == LEGACY_LIST:
-            # Handle standard FQNN unpacking just in case it slipped through
-            fqnn, service = ssp
-            allocator = fqnn >> 32
-            node = fqnn & 0xFFFFFFFF
+            # Handle standard FQNN/FQGN unpacking just in case it slipped through
+            fqn, service = ssp
+            allocator = fqn >> 32
+            number = fqn & 0xFFFFFFFF
         else:
-            allocator, node, service = ssp
+            allocator, number, service = ssp
 
-        node_str = "!" if node == LOCAL_NODE else str(node)
+        # "!" (local node) only exists in the ipn scheme
+        local = scheme == SchemeCode.IPN and number == LOCAL_NODE
+        number_str = "!" if local else str(number)
+        prefix = scheme.name.lower()
 
         # Omit allocator if it is the Default Allocator (0)
         if allocator == 0:
-            return f"ipn:{node_str}.{service}"
-        return f"ipn:{allocator}.{node_str}.{service}"
+            return f"{prefix}:{number_str}.{service}"
+        return f"{prefix}:{allocator}.{number_str}.{service}"
 
     if scheme == SchemeCode.DTN:
         dtnstr = eid[1]
@@ -186,24 +217,24 @@ def unstructure_eid_list(obj: list[Any]) -> list[Any]:
         unstructured list
 
     """
-    # Check if this is an IPN EID list
+    # Check if this is an IPN or IMC EID list
     if (
         len(obj) == LEGACY_LIST
-        and obj[0] == SchemeCode.IPN
+        and obj[0] in NUMBERED_SCHEMES
         and isinstance(obj[1], list)
     ):
         ssp = obj[1]
         if len(ssp) == ALLOCATOR_LIST:
-            allocator, node, service = ssp
+            allocator, number, service = ssp
             # Fall back to 2-element encoding for backwards compatibility
             if allocator == 0:
-                # Pack FQNN:
+                # Pack FQNN (ipn) or FQGN (imc):
                 # Most significant 32 bits = Allocator
-                # Least significant 32 bits = Node Number
-                fqnn = (allocator << 32) | (node & 0xFFFFFFFF)
-                return [obj[0], [fqnn, service]]
+                # Least significant 32 bits = Node or Group Number
+                fqn = (allocator << 32) | (number & 0xFFFFFFFF)
+                return [obj[0], [fqn, service]]
             # 3-element encoding is RECOMMENDED for non-default allocators
-            return [obj[0], [allocator, node, service]]
+            return [obj[0], [allocator, number, service]]
 
     # For all other standard lists, apply recursive unstructuring
     return [bundle_converter.unstructure(item) for item in obj]

@@ -99,6 +99,38 @@ Implementation of the ION Quality of Service (QoS) extension block.
 - `ordinal` (int): Ordinal value for priority.
 - `data_label` (int): Data label for traffic identification.
 
+### `IMCExt`
+
+Implementation of the ION IPN Multicast (IMC) extension block.
+
+**Attributes:**
+
+- `destinations` (list[int]): Node numbers of the group members this bundle
+  still has to reach. Members receive the bundle at the group endpoint in the
+  primary block's destination (`imc:<group>.<service>`), not at an endpoint of
+  their own.
+
+**Methods:**
+
+- `group_view(dest_eid: str | list[Any]) -> IMCGroupView`: Pairs the
+  bundle's `imc` group destination with the member node numbers. Raises
+  `ValueError` if `dest_eid` is not an `imc` EID.
+
+An empty `destinations` list serializes as an empty CBOR array (`0x80`). ION's
+`imc_serialize()` writes no block in that case, so leave the block out of the
+bundle to match ION.
+
+### `IMCGroupView`
+
+Read-only view returned by `IMCExt.group_view()`.
+
+**Attributes:**
+
+- `group_eid` (str): The group endpoint, such as `imc:5.1`.
+- `members` (tuple[int, ...]): Member node numbers still to be reached.
+
+`str()` gives `imc:5.1 -> nodes 2, 3`.
+
 ## Constants
 
 ### `BLOCKFUNCTIONS` (dict)
@@ -114,4 +146,5 @@ Maps `BlockType` to the corresponding extension block class:
 - `BlockType.CTEB` $\rightarrow$ `CustodyTransferExt`
 - `BlockType.CREB` $\rightarrow$ `CompressedReportingExt`
 - `BlockType.QOS` $\rightarrow$ `BPQExt`
+- `BlockType.IMC` $\rightarrow$ `IMCExt`
 - `BlockType.UNKNOWN_BLOCK` $\rightarrow$ `CanonicalBlock`

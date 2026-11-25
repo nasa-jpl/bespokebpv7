@@ -88,6 +88,19 @@ st_ipn_eid = st.builds(
 st_dtn_eid = st.from_regex(r"^dtn:[a-zA-Z0-9]+$", fullmatch=True)
 st_eid = st.one_of(st_ipn_eid, st_dtn_eid)
 
+st_uint32 = st.integers(min_value=0, max_value=2**32 - 1)
+st_imc_eid = st.one_of(
+    # Default allocator: imc:<group>.<service>
+    st.builds(lambda g, s: f"imc:{g}.{s}", st_uint32, st_uint32),
+    # Non-default allocator: imc:<allocator>.<group>.<service>
+    st.builds(
+        lambda a, g, s: f"imc:{a}.{g}.{s}",
+        st.integers(min_value=1, max_value=2**32 - 1),
+        st_uint32,
+        st_uint32,
+    ),
+)
+
 st_data = st.binary(max_size=1024)
 
 st_creb_params = st.tuples(

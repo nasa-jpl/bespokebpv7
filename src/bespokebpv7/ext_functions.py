@@ -40,10 +40,10 @@ software to foreign countries or providing access to foreign persons.
 
 import sys
 
-from attrs import Converter, define, field
+from attrs import Converter, define, field, frozen
 from attrs.converters import optional
 
-from bespokebpv7.block_enum import BlockType, CREBFlags
+from bespokebpv7.block_enum import BlockType, CREBFlags, SchemeCode
 from bespokebpv7.blocks import CanonicalBlock
 from bespokebpv7.bpsec import BlockConfidentialityBlock, BlockIntegrityBlock
 from bespokebpv7.utils import (
@@ -430,6 +430,93 @@ class BPQExt(CanonicalBlock):
         return super()._unstructure()
 
 
+@frozen
+class IMCGroupView:
+    """An IMC group endpoint with the member nodes this bundle still has to reach.
+
+    ION delivers an IMC bundle to each member node at the group endpoint itself,
+    ``imc:<group>.<service>``, with the same service number on every member. The
+    members are node numbers, not endpoint IDs.
+    """
+
+    group_eid: str
+    members: tuple[int, ...]
+
+    def __str__(self) -> str:
+        """Group EID followed by its pending member nodes.
+
+        Returns:
+            For example ``imc:5.1 -> nodes 2, 3``
+
+        """
+        members = ", ".join(str(node) for node in self.members) or "none"
+        return f"{self.group_eid} -> nodes {members}"
+
+
+@define
+class IMCExt(CanonicalBlock):
+    """Class definition for the ION IPN Multicast (IMC) extension block.
+
+    ``destinations`` holds the node numbers of the group members that this copy
+    of the bundle still has to reach. They are delivered through the group
+    endpoint in the primary block's destination; use :meth:`group_view` to see
+    the two together.
+
+    ION's ``imc_serialize()`` writes no block at all when the list is empty.
+    This class still serializes an empty list, as an empty CBOR array (``0x80``),
+    so that V&V tests can send that case on purpose. Leave the block out of the
+    bundle to match ION.
+    """
+
+    destinations: list[int] = field(factory=list)
+
+    def __attrs_post_init__(self) -> None:
+        """Set block type"""
+        self.block_type = BlockType.IMC
+
+    def group_view(self, dest_eid: str | list[Any]) -> IMCGroupView:
+        """Pair the bundle's IMC group destination with this block's member nodes.
+
+        Args:
+            dest_eid: The bundle's primary-block destination, such as
+                ``bundle.primary_block.route.dest_eid``.
+
+        Returns:
+            The group endpoint and its pending member node numbers
+
+        Raises:
+            ValueError: if ``dest_eid`` is not an ``imc`` endpoint ID
+
+        """
+        eid = parse_eid_string(dest_eid)
+        if eid[0] != SchemeCode.IMC:
+            errmsg = f"IMC group destination must be an imc EID, got {format_eid(eid)}"
+            raise ValueError(errmsg)
+        return IMCGroupView(format_eid(eid), tuple(self.destinations))
+
+    @classmethod
+    def _structure(cls, data: list[Any]) -> Self:
+        """Structure IMCExt from CBOR list.
+
+        Returns:
+            Populated IMC Extension
+
+        """
+        block = super()._structure(data)
+        block.destinations = bundle_converter.loads(block.data, list)
+        return block
+
+    def _unstructure(self) -> list[Any]:
+        """Unstructure IMCExt to CBOR list.
+
+        Returns:
+            Converted class to list
+
+        """
+        self.data = bundle_converter.dumps(list(self.destinations))
+        return super()._unstructure()
+
+
 BLOCKFUNCTIONS = {
     BlockType.BIB: BlockIntegrityBlock,
     BlockType.BCB: BlockConfidentialityBlock,
@@ -440,5 +527,6 @@ BLOCKFUNCTIONS = {
     BlockType.CTEB: CustodyTransferExt,
     BlockType.CREB: CompressedReportingExt,
     BlockType.QOS: BPQExt,
+    BlockType.IMC: IMCExt,
     BlockType.UNKNOWN_BLOCK: CanonicalBlock,
 }

@@ -88,6 +88,41 @@ forwarding behavior within the ION network.
 In `bespokebpv7`, this is implemented in the `BPQExt` class within
 `ext_functions.py`.
 
+### IPN Multicast Extension (IMC)
+
+The **IPN Multicast (IMC) Extension Block** carries the node numbers of the
+group members that a bundle sent to an ION multicast group still has to
+reach. The bundle's primary-block destination is the group endpoint,
+`imc:<group>.<service>` (scheme code `3`). ION delivers the bundle to each
+member node at that group endpoint, with the same service number on every
+member, so the values in the block are node numbers, not endpoint IDs.
+
+ION splits the list in the relay path. Its IMC forwarder (`imcfw.c`) groups
+the pending members by next hop and sends each next hop a clone of the bundle
+whose list carries only the members reached through that hop. When a bundle is
+dequeued for transmission, `imc_processOnDequeue()` re-serializes the bundle's
+current destination list into the block.
+
+* **Block Type:** `195`
+* **Structure:** The IMC extension block data is a CBOR array of unsigned
+  integers, one per member node number.
+
+In `bespokebpv7`, this is implemented in the `IMCExt` class within
+`ext_functions.py`. Its `destinations` attribute is a `list[int]` of member
+node numbers. `IMCExt.group_view()` pairs that list with the bundle's group
+destination:
+
+```python
+imc = bundle.get_block_by_type(BlockType.IMC)
+print(imc.group_view(bundle.primary_block.route.dest_eid))
+# imc:5.1 -> nodes 2, 3
+```
+
+ION never writes an IMC block with an empty list: `imc_serialize()` returns
+before creating the block. `IMCExt(destinations=[])` still serializes, as an
+empty CBOR array (`0x80`), so that V&V tests can send that case on purpose.
+Leave the block out of the bundle to match ION.
+
 ## Compressed Admin Records
 
 ION utilizes compressed versions of administrative records to reduce bandwidth
